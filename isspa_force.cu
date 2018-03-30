@@ -172,7 +172,7 @@ int main(void)
 		xyz_h[i*nDim] = (float) i;
 		xyz_h[i*nDim+1] = xyz_h[i*nDim+2] = 0.0f;
 		f_h[i*nDim] = f_h[i*nDim+1] = f_h[i*nDim+2] = 0.0f;
-		ityp_h[i] = 1;
+		ityp_h[i] = 0;
 	}
 	gr2_h[0] = 1.0;
 	gr2_h[1] = 4.0;
