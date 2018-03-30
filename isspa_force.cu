@@ -6,7 +6,7 @@
 #include <curand_kernel.h>
 
 #define nDim 3
-
+#define MC 1000
 //Fast integer multiplication
 #define MUL(a, b) __umul24(a, b)
 
@@ -37,7 +37,7 @@ __global__ void ispa_force(float *xyz, float *f, float *w, float *x0, float *g0,
 		atom = index%nMC;
 		it = ityp[atom];
 		// initialize random number generator
-		curand_init(0,blockIdx.x,0,&state);
+		curand_init(0,blockIdx.x,index,&state);
 		// select one point from 1D parabolic distribution
 		rnow = 1.0f - 2.0f * curand_uniform(&state);
 		prob = rnow*rnow;
@@ -94,9 +94,9 @@ __global__ void ispa_force(float *xyz, float *f, float *w, float *x0, float *g0,
 			r2 = rinv * rinv;
 			r6 = r2 * r2 * r2;
 			fs = gnow * r6 * (lj_B[it] - lj_A[it] * r6);
-			f[atom*nDim] += fs*mc_pos[0];
-			f[atom*nDim+1] += fs*mc_pos[1];
-			f[atom*nDim+2] += fs*mc_pos[2];
+			atomicAdd(&f[atom*nDim], fs*mc_pos[0]);
+			atomicAdd(&f[atom*nDim+1], fs*mc_pos[1]);
+			atomicAdd(&f[atom*nDim+2], fs*mc_pos[2]);
 		}
 
 	}
@@ -131,7 +131,7 @@ int main(void)
 	float *lj_A_d;   // Lennard-Jones A parameter - device data
 	float *lj_B_h;   // Lennard-Jones B parameter - host data
 	float *lj_B_d;   // Lennard-Jones B parameter - device data
-	int nMC = 100;    // number of MC points
+	int nMC = MC;    // number of MC points
 	int nAtomBytes, nTypeBytes, i;
 	cudaEvent_t start, stop;
 	float milliseconds;
