@@ -108,6 +108,9 @@ int main(void)
 	FILE *xyzFile;
 	int nAtoms = 10;
 	int nAtomTypes = 1;
+	int blockSize;      // The launch configurator returned block size 
+    	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
+    	int gridSize;       // The actual grid size needed, based on input size 
 	float *xyz_h;    // coordinate array - host data
 	float *xyz_d;    // coordinate array - device data
 	float *f_h;      // force array - host data
@@ -128,7 +131,7 @@ int main(void)
 	float *lj_A_d;   // Lennard-Jones A parameter - device data
 	float *lj_B_h;   // Lennard-Jones B parameter - host data
 	float *lj_B_d;   // Lennard-Jones B parameter - device data
-	int nMC = 10;    // number of MC points
+	int nMC = 100;    // number of MC points
 	int nAtomBytes, nTypeBytes, i;
 	cudaEvent_t start, stop;
 	float milliseconds;
@@ -169,7 +172,7 @@ int main(void)
 
 	// populate host arrays
 	for (i=0;i<nAtoms;i++) {
-		xyz_h[i*nDim] = (float) i;
+		xyz_h[i*nDim] = (float) i*4.0;
 		xyz_h[i*nDim+1] = xyz_h[i*nDim+2] = 0.0f;
 		f_h[i*nDim] = f_h[i*nDim+1] = f_h[i*nDim+2] = 0.0f;
 		ityp_h[i] = 0;
@@ -194,9 +197,15 @@ int main(void)
 	cudaMemcpy(lj_A_d, lj_A_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(lj_B_d, lj_B_h, nTypeBytes, cudaMemcpyHostToDevice);	
 
+	// determine gridSize and blockSize
+	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, ispa_force, 0, nAtoms*nMC); 
 
+    	// Round up according to array size 
+    	gridSize = (nAtoms*nMC + blockSize - 1) / blockSize; 
+
+	printf("gridSize = %d, blockSize = %d\n", gridSize, blockSize);
 	// run parabola random cuda kernal
-	ispa_force<<<nAtoms*nMC,1>>>(xyz_d, f_d, w_d, x0_d, g0_d, gr2_d, alpha_d, lj_A_d, lj_B_d, ityp_d, nAtoms, nMC);
+	ispa_force<<<gridSize, blockSize>>>(xyz_d, f_d, w_d, x0_d, g0_d, gr2_d, alpha_d, lj_A_d, lj_B_d, ityp_d, nAtoms, nMC);
 
 	// pass device variable, f_d, to host variable f_h
 	cudaMemcpy(f_h, f_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
