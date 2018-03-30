@@ -6,7 +6,7 @@
 #include <curand_kernel.h>
 
 #define nDim 3
-#define MC 1000 
+#define MC 10000
 //Fast integer multiplication
 #define MUL(a, b) __umul24(a, b)
 
@@ -106,7 +106,7 @@ __global__ void ispa_force(float *mc_xyz, float *xyz, float *f, float *w, float 
 }
 
 
-int main(void) 
+int main(void)  
 {
 	FILE *xyzFile;
 	FILE *mcXyzFile;
@@ -232,7 +232,7 @@ int main(void)
 	fprintf(xyzFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
-		fprintf(xyzFile,"C %10.6f %10.6f %10.6f\n", f_h[i*nDim],f_h[i*nDim+1],f_h[i*nDim+2]);
+		fprintf(xyzFile,"C %10.6f %10.6f %10.6f\n", f_h[i*nDim]/((float) nMC),f_h[i*nDim+1]/((float) nMC),f_h[i*nDim+2]/((float) nMC));
 	}
 	fclose(xyzFile);
 	// print xyz file
