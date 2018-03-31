@@ -6,7 +6,7 @@
 #include <curand_kernel.h>
 
 #define nDim 3
-#define MC 10000
+#define MC 10
 //Fast integer multiplication
 #define MUL(a, b) __umul24(a, b)
 
@@ -14,12 +14,13 @@
 //	curand_init(seed,blockIdx.x,0,&states);
 //}
 
-__global__ void ispa_force(float *mc_xyz, float *xyz, float *f, float *w, float *x0, float *g0, float *gr2, float *alpha, float *lj_A, float *lj_B, int *ityp, int nAtoms, int nMC) {
+__global__ void ispa_force(float *xyz, float *f, float *w, float *x0, float *g0, float *gr2, float *alpha, float *lj_A, float *lj_B, int *ityp, int nAtoms, int nMC) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	float rnow;
 	float prob;
 	float attempt;
 	float mc_pos[3];
+	float mc_pos_atom[3];
 	float x1, x2, r2;
 	int atom;
 	int atom2;
@@ -65,9 +66,9 @@ __global__ void ispa_force(float *mc_xyz, float *xyz, float *f, float *w, float 
 		mc_pos[1] = rnow*x1*r2;
 		mc_pos[2] = rnow*x2*r2;
 
-		mc_xyz[index*nDim] = mc_pos[0] + xyz[atom*nDim];
-		mc_xyz[index*nDim+1] = mc_pos[1] + xyz[atom*nDim+1];
-		mc_xyz[index*nDim+2] = mc_pos[2] + xyz[atom*nDim+2];
+		mc_pos_atom[0] = mc_pos[0] + xyz[atom*nDim];
+		mc_pos_atom[1] = mc_pos[1] + xyz[atom*nDim+1];
+		mc_pos_atom[2] = mc_pos[2] + xyz[atom*nDim+2];
 		// compute density at MC point due to all other atoms
 		gnow = 1.0f;
 		ev_flag = 0;
@@ -79,7 +80,7 @@ __global__ void ispa_force(float *mc_xyz, float *xyz, float *f, float *w, float 
 				dist2 = 0.0f;
 				for (k=0;k<nDim;k++) 
 				{
-					temp = mc_pos[k] + xyz[atom*nDim+k] - xyz[atom2*nDim+k];
+					temp = mc_pos_atom[k] - xyz[atom2*nDim+k];
 					dist2 += temp*temp;
 				}
 				if (dist2 < gr2[jt*2]) {
@@ -115,8 +116,8 @@ int main(void)
 	int blockSize;      // The launch configurator returned block size 
     	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
     	int gridSize;       // The actual grid size needed, based on input size 
-	float *mc_xyz_h;    // MC coordinate array - host data
-	float *mc_xyz_d;    // MC coordinate array - device data
+//	float *mc_xyz_h;    // MC coordinate array - host data
+//	float *mc_xyz_d;    // MC coordinate array - device data
 	float *xyz_h;    // coordinate array - host data
 	float *xyz_d;    // coordinate array - device data
 	float *f_h;      // force array - host data
@@ -143,16 +144,9 @@ int main(void)
 	float milliseconds;
 	unsigned int long seed = 12345;
 
-	// start device timer
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	cudaEventRecord(start);
 	// size of xyz arrays
 	nAtomBytes = nAtoms*sizeof(float);
 	nTypeBytes = nAtomTypes*sizeof(float);
- 	// allocate MC point coordinate arrays
-	mc_xyz_h = (float *)malloc(nAtomBytes*nDim*nMC);
-	cudaMalloc((void **) &mc_xyz_d, nAtomBytes*nDim*nMC);
  	// allocate atom coordinate arrays
 	xyz_h = (float *)malloc(nAtomBytes*nDim);
 	cudaMalloc((void **) &xyz_d, nAtomBytes*nDim);
@@ -194,6 +188,10 @@ int main(void)
 	alpha_h[0] = 2.674; 
 	lj_A_h[0] = 6.669e7;
 	lj_B_h[0] = 1.103e4;
+	// start device timer
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start);
 	// copy data to device
 	cudaMemcpy(f_d, f_h, nAtomBytes*nDim, cudaMemcpyHostToDevice);	
 	cudaMemcpy(xyz_d, xyz_h, nAtomBytes*nDim, cudaMemcpyHostToDevice);	
@@ -214,17 +212,17 @@ int main(void)
 
 	printf("gridSize = %d, blockSize = %d\n", gridSize, blockSize);
 	// run parabola random cuda kernal
-	ispa_force<<<gridSize, blockSize>>>(mc_xyz_d, xyz_d, f_d, w_d, x0_d, g0_d, gr2_d, alpha_d, lj_A_d, lj_B_d, ityp_d, nAtoms, nMC);
+	ispa_force<<<gridSize, blockSize>>>(xyz_d, f_d, w_d, x0_d, g0_d, gr2_d, alpha_d, lj_A_d, lj_B_d, ityp_d, nAtoms, nMC);
 
 	// pass device variable, f_d, to host variable f_h
 	cudaMemcpy(f_h, f_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
-	cudaMemcpy(mc_xyz_h, mc_xyz_d, nAtomBytes*nDim*nMC, cudaMemcpyDeviceToHost);	
+//	cudaMemcpy(mc_xyz_h, mc_xyz_d, nAtomBytes*nDim*nMC, cudaMemcpyDeviceToHost);	
 
 	// get GPU time
 	cudaEventRecord(stop);
     	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
-//printf("Time = %12.8f\n", milliseconds);
+	printf("Time = %12.8f ms\n", milliseconds);
 
 	// print xyz file
 	xyzFile = fopen("forces.xyz","w");
@@ -235,7 +233,7 @@ int main(void)
 		fprintf(xyzFile,"C %10.6f %10.6f %10.6f\n", f_h[i*nDim]/((float) nMC),f_h[i*nDim+1]/((float) nMC),f_h[i*nDim+2]/((float) nMC));
 	}
 	fclose(xyzFile);
-	// print xyz file
+/*	// print xyz file
 	mcXyzFile = fopen("mc_points.xyz","w");
 	fprintf(mcXyzFile,"%d\n", nAtoms*nMC);
 	fprintf(mcXyzFile,"%d\n", nAtoms*nMC);
@@ -244,8 +242,8 @@ int main(void)
 		fprintf(mcXyzFile,"C %10.6f %10.6f %10.6f\n", mc_xyz_h[i*nDim],mc_xyz_h[i*nDim+1],mc_xyz_h[i*nDim+2]);
 	}
 	fclose(mcXyzFile);
+*/
 	// free host variables
-	free(mc_xyz_h);
 	free(xyz_h);
 	free(f_h); 
 	free(ityp_h); 
@@ -257,7 +255,6 @@ int main(void)
 	free(lj_A_h); 
 	free(lj_B_h); 
 	// free device variables
-	cudaFree(mc_xyz_d); 
 	cudaFree(xyz_d); 
 	cudaFree(f_d); 
 	cudaFree(ityp_d); 
