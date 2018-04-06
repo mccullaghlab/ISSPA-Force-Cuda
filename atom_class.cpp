@@ -110,6 +110,10 @@ void atom::initialize_gpu()
 	cudaMalloc((void **) &alpha_d, nTypeBytes);
 	cudaMalloc((void **) &lj_A_d, nTypeBytes);
 	cudaMalloc((void **) &lj_B_d, nTypeBytes);
+
+	cudaMalloc((void **) &num_NN_d, nAtoms*sizeof(int));
+	// the following will change depending on max density
+	cudaMalloc((void **) &NN_d, nAtoms*nAtoms*sizeof(int));
 }	
 
 
@@ -250,4 +254,6 @@ void atom::free_arrays_gpu() {
 	cudaFree(lj_A_d); 
 	cudaFree(lj_B_d); 
 	cudaFree(charges_d); 
+	cudaFree(num_NN_d);
+	cudaFree(NN_d);
 }

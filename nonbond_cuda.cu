@@ -40,9 +40,9 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 				for (k=0;k<nDim;k++) {
 					r[k] = xyz[atom1*nDim+k] - xyz[atom2*nDim+k];
 					if (r[k] > hbox) {
-						r[k] -= (int)(temp/hbox) * lbox;
+						r[k] -= (int)(temp/lbox+0.5) * lbox;
 					} else if (r[k] < -hbox) {
-						r[k] += (int)(temp/hbox) * lbox;
+						r[k] += (int)(-temp/lbox+0.5) * lbox;
 					}
 					dist2 += r[k]*r[k];
 				}

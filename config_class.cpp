@@ -17,5 +17,7 @@ void config::initialize()
 	deltaWrite = 100;
 	lbox = 200.0;
 	deltaNN = 10;
+	rcut = 12.0;
+	rNN = 15.0;
 }
 

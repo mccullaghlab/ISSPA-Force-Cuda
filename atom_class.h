@@ -13,6 +13,7 @@ class atom
 		int i,k;
 		FILE *forceXyzFile;
 		FILE *xyzFile;
+		float sigma;
 		float rand_gauss();
 	public:
 		int nAtoms;
@@ -45,7 +46,8 @@ class atom
 		float *lj_A_d;   // Lennard-Jones A parameter - device data
 		float *lj_B_h;   // Lennard-Jones B parameter - host data
 		float *lj_B_d;   // Lennard-Jones B parameter - device data
-		float sigma;
+		int *num_NN_d;
+		int *NN_d;
 		int   *key;
 		
 		// initialize all arrays on CPU memory
