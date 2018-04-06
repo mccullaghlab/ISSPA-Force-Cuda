@@ -45,9 +45,9 @@ __global__ void leapfrog_kernel(float *xyz, float *v, float *f, float *mass, flo
 				v[index*nDim+k] += f[index*nDim+k]/mass[index]*dt/2.0;
 				xyz[index*nDim+k] += v[index*nDim+k]*dt;
 				if (xyz[index*nDim+k] > lbox) {
-					xyz[index*nDim+k] -= lbox;
+					xyz[index*nDim+k] -= (int) (xyz[index*nDim+k]/lbox) * lbox;
 				} else if (xyz[index*nDim+k] < 0.0f) {
-					xyz[index*nDim+k] += lbox;
+					xyz[index*nDim+k] += (int) (xyz[index*nDim+k]/lbox) * lbox;
 				}
 			}
 		} else {
@@ -55,9 +55,9 @@ __global__ void leapfrog_kernel(float *xyz, float *v, float *f, float *mass, flo
 				v[index*nDim+k] += f[index*nDim+k]/mass[index]*dt;
 				xyz[index*nDim+k] += v[index*nDim+k]*dt;
 				if (xyz[index*nDim+k] > lbox) {
-					xyz[index*nDim+k] -= lbox;
+					xyz[index*nDim+k] -= (int) (xyz[index*nDim+k]/lbox) * lbox;
 				} else if (xyz[index*nDim+k] < 0.0f) {
-					xyz[index*nDim+k] += lbox;
+					xyz[index*nDim+k] += (int) (xyz[index*nDim+k]/lbox) * lbox;
 				}
 			}
 		}

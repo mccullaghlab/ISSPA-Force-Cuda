@@ -45,6 +45,8 @@ class atom
 		float *lj_A_d;   // Lennard-Jones A parameter - device data
 		float *lj_B_h;   // Lennard-Jones B parameter - host data
 		float *lj_B_d;   // Lennard-Jones B parameter - device data
+		float sigma;
+		int   *key;
 		
 		// initialize all arrays on CPU memory
 		void initialize(float T, float lbox);
@@ -56,10 +58,14 @@ class atom
 		void copy_pos_v_to_gpu();
 		// copy position, force, and velocity arrays from GPU
 		void get_pos_f_v_from_gpu();
+		// copy position, and velocity arrays from GPU
+		void get_pos_v_from_gpu();
 		// print positions
 		void print_xyz();
 		// print forces
 		void print_forces();
+		// reorder
+		void reorder();
 		// free all arrays on CPU memory
 		void free_arrays();
 		// free all arrays on GPU memory

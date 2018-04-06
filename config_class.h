@@ -17,6 +17,7 @@ class config
 		float pnu;  // Anderson thermostat frequency	
 		int nSteps;
 		int deltaWrite;
+		int deltaNN;
 		float lbox;
 		// initialize all variables
 		void initialize();

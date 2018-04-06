@@ -48,6 +48,15 @@ int main(void)
 			atoms.print_xyz();
 
 		}
+		if (step%configs.deltaNN==0) {
+			// get positions, velocities, and forces from gpu
+			atoms.get_pos_v_from_gpu();
+			// reorder based on hilbert curve position
+			atoms.reorder();
+			// send positions and velocities back
+			atoms.copy_pos_v_to_gpu();
+		}
+
 		// run isspa force cuda kernal
 		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, nMC, configs.lbox);
 

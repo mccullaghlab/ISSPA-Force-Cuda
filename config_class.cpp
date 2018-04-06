@@ -16,5 +16,6 @@ void config::initialize()
 	nSteps = 10000;
 	deltaWrite = 100;
 	lbox = 200.0;
+	deltaNN = 10;
 }
 

@@ -1,8 +1,10 @@
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include "Hilbert3D.h"
 
 using namespace std;
 #include "atom_class.h"
@@ -26,6 +28,8 @@ void atom::initialize(float T, float lbox)
 	mass_h = (float *)malloc(nAtoms*sizeof(float));
 	// alocate charge array
 	charges_h = (float *)malloc(nAtoms*sizeof(float));
+	// allocate key array - atom number
+	key = (int *)malloc(nAtoms*sizeof(int));
 	// allocate atom type arrays
 	ityp_h = (int *)malloc(nAtoms*sizeof(int));
 	// allocate atom based parameter arrays
@@ -41,6 +45,7 @@ void atom::initialize(float T, float lbox)
 	for (i=0;i<nAtoms;i++) {
 //		xyz_h[i*nDim] = (float) i*7.0;
 //		xyz_h[i*nDim+1] = xyz_h[i*nDim+2] = 0.0f;
+		key[i] = i;
 		f_h[i*nDim] = f_h[i*nDim+1] = f_h[i*nDim+2] = 0.0f;
 		ityp_h[i] = 0;
 		charges_h[i] = 0.0;
@@ -58,6 +63,7 @@ void atom::initialize(float T, float lbox)
 	alpha_h[0] = 2.674; 
 	lj_A_h[0] = 6.669e7;
 	lj_B_h[0] = 1.103e4;
+	sigma = pow(lj_A_h[0]/lj_B_h[0],(1.0/6.0));
 
 	// open files for printing later
 	forceXyzFile = fopen("forces.xyz","w");
@@ -134,31 +140,88 @@ void atom::get_pos_f_v_from_gpu() {
 	// pass device variable, xyz_d, to host variable xyz_h
 	cudaMemcpy(xyz_h, xyz_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
 }
+// copy position, and velocity arrays from GPU
+void atom::get_pos_v_from_gpu() {
+	// pass device variable, f_d, to host variable f_h
+	cudaMemcpy(v_h, v_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
+	// pass device variable, xyz_d, to host variable xyz_h
+	cudaMemcpy(xyz_h, xyz_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
+}
 
 void atom::print_forces() {
-
+	int ip;
 	fprintf(forceXyzFile,"%d\n", nAtoms);
 	fprintf(forceXyzFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
-		fprintf(forceXyzFile,"C %10.6f %10.6f %10.6f\n", f_h[i*nDim],f_h[i*nDim+1],f_h[i*nDim+2]);
+		ip = key[i];
+		fprintf(forceXyzFile,"C %10.6f %10.6f %10.6f\n", f_h[ip*nDim],f_h[ip*nDim+1],f_h[ip*nDim+2]);
 	}
 	fflush(forceXyzFile);
 }
 
 void atom::print_xyz() {
-
+	int ip;
 	fprintf(xyzFile,"%d\n", nAtoms);
 	fprintf(xyzFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
-		fprintf(xyzFile,"C %10.6f %10.6f %10.6f\n", xyz_h[i*nDim], xyz_h[i*nDim+1], xyz_h[i*nDim+2]);
+		ip = key[i];
+		fprintf(xyzFile,"C %10.6f %10.6f %10.6f\n", xyz_h[ip*nDim], xyz_h[ip*nDim+1], xyz_h[ip*nDim+2]);
 	}
 	fflush(xyzFile);
+}
+
+void atom::reorder() {
+	
+	int i, j, k;
+	int intPos[nDim];
+	int hilbertKey[nAtoms];
+	int tempInt;
+	float tempFloat;
+	Hilbert3D index;
+
+	for (i=0;i<nAtoms;i++) {
+
+		for (j=0;j<3;j++) {
+			intPos[j]  = (int) (xyz_h[i*nDim+j]/sigma);
+		}
+
+		hilbertKey[i] = index.CoordsToIndex(intPos[0],intPos[1],intPos[2]);
+	}
+
+	for (i=0;i<nAtoms-1;i++) {
+		for (j=i+1;j<nAtoms;j++)  {
+			if (hilbertKey[j] < hilbertKey[i]) {
+				// swap hilbert keys
+				tempInt = hilbertKey[j];
+				hilbertKey[j] = hilbertKey[i];
+				hilbertKey[i] = tempInt;	
+				// swap atom keys
+				tempInt = key[j];
+				key[j] = key[i];
+				key[i] = tempInt;
+				for (k=0;k<nDim;k++) {
+					// swap atom positions
+					tempFloat = xyz_h[j*nDim+k];
+					xyz_h[j*nDim+k] = xyz_h[i*nDim+k];
+					xyz_h[i*nDim+k] = tempFloat;
+					// swap atom velocities
+					tempFloat = v_h[j*nDim+k];
+					v_h[j*nDim+k] = v_h[i*nDim+k];
+					v_h[i*nDim+k] = tempFloat;
+				}
+				
+			}
+
+		}
+	}
+
 }
 	
 void atom::free_arrays() {
 	// free host variables
+	free(key);
 	free(xyz_h);
 	free(f_h); 
 	free(ityp_h); 
