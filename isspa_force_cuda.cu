@@ -86,9 +86,11 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 				{
 					temp = mc_pos_atom[k] - xyz[atom2*nDim+k];
 					if (temp > hbox) {
-						temp -= (int)(temp/lbox+0.5) * lbox;
+//						temp -= (int)(temp/lbox+0.5) * lbox;
+						temp -= lbox;
 					} else if (temp < -hbox) {
-						temp += (int)(-temp/lbox+0.5) * lbox;
+//						temp += (int)(-temp/lbox+0.5) * lbox;
+						temp += lbox;
 					}
 					dist2 += temp*temp;
 				}

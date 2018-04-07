@@ -31,6 +31,7 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 		hbox = lbox/2.0;
 		// determine two atoms to work on based on recursive definition
 		atom1 = index;
+		f[atom1*nDim] = f[atom1*nDim+1] = f[atom2*nDim+2] = 0.0;
 		for (atom2=0;atom2<nAtoms;atom2++) {
 			if (atom2 != atom1) {
 				// get interaction type
@@ -40,9 +41,11 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 				for (k=0;k<nDim;k++) {
 					r[k] = xyz[atom1*nDim+k] - xyz[atom2*nDim+k];
 					if (r[k] > hbox) {
-						r[k] -= (int)(temp/lbox+0.5) * lbox;
+//						r[k] -= (int)(temp/lbox+0.5) * lbox;
+						r[k] -= lbox;
 					} else if (r[k] < -hbox) {
-						r[k] += (int)(-temp/lbox+0.5) * lbox;
+//						r[k] += (int)(-temp/lbox+0.5) * lbox;
+						r[k] += lbox;
 					}
 					dist2 += r[k]*r[k];
 				}

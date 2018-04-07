@@ -58,7 +58,7 @@ int main(void)
 		}
 
 		// run isspa force cuda kernal
-		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, nMC, configs.lbox);
+//		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, nMC, configs.lbox);
 
 		// run nonbond cuda kernel
 		nonbond_cuda(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.lbox);

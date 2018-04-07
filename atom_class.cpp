@@ -12,6 +12,8 @@ using namespace std;
 
 void atom::initialize(float T, float lbox)
 {
+	float dist2, temp;
+	int igo;
 	// atoms and types
 	nAtoms = 1000;
 	nAtomTypes = 1;
@@ -52,7 +54,30 @@ void atom::initialize(float T, float lbox)
 		mass_h[i] = 12.0;
 		for (k=0;k<nDim;k++) {
 			v_h[i*nDim+k] = rand_gauss()*sqrt(T/mass_h[i]);	
-			xyz_h[i*nDim+k] = lbox*(float) rand() / (float) RAND_MAX;
+		}
+		igo = 1;
+		while (igo == 1) {
+			igo = 0;
+			for (k=0;k<nDim;k++) {
+				xyz_h[i*nDim+k] = lbox*(float) rand() / (float) RAND_MAX;
+			}
+			for (j=0;j<i;j++) {
+				dist2 = 0.0;
+				for (k=0;k<nDim;k++) {
+					temp = xyz_h[i*nDim+k] - xyz_h[j*nDim+k];
+					if (temp > lbox/2.0) {
+						temp -= lbox;
+					} else if (temp < -lbox<2.0) {
+						temp += lbox;
+					}
+					dist2 += temp*temp;
+				}
+				if (dist2 < 9.0) {
+					igo = 1;
+					break;
+				}
+
+			}
 		}
 	}
 	gr2_h[0] = 11.002;

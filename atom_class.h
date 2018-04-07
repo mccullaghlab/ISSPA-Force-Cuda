@@ -10,7 +10,7 @@
 class atom
 {
 	private:
-		int i,k;
+		int i, j, k;
 		FILE *forceXyzFile;
 		FILE *xyzFile;
 		float sigma;
