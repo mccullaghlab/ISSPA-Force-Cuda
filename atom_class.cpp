@@ -14,6 +14,7 @@ void atom::initialize(float T, float lbox)
 {
 	float dist2, temp;
 	int igo;
+	float sigma2;
 	// atoms and types
 	nAtoms = 1000;
 	nAtomTypes = 1;
@@ -44,6 +45,17 @@ void atom::initialize(float T, float lbox)
 	lj_B_h = (float *)malloc(nTypeBytes);
 	
 	// populate host arrays
+	gr2_h[0] = 11.002;
+	gr2_h[1] = 21.478;
+	w_h[0] = 0.801;
+	g0_h[0] = 1.714; // height of parabola
+	x0_h[0] = 4.118;
+	alpha_h[0] = 2.674; 
+	lj_A_h[0] = 6.669e7;
+	lj_B_h[0] = 1.103e4;
+	sigma = pow(lj_A_h[0]/lj_B_h[0],(1.0/6.0));
+	sigma2 = sigma*sigma;
+
 	for (i=0;i<nAtoms;i++) {
 //		xyz_h[i*nDim] = (float) i*7.0;
 //		xyz_h[i*nDim+1] = xyz_h[i*nDim+2] = 0.0f;
@@ -67,12 +79,12 @@ void atom::initialize(float T, float lbox)
 					temp = xyz_h[i*nDim+k] - xyz_h[j*nDim+k];
 					if (temp > lbox/2.0) {
 						temp -= lbox;
-					} else if (temp < -lbox<2.0) {
+					} else if (temp < -lbox/2.0) {
 						temp += lbox;
 					}
 					dist2 += temp*temp;
 				}
-				if (dist2 < 9.0) {
+				if (dist2 < sigma2) {
 					igo = 1;
 					break;
 				}
@@ -80,15 +92,6 @@ void atom::initialize(float T, float lbox)
 			}
 		}
 	}
-	gr2_h[0] = 11.002;
-	gr2_h[1] = 21.478;
-	w_h[0] = 0.801;
-	g0_h[0] = 1.714; // height of parabola
-	x0_h[0] = 4.118;
-	alpha_h[0] = 2.674; 
-	lj_A_h[0] = 6.669e7;
-	lj_B_h[0] = 1.103e4;
-	sigma = pow(lj_A_h[0]/lj_B_h[0],(1.0/6.0));
 
 	// open files for printing later
 	forceXyzFile = fopen("forces.xyz","w");
