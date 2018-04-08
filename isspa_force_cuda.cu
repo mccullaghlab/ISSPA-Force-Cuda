@@ -41,7 +41,7 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 	{
 		hbox = lbox/2.0;
 		// get atom number of interest
-		atom = index%nAtoms;
+		atom = int(nAtoms/(float) nMC);
 		start = atom*numNNmax;
 		it = ityp[atom];
 		// initialize random number generator
@@ -76,6 +76,7 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 		mc_pos_atom[0] = mc_pos[0] + xyz[atom*nDim];
 		mc_pos_atom[1] = mc_pos[1] + xyz[atom*nDim+1];
 		mc_pos_atom[2] = mc_pos[2] + xyz[atom*nDim+2];
+		__syncthreads();
 		// compute density at MC point due to all other atoms
 		gnow = 1.0f;
 		ev_flag = 0;

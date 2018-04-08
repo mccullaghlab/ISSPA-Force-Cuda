@@ -17,6 +17,7 @@ __global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2,
 	float temp, dist2;	
 	int i, k;
 	int count;
+	int start;
 	float hbox;
 
 	if (index < nAtoms)
@@ -24,6 +25,7 @@ __global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2,
 		hbox = lbox/2.0;
 		// determine two atoms to work on based on recursive definition
 		atom1 = index;
+		start = atom1*numNNmax;
 		count = 0;
 		for (atom2=0;atom2<nAtoms;atom2++) {
 			if (atom2 != atom1) {
@@ -39,7 +41,7 @@ __global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2,
 					dist2 += temp*temp;
 				}
 				if (dist2 < rNN2) {
-					NN[atom1*numNNmax+count] = atom2;
+					NN[start+count] = atom2;
 					count ++;
 				}
 			}
