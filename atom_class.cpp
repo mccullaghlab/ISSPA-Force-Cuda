@@ -96,6 +96,7 @@ void atom::initialize(float T, float lbox)
 	// open files for printing later
 	forceXyzFile = fopen("forces.xyz","w");
 	xyzFile = fopen("positions.xyz","w");
+	vFile = fopen("velocities.xyz","w");
 
 }
 
@@ -171,6 +172,8 @@ void atom::get_pos_f_v_from_gpu() {
 	cudaMemcpy(f_h, f_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
 	// pass device variable, xyz_d, to host variable xyz_h
 	cudaMemcpy(xyz_h, xyz_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
+	// pass device variable, v_d, to host variable v_h
+	cudaMemcpy(v_h, v_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
 }
 // copy position, and velocity arrays from GPU
 void atom::get_pos_v_from_gpu() {
@@ -202,6 +205,17 @@ void atom::print_xyz() {
 		fprintf(xyzFile,"C %10.6f %10.6f %10.6f\n", xyz_h[ip*nDim], xyz_h[ip*nDim+1], xyz_h[ip*nDim+2]);
 	}
 	fflush(xyzFile);
+}
+
+void atom::print_v() {
+	int ip;
+	fprintf(vFile,"%d\n", nAtoms);
+	fprintf(vFile,"%d\n", nAtoms);
+	for (i=0;i<nAtoms; i++) 
+	{
+		ip = key[i];
+		fprintf(vFile,"C %10.6f %10.6f %10.6f\n", v_h[ip*nDim], v_h[ip*nDim+1], v_h[ip*nDim+2]);
+	}
 }
 
 void atom::reorder() {
@@ -267,6 +281,7 @@ void atom::free_arrays() {
 	free(charges_h); 
 	fclose(forceXyzFile);
 	fclose(xyzFile);
+	fclose(vFile);
 }
 
 void atom::free_arrays_gpu() {

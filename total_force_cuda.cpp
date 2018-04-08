@@ -46,6 +46,8 @@ int main(void)
 			atoms.print_forces();
 			// print xyz file
 			atoms.print_xyz();
+			// print v file
+			atoms.print_v();
 
 		}
 /*
@@ -58,6 +60,8 @@ int main(void)
 			atoms.copy_pos_v_to_gpu();
 		}
 */
+		// zero force array on gpu
+		cudaMemset(atoms.f_d, 0.0f,  atoms.nAtoms*nDim*sizeof(float));
 		// run isspa force cuda kernal
 //		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, nMC, configs.lbox);
 

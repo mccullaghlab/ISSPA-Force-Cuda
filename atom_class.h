@@ -13,6 +13,7 @@ class atom
 		int i, j, k;
 		FILE *forceXyzFile;
 		FILE *xyzFile;
+		FILE *vFile;
 		float sigma;
 		float rand_gauss();
 	public:
@@ -64,6 +65,8 @@ class atom
 		void get_pos_v_from_gpu();
 		// print positions
 		void print_xyz();
+		// print velocities
+		void print_v();
 		// print forces
 		void print_forces();
 		// reorder
