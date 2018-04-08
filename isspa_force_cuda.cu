@@ -16,7 +16,7 @@
 //}
 // CUDA Kernels
 
-__global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, float *g0, float *gr2, float *alpha, float *lj_A, float *lj_B, int *ityp, int nAtoms, int nMC, float lbox) {
+__global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, float *g0, float *gr2, float *alpha, float *lj_A, float *lj_B, int *ityp, int nAtoms, int nMC, float lbox, int *NN, int *numNN, int numNNmax) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	float rnow;
 	float prob;
@@ -24,8 +24,10 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 	float mc_pos[3];
 	float mc_pos_atom[3];
 	float x1, x2, r2;
+	int i;
 	int atom;
 	int atom2;
+	int start;
 	int it;    // atom type of atom of interest
 	int jt;    // atom type of other atom
 	float gnow;
@@ -40,6 +42,7 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 		hbox = lbox/2.0;
 		// get atom number of interest
 		atom = index%nAtoms;
+		start = atom*numNNmax;
 		it = ityp[atom];
 		// initialize random number generator
 		curand_init(0,blockIdx.x,index,&state);
@@ -76,31 +79,30 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 		// compute density at MC point due to all other atoms
 		gnow = 1.0f;
 		ev_flag = 0;
-		for (atom2=0;atom2<nAtoms;atom2++) 
+//		for (atom2=0;atom2<nAtoms;atom2++) 
+		for (i=0;i<numNN[atom];i++) 
 		{
-			if (atom2 != atom) 
+			atom2 = NN[start + i];
+			jt = ityp[atom2];
+			dist2 = 0.0f;
+			for (k=0;k<nDim;k++) 
 			{
-				jt = ityp[atom2];
-				dist2 = 0.0f;
-				for (k=0;k<nDim;k++) 
-				{
-					temp = mc_pos_atom[k] - xyz[atom2*nDim+k];
-					if (temp > hbox) {
-//						temp -= (int)(temp/lbox+0.5) * lbox;
-						temp -= lbox;
-					} else if (temp < -hbox) {
-//						temp += (int)(-temp/lbox+0.5) * lbox;
-						temp += lbox;
-					}
-					dist2 += temp*temp;
+				temp = mc_pos_atom[k] - xyz[atom2*nDim+k];
+				if (temp > hbox) {
+//					temp -= (int)(temp/lbox+0.5) * lbox;
+					temp -= lbox;
+				} else if (temp < -hbox) {
+//					temp += (int)(-temp/lbox+0.5) * lbox;
+					temp += lbox;
 				}
-				if (dist2 < gr2[jt*2]) {
-					ev_flag = 1;	
-					break;
-				} else if (dist2 < gr2[jt*2+1]) {
-					temp = sqrtf(dist2)-x0[jt];
-					gnow *= (-alpha[jt] * temp*temp + g0[jt]);
-				}
+				dist2 += temp*temp;
+			}
+			if (dist2 < gr2[jt*2]) {
+				ev_flag = 1;	
+				break;
+			} else if (dist2 < gr2[jt*2+1]) {
+				temp = sqrtf(dist2)-x0[jt];
+				gnow *= (-alpha[jt] * temp*temp + g0[jt]);
 			}
 		}
 		
@@ -119,13 +121,10 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 
 /* C wrappers for kernels */
 
-extern "C" void isspa_force_cuda(float *xyz_d, float *f_d, float *w_d, float *x0_d, float *g0_d, float *gr2_d, float *alpha_d, float *lj_A_d, float *lj_B_d, int *ityp_d, int nAtoms, int nMC, float lbox) {
+extern "C" void isspa_force_cuda(float *xyz_d, float *f_d, float *w_d, float *x0_d, float *g0_d, float *gr2_d, float *alpha_d, float *lj_A_d, float *lj_B_d, int *ityp_d, int nAtoms, int nMC, float lbox, int *NN_d, int *numNN_d, int numNNmax) {
 	int blockSize;      // The launch configurator returned block size 
     	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
     	int gridSize;       // The actual grid size needed, based on input size 
-
-	// zero force array on gpu
-	cudaMemset(f_d, 0.0,  nAtoms*nDim*sizeof(float));
 
 	// determine gridSize and blockSize
 	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, isspa_force_kernel, 0, nAtoms*nMC); 
@@ -134,7 +133,7 @@ extern "C" void isspa_force_cuda(float *xyz_d, float *f_d, float *w_d, float *x0
     	gridSize = (nAtoms*nMC + blockSize - 1) / blockSize; 
 
 	// run parabola random cuda kernal
-	isspa_force_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, w_d, x0_d, g0_d, gr2_d, alpha_d, lj_A_d, lj_B_d, ityp_d, nAtoms, nMC, lbox);
+	isspa_force_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, w_d, x0_d, g0_d, gr2_d, alpha_d, lj_A_d, lj_B_d, ityp_d, nAtoms, nMC, lbox, NN_d, numNN_d, numNNmax);
 
 }
 

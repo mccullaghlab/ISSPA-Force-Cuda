@@ -19,8 +19,8 @@ class config
 		int deltaWrite;
 		int deltaNN;
 		float lbox;
-		float rcut;
-		float rNN;
+		float rcut,rcut2;
+		float rNN,rNN2;
 		// initialize all variables
 		void initialize();
 		

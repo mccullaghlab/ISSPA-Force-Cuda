@@ -18,6 +18,7 @@ void atom::initialize(float T, float lbox)
 	// atoms and types
 	nAtoms = 1000;
 	nAtomTypes = 1;
+	numNNmax = 200;
 	// size of xyz arrays
 	nAtomBytes = nAtoms*sizeof(float);
 	nTypeBytes = nAtomTypes*sizeof(float);
@@ -129,6 +130,9 @@ void atom::initialize_gpu()
 	cudaMalloc((void **) &mass_d, nAtomBytes);
 	// allocate charges array
 	cudaMalloc((void **) &charges_d, nAtomBytes);
+	// allocate neighborlist stuff
+	cudaMalloc((void **) &numNN_d, nAtoms*sizeof(int));
+	cudaMalloc((void **) &NN_d, nAtoms*numNNmax*sizeof(int));
 	// allocate atom type arrays
 	cudaMalloc((void **) &ityp_d, nAtoms*sizeof(int));
 	// allocate atom based parameter arrays
@@ -140,7 +144,7 @@ void atom::initialize_gpu()
 	cudaMalloc((void **) &lj_A_d, nTypeBytes);
 	cudaMalloc((void **) &lj_B_d, nTypeBytes);
 
-	cudaMalloc((void **) &num_NN_d, nAtoms*sizeof(int));
+	cudaMalloc((void **) &numNN_d, nAtoms*sizeof(int));
 	// the following will change depending on max density
 	cudaMalloc((void **) &NN_d, nAtoms*nAtoms*sizeof(int));
 }	
@@ -297,6 +301,6 @@ void atom::free_arrays_gpu() {
 	cudaFree(lj_A_d); 
 	cudaFree(lj_B_d); 
 	cudaFree(charges_d); 
-	cudaFree(num_NN_d);
+	cudaFree(numNN_d);
 	cudaFree(NN_d);
 }

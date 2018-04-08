@@ -18,6 +18,8 @@ void config::initialize()
 	lbox = 200.0;
 	deltaNN = 10;
 	rcut = 12.0;
+	rcut2 = rcut*rcut;
 	rNN = 15.0;
+	rNN2 = rNN*rNN;
 }
 

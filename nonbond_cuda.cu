@@ -13,7 +13,7 @@
 //}
 // CUDA Kernels
 
-__global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A, float *lj_B, int *ityp, int nAtoms, float lbox) {
+__global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A, float *lj_B, int *ityp, int nAtoms, float lbox, int *NN, int *numNN, int numNNmax) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	int atom1;
 	int atom2;
@@ -22,6 +22,7 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 	float temp, dist2;	
 	int i, k;
 	int count;
+	int start;
 	float r[3];
 	float r2, r6, fs;
 	float hbox;
@@ -31,8 +32,11 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 		hbox = lbox/2.0;
 		// determine two atoms to work on based on recursive definition
 		atom1 = index;
-		f[atom1*nDim] = f[atom1*nDim+1] = f[atom1*nDim+2] = 0.0f;
-		for (atom2=0;atom2<nAtoms;atom2++) {
+		start = atom1*numNNmax;
+//		f[atom1*nDim] = f[atom1*nDim+1] = f[atom1*nDim+2] = 0.0f;
+//		for (atom2=0;atom2<nAtoms;atom2++) {
+		for (i=0;i<numNN[atom1];i++) {
+			atom2 = NN[start+i];
 			if (atom2 != atom1) {
 				// get interaction type
 				it = ityp[atom1];
@@ -56,9 +60,6 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 				f[atom1*nDim] += fs*r[0];
 				f[atom1*nDim+1] += fs*r[1];
 				f[atom1*nDim+2] += fs*r[2];
-//				atomicAdd(&f[atom2*nDim], -fs*r[0] );
-//				atomicAdd(&f[atom2*nDim+1], -fs*r[1] );
-//				atomicAdd(&f[atom2*nDim+2], -fs*r[2] );
 			}
 		}
 
@@ -67,7 +68,7 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 
 /* C wrappers for kernels */
 
-extern "C" void nonbond_cuda(float *xyz_d, float *f_d, float *charges_d, float *lj_A_d, float *lj_B_d, int *ityp_d, int nAtoms, float lbox) {
+extern "C" void nonbond_cuda(float *xyz_d, float *f_d, float *charges_d, float *lj_A_d, float *lj_B_d, int *ityp_d, int nAtoms, float lbox, int *NN_d, int *numNN_d, int numNNmax) {
 	int blockSize;      // The launch configurator returned block size 
     	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
     	int gridSize;       // The actual grid size needed, based on input size 
@@ -79,7 +80,7 @@ extern "C" void nonbond_cuda(float *xyz_d, float *f_d, float *charges_d, float *
     	gridSize = (nAtoms + blockSize - 1) / blockSize; 
 
 	// run nonbond cuda kernel
-	nonbond_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, charges_d, lj_A_d, lj_B_d, ityp_d, nAtoms, lbox);
+	nonbond_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, charges_d, lj_A_d, lj_B_d, ityp_d, nAtoms, lbox, NN_d, numNN_d, numNNmax);
 
 }
 
