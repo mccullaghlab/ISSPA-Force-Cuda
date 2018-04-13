@@ -10,7 +10,7 @@ using namespace std;
 #include "atom_class.h"
 #define nDim 3
 
-void atom::initialize(float T, float lbox)
+void atom::initialize(float T, float lbox, int nMC)
 {
 	float dist2, temp;
 	int igo;
@@ -42,6 +42,7 @@ void atom::initialize(float T, float lbox)
 	gr2_h = (float *)malloc(nTypeBytes*2);
 	w_h = (float *)malloc(nTypeBytes);
 	alpha_h = (float *)malloc(nTypeBytes);
+	vtot_h = (float *)malloc(nTypeBytes);
 	lj_A_h = (float *)malloc(nTypeBytes);
 	lj_B_h = (float *)malloc(nTypeBytes);
 	
@@ -54,6 +55,7 @@ void atom::initialize(float T, float lbox)
 	alpha_h[0] = 2.674; 
 	lj_A_h[0] = 6.669e7;
 	lj_B_h[0] = 1.103e4;
+	vtot_h[0] = 16.0/3.0*3.1415926535*w_h[0]*g0_h[0]/((float) nMC)*0.0334;
 	sigma = pow(lj_A_h[0]/lj_B_h[0],(1.0/6.0));
 	sigma2 = sigma*sigma;
 
@@ -141,6 +143,7 @@ void atom::initialize_gpu()
 	cudaMalloc((void **) &gr2_d, nTypeBytes*2);
 	cudaMalloc((void **) &w_d, nTypeBytes);
 	cudaMalloc((void **) &alpha_d, nTypeBytes);
+	cudaMalloc((void **) &vtot_d, nTypeBytes);
 	cudaMalloc((void **) &lj_A_d, nTypeBytes);
 	cudaMalloc((void **) &lj_B_d, nTypeBytes);
 
@@ -160,6 +163,7 @@ void atom::copy_params_to_gpu() {
 	cudaMemcpy(g0_d, g0_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(gr2_d, gr2_h, 2*nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(alpha_d, alpha_h, nTypeBytes, cudaMemcpyHostToDevice);	
+	cudaMemcpy(vtot_d, vtot_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(lj_A_d, lj_A_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(lj_B_d, lj_B_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(mass_d, mass_h, nAtoms*sizeof(float), cudaMemcpyHostToDevice);	
@@ -220,6 +224,7 @@ void atom::print_v() {
 		ip = key[i];
 		fprintf(vFile,"C %10.6f %10.6f %10.6f\n", v_h[ip*nDim], v_h[ip*nDim+1], v_h[ip*nDim+2]);
 	}
+	fflush(vFile);
 }
 
 void atom::reorder() {
@@ -280,6 +285,7 @@ void atom::free_arrays() {
 	free(gr2_h); 
 	free(x0_h); 
 	free(alpha_h); 
+	free(vtot_h); 
 	free(lj_A_h); 
 	free(lj_B_h); 
 	free(charges_h); 
@@ -298,6 +304,7 @@ void atom::free_arrays_gpu() {
 	cudaFree(gr2_d); 
 	cudaFree(x0_d); 
 	cudaFree(alpha_d); 
+	cudaFree(vtot_d); 
 	cudaFree(lj_A_d); 
 	cudaFree(lj_B_d); 
 	cudaFree(charges_d); 

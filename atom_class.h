@@ -41,6 +41,8 @@ class atom
 		float *w_d;      // width of parabola - device data
 		float *alpha_h;  // alpha parameter for g - host data
 		float *alpha_d;  // alpha parameter for g - device data
+		float *vtot_h;  // Monte Carlo normalization factor - host data
+		float *vtot_d;  // Monte Carlo normalization factor - device data
 		float *charges_h;    // coordinate array - host data
 		float *charges_d;    // coordinate array - device data
 		float *lj_A_h;   // Lennard-Jones A parameter - host data
@@ -53,7 +55,7 @@ class atom
 		int   *key;      // array to determine current position of atoms (after shuffle)
 		
 		// initialize all arrays on CPU memory
-		void initialize(float T, float lbox);
+		void initialize(float T, float lbox, int nMC);
 		// initialize all arrays on GPU memory
 		void initialize_gpu();
 		// copy parameter arrays to GPU

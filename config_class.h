@@ -18,6 +18,7 @@ class config
 		int nSteps;
 		int deltaWrite;
 		int deltaNN;
+		int nMC;    // number of Monte Carlo points for solvent
 		float lbox;
 		float rcut,rcut2;
 		float rNN,rNN2;

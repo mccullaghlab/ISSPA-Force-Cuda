@@ -21,5 +21,6 @@ void config::initialize()
 	rcut2 = rcut*rcut;
 	rNN = 15.0;
 	rNN2 = rNN*rNN;
+	nMC = 10;
 }
 

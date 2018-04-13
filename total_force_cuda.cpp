@@ -17,7 +17,6 @@ using namespace std;
 
 int main(void)  
 {
-	int nMC = MC;    // number of MC points
 	cudaEvent_t start, stop;
 	float milliseconds;
 	float day_per_millisecond;
@@ -34,7 +33,7 @@ int main(void)
 
 	// initialize
 	configs.initialize();
-	atoms.initialize(configs.T, configs.lbox);
+	atoms.initialize(configs.T, configs.lbox, configs.nMC);
 	atoms.initialize_gpu();
 
 	// start device timer
@@ -48,14 +47,14 @@ int main(void)
 	for (step=0;step<configs.nSteps;step++) {
 
 		if (step%configs.deltaNN==0) {
-			if (step > 0) {
-				// get positions, velocities, and forces from gpu
-				atoms.get_pos_v_from_gpu();
-			}
+//			if (step > 0) {
+//				// get positions, velocities, and forces from gpu
+//				atoms.get_pos_v_from_gpu();
+//			}
 			// reorder based on hilbert curve position
-			atoms.reorder();
+//			atoms.reorder();
 			// send positions and velocities back
-			atoms.copy_pos_v_to_gpu();
+//			atoms.copy_pos_v_to_gpu();
 			// compute the neighborlist
 			neighborlist_cuda(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, configs.rNN2, atoms.nAtoms, atoms.numNNmax, configs.lbox);
 /*			if (step==0) {
@@ -74,7 +73,7 @@ int main(void)
 		cudaMemset(atoms.f_d, 0.0f,  atoms.nAtoms*nDim*sizeof(float));
 
 		// run isspa force cuda kernal
-		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax);
+		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax);
 
 		// run nonbond cuda kernel
 		nonbond_cuda(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax);
