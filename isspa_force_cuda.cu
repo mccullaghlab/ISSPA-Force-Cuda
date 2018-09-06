@@ -40,16 +40,16 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 
 	if (index < nAtoms*nMC)
 	{
+		// initialize random number generator
+		curand_init(0,index,0,&state);
 		// get atom number of interest
-		atom = int(nAtoms/(float) nMC);
+		atom = int(index/(float) nMC);
 		// note this does not give random kicks to particles on their own
 		if (numNN[atom] > 0) {
 			hbox = lbox/2.0;
 			neighStart = atom*numNNmax;
 			atomStart = atom*nDim;
 			it = ityp[atom];
-			// initialize random number generator
-			curand_init(0,blockIdx.x,index,&state);
 			// select one point from 1D parabolic distribution
 			rnow = 1.0f - 2.0f * curand_uniform(&state);
 			prob = rnow*rnow;

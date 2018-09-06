@@ -55,7 +55,7 @@ void atom::initialize(float T, float lbox, int nMC)
 	alpha_h[0] = 2.674; 
 	lj_A_h[0] = 6.669e7;
 	lj_B_h[0] = 1.103e4;
-	vtot_h[0] = 16.0/3.0*3.1415926535*w_h[0]*g0_h[0]/((float) nMC)*0.0334;
+	vtot_h[0] = 16.0/3.0*3.1415926535*w_h[0]*g0_h[0]/((float) nMC)*0.0334*1E-2;
 	sigma = pow(lj_A_h[0]/lj_B_h[0],(1.0/6.0));
 	sigma2 = sigma*sigma;
 

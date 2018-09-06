@@ -25,7 +25,8 @@ int main(void)
 	int i;
 	int step;
 	int *NN_h, *numNN_h;
-
+	long long seed;
+	seed = 0;
 	
 	NN_h = (int *)malloc(atoms.nAtoms*atoms.numNNmax*sizeof(int));
 	numNN_h = (int *)malloc(atoms.nAtoms*sizeof(int));
@@ -91,7 +92,8 @@ int main(void)
 		}
 
 		// Move atoms and velocities
-		leapfrog_cuda(atoms.xyz_d, atoms.v_d, atoms.f_d, atoms.mass_d, configs.T, configs.dt, configs.pnu, atoms.nAtoms, configs.lbox);
+		leapfrog_cuda(atoms.xyz_d, atoms.v_d, atoms.f_d, atoms.mass_d, configs.T, configs.dt, configs.pnu, atoms.nAtoms, configs.lbox, seed);
+		seed += 1;
 	}
 
 

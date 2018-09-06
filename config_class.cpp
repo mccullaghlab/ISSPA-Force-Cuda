@@ -13,7 +13,7 @@ void config::initialize()
 	dt = 0.002*20.455;
 	T = 298.0 * 0.00198717;
 	pnu = 0.001f;
-	nSteps = 10000;
+	nSteps = 100000;
 	deltaWrite = 100;
 	lbox = 200.0;
 	deltaNN = 10;
