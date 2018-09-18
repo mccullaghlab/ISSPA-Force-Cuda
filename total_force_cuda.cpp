@@ -15,7 +15,7 @@
 
 using namespace std;
 
-int main(void)  
+int main(void)
 {
 	cudaEvent_t start, stop;
 	float milliseconds;
@@ -25,9 +25,11 @@ int main(void)
 	int i;
 	int step;
 	int *NN_h, *numNN_h;
-	long long seed;
-	seed = 0;
-	
+	long long leapfrog_seed;
+	long long isspa_seed;
+	isspa_seed = 0;
+	leapfrog_seed = 0;
+
 	NN_h = (int *)malloc(atoms.nAtoms*atoms.numNNmax*sizeof(int));
 	numNN_h = (int *)malloc(atoms.nAtoms*sizeof(int));
 
@@ -60,8 +62,8 @@ int main(void)
 			neighborlist_cuda(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, configs.rNN2, atoms.nAtoms, atoms.numNNmax, configs.lbox);
 /*			if (step==0) {
 			// MM debug
-			cudaMemcpy(NN_h, atoms.NN_d, atoms.nAtoms*atoms.numNNmax*sizeof(int), cudaMemcpyDeviceToHost);	
-			cudaMemcpy(numNN_h, atoms.numNN_d, atoms.nAtoms*sizeof(int), cudaMemcpyDeviceToHost);	
+			cudaMemcpy(NN_h, atoms.NN_d, atoms.nAtoms*atoms.numNNmax*sizeof(int), cudaMemcpyDeviceToHost);
+			cudaMemcpy(numNN_h, atoms.numNN_d, atoms.nAtoms*sizeof(int), cudaMemcpyDeviceToHost);
 			for (i=0;i<atoms.nAtoms;i++) {
 				printf("%10d: %10d\n", i+1, numNN_h[i]);
 			}
@@ -74,7 +76,8 @@ int main(void)
 		cudaMemset(atoms.f_d, 0.0f,  atoms.nAtoms*nDim*sizeof(float));
 
 		// run isspa force cuda kernal
-		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax);
+		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, isspa_seed);
+		isspa_seed += 1;
 
 		// run nonbond cuda kernel
 		nonbond_cuda(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax);
@@ -92,8 +95,8 @@ int main(void)
 		}
 
 		// Move atoms and velocities
-		leapfrog_cuda(atoms.xyz_d, atoms.v_d, atoms.f_d, atoms.mass_d, configs.T, configs.dt, configs.pnu, atoms.nAtoms, configs.lbox, seed);
-		seed += 1;
+		leapfrog_cuda(atoms.xyz_d, atoms.v_d, atoms.f_d, atoms.mass_d, configs.T, configs.dt, configs.pnu, atoms.nAtoms, configs.lbox, leapfrog_seed);
+		leapfrog_seed += 1;
 	}
 
 
@@ -103,8 +106,8 @@ int main(void)
 	cudaEventElapsedTime(&milliseconds, start, stop);
 	printf("Elapsed time = %20.10f ms\n", milliseconds);
 	day_per_millisecond = 1e-3 /60.0/60.0/24.0;
-	printf("Average ns/day = %20.10f\n", configs.nSteps*2e-6/(milliseconds*day_per_millisecond) );	
-	
+	printf("Average ns/day = %20.10f\n", configs.nSteps*2e-6/(milliseconds*day_per_millisecond) );
+
 	// free up arrays
 	atoms.free_arrays();
 	atoms.free_arrays_gpu();
@@ -112,5 +115,3 @@ int main(void)
 	return 0;
 
 }
-
-

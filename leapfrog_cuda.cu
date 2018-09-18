@@ -13,7 +13,7 @@
 // CUDA Kernels
 
 /*__device__ void thermo_kernel( float v*, float T, float mass, int atom, int block) {
-	
+
 	float rang;
 	curandState_t state;
         curand_init(0,blockIdx.x,atom,&state);
@@ -35,7 +35,7 @@ __global__ void leapfrog_kernel(float *xyz, float *v, float *f, float *mass, flo
 	if (index < nAtoms)
 	{
 		// initialize random number generator
-                curand_init(seed,index,0,&state);
+  	curand_init(seed,index,0,&state);
 		attempt = curand_uniform(&state);
 		// anderson thermostat
 		if (attempt < pnu) {
@@ -71,18 +71,17 @@ __global__ void leapfrog_kernel(float *xyz, float *v, float *f, float *mass, flo
 /* C wrappers for kernels */
 
 extern "C" void leapfrog_cuda(float *xyz_d, float *v_d, float *f_d, float *mass_d, float T, float dt, float pnu, int nAtoms, float lbox, long long seed) {
-	int blockSize;      // The launch configurator returned block size 
-    	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
-    	int gridSize;       // The actual grid size needed, based on input size 
+	int blockSize;      // The launch configurator returned block size
+    	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch
+    	int gridSize;       // The actual grid size needed, based on input size
 
 	// determine gridSize and blockSize
-	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, leapfrog_kernel, 0, nAtoms); 
+	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, leapfrog_kernel, 0, nAtoms);
 
-    	// Round up according to array size 
-    	gridSize = (nAtoms + blockSize - 1) / blockSize; 
+    	// Round up according to array size
+    	gridSize = (nAtoms + blockSize - 1) / blockSize;
 
 	// run nonbond cuda kernel
 	leapfrog_kernel<<<gridSize, blockSize>>>(xyz_d, v_d, f_d, mass_d, T, dt, pnu, nAtoms, lbox, seed);
 
 }
-

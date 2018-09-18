@@ -16,7 +16,7 @@
 //}
 // CUDA Kernels
 
-__global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, float *g0, float *gr2, float *alpha, float *vtot, float *lj_A, float *lj_B, int *ityp, int nAtoms, int nMC, float lbox, int *NN, int *numNN, int numNNmax) {
+__global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, float *g0, float *gr2, float *alpha, float *vtot, float *lj_A, float *lj_B, int *ityp, int nAtoms, int nMC, float lbox, int *NN, int *numNN, int numNNmax, long long seed) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	float rnow;
 	float prob;
@@ -41,7 +41,8 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 	if (index < nAtoms*nMC)
 	{
 		// initialize random number generator
-		curand_init(0,index,0,&state);
+		curand_init(seed,index,0,&state);
+		//curand_init(0,index,0,&state);
 		// get atom number of interest
 		atom = int(index/(float) nMC);
 		// note this does not give random kicks to particles on their own
@@ -65,7 +66,7 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 			x1 = 1.0f - 2.0f * curand_uniform(&state);
 			x2 = 1.0f - 2.0f * curand_uniform(&state);
 			r2 = x1*x1 + x2*x2;
-			while (r2 > 1.0f) 
+			while (r2 > 1.0f)
 			{
 				x1 = 1.0f - 2.0f * curand_uniform(&state);
 		        	x2 = 1.0f - 2.0f * curand_uniform(&state);
@@ -76,7 +77,7 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 			r2 = 2.0f * sqrtf(1.0f - r2);
 			mc_pos[1] = rnow*x1*r2;
 			mc_pos[2] = rnow*x2*r2;
-		
+
 			mc_pos_atom[0] = mc_pos[0] + xyz[atomStart];
 			mc_pos_atom[1] = mc_pos[1] + xyz[atomStart+1];
 			mc_pos_atom[2] = mc_pos[2] + xyz[atomStart+2];
@@ -84,13 +85,13 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 			// compute density at MC point due to all other atoms
 			gnow = 1.0f;
 			ev_flag = 0;
-//			for (atom2=0;atom2<nAtoms;atom2++) 
-			for (i=0;i<numNN[atom];i++) 
+//			for (atom2=0;atom2<nAtoms;atom2++)
+			for (i=0;i<numNN[atom];i++)
 			{
 				atom2 = NN[neighStart + i];
 				jt = ityp[atom2];
 				dist2 = 0.0f;
-				for (k=0;k<nDim;k++) 
+				for (k=0;k<nDim;k++)
 				{
 					temp = mc_pos_atom[k] - xyz[atom2*nDim+k];
 					if (temp > hbox) {
@@ -103,14 +104,14 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 					dist2 += temp*temp;
 				}
 				if (dist2 < gr2[jt*2]) {
-					ev_flag = 1;	
+					ev_flag = 1;
 					break;
 				} else if (dist2 < gr2[jt*2+1]) {
 					temp = sqrtf(dist2)-x0[jt];
 					gnow *= (-alpha[jt] * temp*temp + g0[jt]);
 				}
 			}
-			
+
 			if (ev_flag ==0) {
 				rinv = 1.0f / rnow;
 				r2 = rinv * rinv;
@@ -129,19 +130,18 @@ __global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, fl
 
 /* C wrappers for kernels */
 
-extern "C" void isspa_force_cuda(float *xyz_d, float *f_d, float *w_d, float *x0_d, float *g0_d, float *gr2_d, float *alpha_d, float *vtot_d, float *lj_A_d, float *lj_B_d, int *ityp_d, int nAtoms, int nMC, float lbox, int *NN_d, int *numNN_d, int numNNmax) {
-	int blockSize;      // The launch configurator returned block size 
-    	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
-    	int gridSize;       // The actual grid size needed, based on input size 
+extern "C" void isspa_force_cuda(float *xyz_d, float *f_d, float *w_d, float *x0_d, float *g0_d, float *gr2_d, float *alpha_d, float *vtot_d, float *lj_A_d, float *lj_B_d, int *ityp_d, int nAtoms, int nMC, float lbox, int *NN_d, int *numNN_d, int numNNmax, long long seed) {
+	int blockSize;      // The launch configurator returned block size
+    	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch
+    	int gridSize;       // The actual grid size needed, based on input size
 
 	// determine gridSize and blockSize
-	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, isspa_force_kernel, 0, nAtoms*nMC); 
+	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, isspa_force_kernel, 0, nAtoms*nMC);
 
-    	// Round up according to array size 
-    	gridSize = (nAtoms*nMC + blockSize - 1) / blockSize; 
+    	// Round up according to array size
+    	gridSize = (nAtoms*nMC + blockSize - 1) / blockSize;
 
 	// run parabola random cuda kernal
-	isspa_force_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, w_d, x0_d, g0_d, gr2_d, alpha_d, vtot_d, lj_A_d, lj_B_d, ityp_d, nAtoms, nMC, lbox, NN_d, numNN_d, numNNmax);
+	isspa_force_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, w_d, x0_d, g0_d, gr2_d, alpha_d, vtot_d, lj_A_d, lj_B_d, ityp_d, nAtoms, nMC, lbox, NN_d, numNN_d, numNNmax, seed);
 
 }
-
