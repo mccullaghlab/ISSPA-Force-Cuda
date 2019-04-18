@@ -3,8 +3,7 @@
 #include <stdlib.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
-
-#define nDim 3
+#include "constants.h"
 
 class config
 {
@@ -22,7 +21,9 @@ class config
 		float lbox;
 		float rcut,rcut2;
 		float rNN,rNN2;
+		char prmtopFileName[MAXCHAR];
+		char inputCoordFileName[MAXCHAR];
 		// initialize all variables
-		void initialize();
+		void initialize(char *);
 		
 };

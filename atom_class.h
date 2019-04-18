@@ -54,7 +54,11 @@ class atom
 		int *NN_d;       // neighbor list - will be size nAtoms*nNNmax
 		int   *key;      // array to determine current position of atoms (after shuffle)
 		
-		// initialize all arrays on CPU memory
+		// allocate arrays
+		void allocate();
+		// read initial coordinates from rst file
+		void read_initial_positions(char *);
+		// initialize all atom velocities and solvent parameters
 		void initialize(float T, float lbox, int nMC);
 		// initialize all arrays on GPU memory
 		void initialize_gpu();

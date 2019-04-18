@@ -8,19 +8,22 @@
 #include "leapfrog_cuda.h"
 #include "neighborlist_cuda.h"
 #include "atom_class.h"
+#include "bond_class.h"
 #include "config_class.h"
+#include "read_prmtop.h"
 
 #define nDim 3
 #define MC 10
 
 using namespace std;
 
-int main(void)
+int main(int argc, char* argv[])
 {
 	cudaEvent_t start, stop;
 	float milliseconds;
 	float day_per_millisecond;
 	atom atoms;
+	bond bonds;
 	config configs;
 	int i;
 	int step;
@@ -34,8 +37,13 @@ int main(void)
 	numNN_h = (int *)malloc(atoms.nAtoms*sizeof(int));
 
 
-	// initialize
-	configs.initialize();
+	// read config file
+	configs.initialize(argv[1]);
+	// read atom parameters
+	printf("prmtop file name in main:%s\n",configs.prmtopFileName);
+	read_prmtop(configs.prmtopFileName, atoms, bonds);
+	// initialize atom positions, velocities and solvent parameters
+	atoms.read_initial_positions(configs.inputCoordFileName);
 	atoms.initialize(configs.T, configs.lbox, configs.nMC);
 	atoms.initialize_gpu();
 

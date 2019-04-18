@@ -2,21 +2,17 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include "Hilbert3D.h"
+#include "constants.h"
 
 using namespace std;
 #include "atom_class.h"
-#define nDim 3
 
-void atom::initialize(float T, float lbox, int nMC)
+void atom::allocate()
 {
-	float dist2, temp;
-	int igo;
-	float sigma2;
 	// atoms and types
-	nAtoms = 1000;
 	nAtomTypes = 1;
 	numNNmax = 200;
 	// size of xyz arrays
@@ -45,7 +41,13 @@ void atom::initialize(float T, float lbox, int nMC)
 	vtot_h = (float *)malloc(nTypeBytes);
 	lj_A_h = (float *)malloc(nTypeBytes);
 	lj_B_h = (float *)malloc(nTypeBytes);
+
+}
 	
+void atom::initialize(float T, float lbox, int nMC)
+{
+	float dist2, temp;
+	float sigma2;
 	// populate host arrays
 	gr2_h[0] = 11.002;
 	gr2_h[1] = 21.478;
@@ -60,39 +62,12 @@ void atom::initialize(float T, float lbox, int nMC)
 	sigma2 = sigma*sigma;
 
 	for (i=0;i<nAtoms;i++) {
-//		xyz_h[i*nDim] = (float) i*7.0;
-//		xyz_h[i*nDim+1] = xyz_h[i*nDim+2] = 0.0f;
-		key[i] = i;
 		f_h[i*nDim] = f_h[i*nDim+1] = f_h[i*nDim+2] = 0.0f;
 		ityp_h[i] = 0;
 		charges_h[i] = 0.0;
 		mass_h[i] = 12.0;
 		for (k=0;k<nDim;k++) {
 			v_h[i*nDim+k] = rand_gauss()*sqrt(T/mass_h[i]);	
-		}
-		igo = 1;
-		while (igo == 1) {
-			igo = 0;
-			for (k=0;k<nDim;k++) {
-				xyz_h[i*nDim+k] = lbox*(float) rand() / (float) RAND_MAX;
-			}
-			for (j=0;j<i;j++) {
-				dist2 = 0.0;
-				for (k=0;k<nDim;k++) {
-					temp = xyz_h[i*nDim+k] - xyz_h[j*nDim+k];
-					if (temp > lbox/2.0) {
-						temp -= lbox;
-					} else if (temp < -lbox/2.0) {
-						temp += lbox;
-					}
-					dist2 += temp*temp;
-				}
-				if (dist2 < sigma2) {
-					igo = 1;
-					break;
-				}
-
-			}
 		}
 	}
 
@@ -102,6 +77,38 @@ void atom::initialize(float T, float lbox, int nMC)
 	vFile = fopen("velocities.xyz","w");
 
 }
+
+void atom::read_initial_positions(char *inputFileName) {
+
+	char line[MAXCHAR];
+	char temp[13];
+	FILE *coordFile = fopen(inputFileName, "r");
+	int nLines, i, j;
+
+	printf("in read positions subroutine: %s\n", inputFileName);
+	if ( coordFile != NULL) {
+		/* skip first two line */
+		fgets(line, MAXCHAR, coordFile);
+		fgets(line, MAXCHAR, coordFile);
+		/* loop over atom position lines */
+		nLines = (int) ( nAtoms / 2 ); 
+		for (i=0;i<nLines;i++) {
+			fgets(line, MAXCHAR, coordFile);
+			for (j=0;j<6;j++) {
+				xyz_h[i*6+j] = atof(strncpy(temp,line+j*12,12));
+			}
+		}
+		if (nAtoms%2 != 0) {
+			fgets(line, MAXCHAR, coordFile);
+			for (j=0;j<3;j++) {
+				xyz_h[nLines*6+j] = atof(strncpy(temp,line+j*12,12));
+			}
+
+		}
+	}
+
+}
+
 
 float atom::rand_gauss() 
 {
@@ -227,52 +234,6 @@ void atom::print_v() {
 	fflush(vFile);
 }
 
-void atom::reorder() {
-	
-	int i, j, k;
-	int intPos[nDim];
-	int hilbertKey[nAtoms];
-	int tempInt;
-	float tempFloat;
-	Hilbert3D index;
-
-	for (i=0;i<nAtoms;i++) {
-
-		for (j=0;j<3;j++) {
-			intPos[j]  = (int) (xyz_h[i*nDim+j]/sigma);
-		}
-
-		hilbertKey[i] = index.CoordsToIndex(intPos[0],intPos[1],intPos[2]);
-	}
-
-	for (i=0;i<nAtoms-1;i++) {
-		for (j=i+1;j<nAtoms;j++)  {
-			if (hilbertKey[j] < hilbertKey[i]) {
-				// swap hilbert keys
-				tempInt = hilbertKey[j];
-				hilbertKey[j] = hilbertKey[i];
-				hilbertKey[i] = tempInt;	
-				// swap atom keys
-				tempInt = key[j];
-				key[j] = key[i];
-				key[i] = tempInt;
-				for (k=0;k<nDim;k++) {
-					// swap atom positions
-					tempFloat = xyz_h[j*nDim+k];
-					xyz_h[j*nDim+k] = xyz_h[i*nDim+k];
-					xyz_h[i*nDim+k] = tempFloat;
-					// swap atom velocities
-					tempFloat = v_h[j*nDim+k];
-					v_h[j*nDim+k] = v_h[i*nDim+k];
-					v_h[i*nDim+k] = tempFloat;
-				}
-				
-			}
-
-		}
-	}
-
-}
 	
 void atom::free_arrays() {
 	// free host variables
