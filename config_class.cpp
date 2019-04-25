@@ -33,7 +33,19 @@ void config::initialize(char *cfgFileName)
 			} else if (strncmp(token,"inputCoord",10)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				strcpy(inputCoordFileName,trim(temp));
-				printf("input coordinate file name:%s\n",inputCoordFileName);
+				printf("input coordinate file name: %s\n",inputCoordFileName);
+			} else if (strncmp(token,"nMC",3)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				nMC = atoi(trim(temp));
+				printf("Number of Monte Carlo points: %d\n",nMC);
+			} else if (strncmp(token,"nSteps",6)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				nSteps = atoi(trim(temp));
+				printf("Number of MD steps: %d\n",nSteps);
+			} else if (strncmp(token,"deltaWrite",10)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				deltaWrite = atoi(trim(temp));
+				printf("Write frequency: %d\n",deltaWrite);
 			}
 		}
 		fclose( inFile );
@@ -41,15 +53,12 @@ void config::initialize(char *cfgFileName)
 	dt = 0.002*20.455;
 	T = 298.0 * 0.00198717;
 	pnu = 0.001f;
-	nSteps = 100000;
-	deltaWrite = 100;
 	lbox = 200.0;
 	deltaNN = 10;
 	rcut = 12.0;
 	rcut2 = rcut*rcut;
 	rNN = 15.0;
 	rNN2 = rNN*rNN;
-	nMC = 10;
 
 
 }

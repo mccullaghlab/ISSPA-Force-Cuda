@@ -1,11 +1,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-//#include <cuda.h>
-//#include <cuda_runtime.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
 #include <math.h>
-
-#define nDim 3
+#include "constants.h"
 
 class bond
 {
@@ -16,10 +15,14 @@ class bond
 		int nTypes;
 		float *bondKUnique;
 		float *bondX0Unique;
-		int *bondAtoms;
-		float *bondKs;
-		float *bondX0s;
+		int *bondAtoms_h;
+		float *bondKs_h;
+		float *bondX0s_h;
+		int *bondAtoms_d;
+		float *bondKs_d;
+		float *bondX0s_d;
 
 		void allocate();
+		void initialize_gpu();
 
 };

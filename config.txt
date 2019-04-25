@@ -1,0 +1,16 @@
+
+
+
+hello = world
+this 
+is a config 
+
+FILE!=thisFile
+
+prmtop=PDI1.prmtop
+inputCoord = PDI1.rst
+nMC = 10
+nSteps = 10000
+deltaWrite = 100
+
+

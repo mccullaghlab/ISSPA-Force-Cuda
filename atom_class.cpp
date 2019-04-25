@@ -65,7 +65,11 @@ void atom::initialize(float T, float lbox, int nMC)
 		f_h[i*nDim] = f_h[i*nDim+1] = f_h[i*nDim+2] = 0.0f;
 		ityp_h[i] = 0;
 		charges_h[i] = 0.0;
-		mass_h[i] = 12.0;
+		//mass_h[i] = 12.0;
+		// reweight hydrogens
+		if (mass_h[i] < 2.0) {
+			mass_h[i] = 12.0;
+		}
 		for (k=0;k<nDim;k++) {
 			v_h[i*nDim+k] = rand_gauss()*sqrt(T/mass_h[i]);	
 		}
@@ -85,7 +89,6 @@ void atom::read_initial_positions(char *inputFileName) {
 	FILE *coordFile = fopen(inputFileName, "r");
 	int nLines, i, j;
 
-	printf("in read positions subroutine: %s\n", inputFileName);
 	if ( coordFile != NULL) {
 		/* skip first two line */
 		fgets(line, MAXCHAR, coordFile);
@@ -129,6 +132,7 @@ float atom::rand_gauss()
 
 void atom::initialize_gpu()
 {
+	printf("nAtomBytes*nDim: %d\n", nAtomBytes*nDim);
 	// allocate atom coordinate arrays
 	cudaMalloc((void **) &xyz_d, nAtomBytes*nDim);
 	// allocate atom velocity arrays
@@ -205,7 +209,7 @@ void atom::print_forces() {
 	for (i=0;i<nAtoms; i++) 
 	{
 		ip = key[i];
-		fprintf(forceXyzFile,"C %10.6f %10.6f %10.6f\n", f_h[ip*nDim],f_h[ip*nDim+1],f_h[ip*nDim+2]);
+		fprintf(forceXyzFile,"C %10.6f %10.6f %10.6f\n", f_h[i*nDim],f_h[i*nDim+1],f_h[i*nDim+2]);
 	}
 	fflush(forceXyzFile);
 }
@@ -217,7 +221,7 @@ void atom::print_xyz() {
 	for (i=0;i<nAtoms; i++) 
 	{
 		ip = key[i];
-		fprintf(xyzFile,"C %10.6f %10.6f %10.6f\n", xyz_h[ip*nDim], xyz_h[ip*nDim+1], xyz_h[ip*nDim+2]);
+		fprintf(xyzFile,"C %10.6f %10.6f %10.6f\n", xyz_h[i*nDim], xyz_h[i*nDim+1], xyz_h[i*nDim+2]);
 	}
 	fflush(xyzFile);
 }
@@ -229,7 +233,7 @@ void atom::print_v() {
 	for (i=0;i<nAtoms; i++) 
 	{
 		ip = key[i];
-		fprintf(vFile,"C %10.6f %10.6f %10.6f\n", v_h[ip*nDim], v_h[ip*nDim+1], v_h[ip*nDim+2]);
+		fprintf(vFile,"C %10.6f %10.6f %10.6f\n", v_h[i*nDim], v_h[i*nDim+1], v_h[i*nDim+2]);
 	}
 	fflush(vFile);
 }

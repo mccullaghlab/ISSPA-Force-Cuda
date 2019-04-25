@@ -23,21 +23,20 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 	char *token;
 	int i, nLines;
 	int bondCount;
+	int atomCount;
 	int lineCount;
 	int *tempBondArray;
 	FILE *prmFile = fopen(prmtopFileName, "r");
 
-	printf("in subroutine: %s\n", prmtopFileName);
-	printf("Flag: %s\n", FlagSearch);
 	if ( prmFile != NULL) {
 		while (fgets(line, MAXCHAR, prmFile) != NULL) {
 			if (strncmp(line,FlagSearch,5)==0) {
 				token = strtok(line, blank);
 				flag = strtok(NULL, blank);
-				printf("FLAG: %s\n", flag);
+				// printf("FLAG: %s\n", flag); // for DEBUG
 				if (strcmp(flag,metaDataFlag) == 0) {
 					// read meta data
-					printf("Reading meta data\n");
+					printf("Reading system metadata from prmtop file\n");
 					/* skip format line */
 					fgets(line, MAXCHAR, prmFile);
 					/* read meta data section line by line */
@@ -48,7 +47,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 					atoms.nAtomTypes = atoi(strncpy(token,line+8,8));
 					bonds.nBondHs = atoi(strncpy(token,line+16,8));
 					printf("Number of bonds containing hydrogens: %d\n", bonds.nBondHs);
-					bonds.nBondnHs = atoi(strncpy(token,line+32,8));
+					bonds.nBondnHs = atoi(strncpy(token,line+24,8));
 					printf("Number of bonds NOT containing hydrogens: %d\n", bonds.nBondnHs);
 					bonds.nBonds = bonds.nBondHs + bonds.nBondnHs;
 					/* line 2: */
@@ -63,6 +62,23 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 					/* allocate arrays */
 					atoms.allocate();
 					bonds.allocate();
+				} else if (strcmp(flag,massFlag) == 0) {
+					// read bond k values
+					nLines = (int) atoms.nAtoms / 5.0 + 1;
+					printf("number of lines to read for Masses: %d\n", nLines);
+					/* skip format line */
+					fgets(line, MAXCHAR, prmFile);
+					/* loop over lines */
+					atomCount = 0;
+					for (i=0;i<nLines;i++) {
+						fgets(line, MAXCHAR, prmFile);
+						lineCount = 0;
+						while (atomCount < atoms.nAtoms && lineCount < 5) {
+							atoms.mass_h[atomCount] = atof(strncpy(token,line+lineCount*16,16));
+							atomCount++;
+							lineCount++;
+						}
+					}
 				} else if (strcmp(flag,bondHFlag) == 0) { 
 					/* FORMAT 10I8 */
 					nLines = (int) bonds.nBondHs*3 / 10.0 + 1;
@@ -83,10 +99,10 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 					}
 					// parse to bond arrays
 					for (i=0;i<bonds.nBondHs;i++) {
-						bonds.bondAtoms[i*2] = tempBondArray[i*3]/3;
-						bonds.bondAtoms[i*2+1] = tempBondArray[i*3+1]/3;
-						bonds.bondKs[i] = bonds.bondKUnique[tempBondArray[i*3+2]-1];
-						bonds.bondX0s[i] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
+						bonds.bondAtoms_h[i*2] = tempBondArray[i*3]/3;
+						bonds.bondAtoms_h[i*2+1] = tempBondArray[i*3+1]/3;
+						bonds.bondKs_h[i] = bonds.bondKUnique[tempBondArray[i*3+2]-1];
+						bonds.bondX0s_h[i] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
 						//printf("Bond %d is between atoms %d and %d with force constant %f and eq value of %f\n", i+1, bonds.bondAtoms[i*2], bonds.bondAtoms[i*2+1],bonds.bondKs[i],bonds.bondX0s[i]);
 					}
 					free(tempBondArray);
@@ -109,11 +125,11 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 						}
 					}
 					// parse to bond arrays
-					for (i=0;i<bonds.nBondHs;i++) {
-						bonds.bondAtoms[(i+bonds.nBondHs)*2] = tempBondArray[i*3]/3;
-						bonds.bondAtoms[(i+bonds.nBondHs)*2+1] = tempBondArray[i*3+1]/3;
-						bonds.bondKs[(i+bonds.nBondHs)] = bonds.bondKUnique[tempBondArray[i*3+2]-1];
-						bonds.bondX0s[(i+bonds.nBondHs)] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
+					for (i=0;i<bonds.nBondnHs;i++) {
+						bonds.bondAtoms_h[(i+bonds.nBondHs)*2] = tempBondArray[i*3]/3;
+						bonds.bondAtoms_h[(i+bonds.nBondHs)*2+1] = tempBondArray[i*3+1]/3;
+						bonds.bondKs_h[(i+bonds.nBondHs)] = bonds.bondKUnique[tempBondArray[i*3+2]-1];
+						bonds.bondX0s_h[(i+bonds.nBondHs)] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
 						//printf("Bond %d is between atoms %d and %d with force constant %f and eq value of %f\n", (i+bonds.nBondHs)+1, bonds.bondAtoms[(i+bonds.nBondHs)*2], bonds.bondAtoms[(i+bonds.nBondHs)*2+1],bonds.bondKs[(i+bonds.nBondHs)],bonds.bondX0s[(i+bonds.nBondHs)]);
 					}
 					free(tempBondArray);
@@ -155,10 +171,6 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 							lineCount++;
 						}
 					}
-					// make sure it worked - DEBUG
-					//for (i=0;i<bonds.nTypes;i++) {
-					//	printf("Bond type %d has force constant %f\n", i+1, bonds.bondKUnique[i]);
-					//}
 				}			
 			}
 		}

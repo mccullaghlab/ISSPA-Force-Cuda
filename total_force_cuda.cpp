@@ -5,15 +5,14 @@
 #include <cuda_runtime.h>
 #include "isspa_force_cuda.h"
 #include "nonbond_cuda.h"
+#include "bond_force_cuda.h"
 #include "leapfrog_cuda.h"
 #include "neighborlist_cuda.h"
 #include "atom_class.h"
 #include "bond_class.h"
 #include "config_class.h"
 #include "read_prmtop.h"
-
-#define nDim 3
-#define MC 10
+#include "constants.h"
 
 using namespace std;
 
@@ -46,12 +45,14 @@ int main(int argc, char* argv[])
 	atoms.read_initial_positions(configs.inputCoordFileName);
 	atoms.initialize(configs.T, configs.lbox, configs.nMC);
 	atoms.initialize_gpu();
-
+	// initialize bonds on gpus
+	bonds.initialize_gpu();
+	
 	// start device timer
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 	cudaEventRecord(start);
-
+	// copy atom data to device
 	atoms.copy_params_to_gpu();
 	atoms.copy_pos_v_to_gpu();
 
@@ -67,7 +68,7 @@ int main(int argc, char* argv[])
 			// send positions and velocities back
 //			atoms.copy_pos_v_to_gpu();
 			// compute the neighborlist
-			neighborlist_cuda(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, configs.rNN2, atoms.nAtoms, atoms.numNNmax, configs.lbox);
+		//	neighborlist_cuda(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, configs.rNN2, atoms.nAtoms, atoms.numNNmax, configs.lbox);
 /*			if (step==0) {
 			// MM debug
 			cudaMemcpy(NN_h, atoms.NN_d, atoms.nAtoms*atoms.numNNmax*sizeof(int), cudaMemcpyDeviceToHost);
@@ -83,12 +84,15 @@ int main(int argc, char* argv[])
 		// zero force array on gpu
 		cudaMemset(atoms.f_d, 0.0f,  atoms.nAtoms*nDim*sizeof(float));
 
+		// compute bond forces on device
+		bond_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, bonds.bondAtoms_d, bonds.bondKs_d, bonds.bondX0s_d, bonds.nBonds);
+
 		// run isspa force cuda kernal
-		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, isspa_seed);
-		isspa_seed += 1;
+//		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, isspa_seed);
+//		isspa_seed += 1;
 
 		// run nonbond cuda kernel
-		nonbond_cuda(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax);
+//		nonbond_cuda(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax);
 
 		// print stuff every so often
 		if (step%configs.deltaWrite==0) {
