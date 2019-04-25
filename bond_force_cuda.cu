@@ -29,7 +29,7 @@ __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, 
 		atom2 = bondAtoms[index*2+1];
 		dist2 = 0.0f;
 		for (k=0;k<nDim;k++) {
-			r[k] = xyz[atom1*nDim+k] - xyz[atom2*nDim+k];
+			r[k] = xyz[atom1+k] - xyz[atom2+k];
 			// assuming no more than one box away
 			if (r[k] > hbox) {
 				r[k] -= lbox;
@@ -38,11 +38,11 @@ __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, 
 			}
 			dist2 += r[k]*r[k];
 		}
-		fbnd = 2.0*bondKs[index]*(bondX0s[index]/sqrtf(dist2) - 1.0f);
+		fbnd = bondKs[index]*(bondX0s[index]/sqrtf(dist2) - 1.0f);
 		for (k=0;k<3;k++) {
-			temp = fbnd*r[k];
-			atomicAdd(&f[atom1*nDim+k], temp);
-			atomicAdd(&f[atom2*nDim+k], -temp);
+			//temp = fbnd*r[k];
+			atomicAdd(&f[atom1+k], fbnd*r[k]);
+			atomicAdd(&f[atom2+k], -fbnd*r[k]);
 		}
 
 	}

@@ -99,9 +99,9 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 					}
 					// parse to bond arrays
 					for (i=0;i<bonds.nBondHs;i++) {
-						bonds.bondAtoms_h[i*2] = tempBondArray[i*3]/3;
-						bonds.bondAtoms_h[i*2+1] = tempBondArray[i*3+1]/3;
-						bonds.bondKs_h[i] = bonds.bondKUnique[tempBondArray[i*3+2]-1];
+						bonds.bondAtoms_h[i*2] = tempBondArray[i*3];
+						bonds.bondAtoms_h[i*2+1] = tempBondArray[i*3+1];
+						bonds.bondKs_h[i] = bonds.bondKUnique[tempBondArray[i*3+2]-1]*2.0;
 						bonds.bondX0s_h[i] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
 						//printf("Bond %d is between atoms %d and %d with force constant %f and eq value of %f\n", i+1, bonds.bondAtoms[i*2], bonds.bondAtoms[i*2+1],bonds.bondKs[i],bonds.bondX0s[i]);
 					}
@@ -126,9 +126,9 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 					}
 					// parse to bond arrays
 					for (i=0;i<bonds.nBondnHs;i++) {
-						bonds.bondAtoms_h[(i+bonds.nBondHs)*2] = tempBondArray[i*3]/3;
-						bonds.bondAtoms_h[(i+bonds.nBondHs)*2+1] = tempBondArray[i*3+1]/3;
-						bonds.bondKs_h[(i+bonds.nBondHs)] = bonds.bondKUnique[tempBondArray[i*3+2]-1];
+						bonds.bondAtoms_h[(i+bonds.nBondHs)*2] = tempBondArray[i*3];
+						bonds.bondAtoms_h[(i+bonds.nBondHs)*2+1] = tempBondArray[i*3+1];
+						bonds.bondKs_h[(i+bonds.nBondHs)] = bonds.bondKUnique[tempBondArray[i*3+2]-1]*2.0;
 						bonds.bondX0s_h[(i+bonds.nBondHs)] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
 						//printf("Bond %d is between atoms %d and %d with force constant %f and eq value of %f\n", (i+bonds.nBondHs)+1, bonds.bondAtoms[(i+bonds.nBondHs)*2], bonds.bondAtoms[(i+bonds.nBondHs)*2+1],bonds.bondKs[(i+bonds.nBondHs)],bonds.bondX0s[(i+bonds.nBondHs)]);
 					}
