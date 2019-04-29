@@ -21,6 +21,9 @@ class atom
 		int nAtomTypes;
 		int nAtomBytes;
 		int nTypeBytes;
+		int nMols;	// number of molecules
+		int *molPointer_h;
+		int *molPointer_d;
 		float *xyz_h;    // coordinate array - host data
 		float *xyz_d;    // coordinate array - device data
 		float *f_h;      // force array - host data
@@ -56,6 +59,7 @@ class atom
 		
 		// allocate arrays
 		void allocate();
+		void allocate_molecule_arrays();
 		// read initial coordinates from rst file
 		void read_initial_positions(char *);
 		// initialize all atom velocities and solvent parameters

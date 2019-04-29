@@ -19,11 +19,14 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 	char const *bondX0Flag = "BOND_EQUIL_VALUE";
 	char const *bondnHFlag = "BONDS_WITHOUT_HYDROGEN";
 	char const *bondHFlag = "BONDS_INC_HYDROGEN";
+	char const *atomsPerMoleculeFlag = "ATOMS_PER_MOLECULE";
+	char const *solventPointerFlag = "SOLVENT_POINTERS";
 	char *flag;
 	char *token;
 	int i, nLines;
 	int bondCount;
 	int atomCount;
+	int molCount;
 	int lineCount;
 	int *tempBondArray;
 	FILE *prmFile = fopen(prmtopFileName, "r");
@@ -45,6 +48,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 					atoms.nAtoms = atoi(strncpy(token,line,8));
 					printf("Number of atoms from prmtop file: %d\n", atoms.nAtoms);
 					atoms.nAtomTypes = atoi(strncpy(token,line+8,8));
+					printf("Number of atom types from prmtop file: %d\n", atoms.nAtomTypes);
 					bonds.nBondHs = atoi(strncpy(token,line+16,8));
 					printf("Number of bonds containing hydrogens: %d\n", bonds.nBondHs);
 					bonds.nBondnHs = atoi(strncpy(token,line+24,8));
@@ -65,7 +69,6 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 				} else if (strcmp(flag,massFlag) == 0) {
 					// read bond k values
 					nLines = (int) atoms.nAtoms / 5.0 + 1;
-					printf("number of lines to read for Masses: %d\n", nLines);
 					/* skip format line */
 					fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
@@ -150,10 +153,6 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 							lineCount++;
 						}
 					}
-					// make sure it worked - DEBUG
-					//for (i=0;i<bonds.nTypes;i++) {
-					//	printf("Bond type %d has equilibrium value %f\n", i+1, bonds.bondX0Unique[i]);
-					//}
 				} else if (strcmp(flag,bondKFlag) == 0) {
 					// read bond k values
 					nLines = (int) bonds.nTypes / 5.0 + 1;
@@ -168,6 +167,31 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds) {
 						while (bondCount < bonds.nTypes && lineCount < 5) {
 							bonds.bondKUnique[bondCount] = atof(strncpy(token,line+lineCount*16,16));
 							bondCount++;
+							lineCount++;
+						}
+					}
+				} else if (strcmp(flag,solventPointerFlag) == 0) {
+					/* skip format line */
+					fgets(line, MAXCHAR, prmFile);
+					/* Read line with three integers */
+					fgets(line, MAXCHAR, prmFile);
+					atoms.nMols = atoi(strncpy(token,line+lineCount*8,8));
+					printf("Number of molecules in prmtop file: %d\n", atoms.nMols);
+					atoms.allocate_molecule_arrays();
+				} else if (strcmp(flag,atomsPerMoleculeFlag) == 0) {
+					// read bond k values
+					nLines = (int) atoms.nMols / 10.0 + 1;
+					/* skip format line */
+					fgets(line, MAXCHAR, prmFile);
+					/* loop over lines */
+					molCount = 0;
+					for (i=0;i<nLines;i++) {
+						fgets(line, MAXCHAR, prmFile);
+						lineCount = 0;
+						while (molCount < atoms.nMols && lineCount < 10) {
+							atoms.molPointer_h[molCount] = atof(strncpy(token,line+lineCount*8,8));
+							printf("%d %d\n", molCount + 1, atoms.molPointer_h[molCount]);
+							molCount++;
 							lineCount++;
 						}
 					}

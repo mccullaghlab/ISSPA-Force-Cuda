@@ -13,7 +13,6 @@ using namespace std;
 void atom::allocate()
 {
 	// atoms and types
-	nAtomTypes = 1;
 	numNNmax = 200;
 	// size of xyz arrays
 	nAtomBytes = nAtoms*sizeof(float);
@@ -41,6 +40,13 @@ void atom::allocate()
 	vtot_h = (float *)malloc(nTypeBytes);
 	lj_A_h = (float *)malloc(nTypeBytes);
 	lj_B_h = (float *)malloc(nTypeBytes);
+
+}
+
+void atom::allocate_molecule_arrays()
+{
+	// allocate molecule pointer array
+	molPointer_h = (int *)malloc(nMols*sizeof(int));
 
 }
 	
