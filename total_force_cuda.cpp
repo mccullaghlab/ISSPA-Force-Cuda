@@ -6,10 +6,12 @@
 #include "isspa_force_cuda.h"
 #include "nonbond_cuda.h"
 #include "bond_force_cuda.h"
+#include "angle_force_cuda.h"
 #include "leapfrog_cuda.h"
 #include "neighborlist_cuda.h"
 #include "atom_class.h"
 #include "bond_class.h"
+#include "angle_class.h"
 #include "config_class.h"
 #include "read_prmtop.h"
 #include "constants.h"
@@ -23,6 +25,7 @@ int main(int argc, char* argv[])
 	float day_per_millisecond;
 	atom atoms;
 	bond bonds;
+	angle angles;
 	config configs;
 	int i;
 	int step;
@@ -40,13 +43,14 @@ int main(int argc, char* argv[])
 	configs.initialize(argv[1]);
 	// read atom parameters
 	printf("prmtop file name in main:%s\n",configs.prmtopFileName);
-	read_prmtop(configs.prmtopFileName, atoms, bonds);
+	read_prmtop(configs.prmtopFileName, atoms, bonds, angles);
 	// initialize atom positions, velocities and solvent parameters
 	atoms.read_initial_positions(configs.inputCoordFileName);
 	atoms.initialize(configs.T, configs.lbox, configs.nMC);
 	atoms.initialize_gpu();
 	// initialize bonds on gpus
 	bonds.initialize_gpu();
+	angles.initialize_gpu();
 	
 	// start device timer
 	cudaEventCreate(&start);
@@ -87,6 +91,9 @@ int main(int argc, char* argv[])
 		// compute bond forces on device
 		bond_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, bonds.bondAtoms_d, bonds.bondKs_d, bonds.bondX0s_d, bonds.nBonds);
 
+		// compute angle forces on device
+		angle_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, angles.angleAtoms_d, angles.angleKs_d, angles.angleX0s_d, angles.nAngles);
+
 		// run isspa force cuda kernal
 //		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, isspa_seed);
 //		isspa_seed += 1;
@@ -125,6 +132,8 @@ int main(int argc, char* argv[])
 	atoms.free_arrays_gpu();
 	bonds.free_arrays();
 	bonds.free_arrays_gpu();
+	angles.free_arrays();
+	angles.free_arrays_gpu();
 
 	return 0;
 

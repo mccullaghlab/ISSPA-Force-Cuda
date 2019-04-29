@@ -1,0 +1,99 @@
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <cuda.h>
+#include "angle_force_cuda.h"
+#include "constants.h"
+
+//Fast integer multiplication
+#define MUL(a, b) __umul24(a, b)
+
+// CUDA Kernels
+
+__global__ void angle_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int *angleAtoms, float *angleKs, float *angleX0s, int nAngles) {
+	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
+	unsigned int t = threadIdx.x;
+	extern __shared__ float xyz_s[];
+	extern __shared__ int angleAtoms_s[];
+	int atom1;
+	int atom2;
+	int atom3;
+	int k;
+	float r1[nDim];
+	float r2[nDim];
+	float c11, c22, c12;
+	float b;
+	float theta;
+	float fang;
+	float hbox;
+	
+	if (t < nAtoms*nDim) {
+		xyz_s[t] = xyz[t];	
+		__syncthreads();
+	}
+
+	if (index < nAngles)
+	{
+		hbox = lbox/2.0;
+		// determine two atoms to work  - these will be unique to each index
+		atom1 = angleAtoms[index*2];
+		atom2 = angleAtoms[index*2+1];
+		atom3 = angleAtoms[index*3+1];
+		c11 = 0.0f;
+		c22 = 0.0f;
+		c12 = 0.0f;
+		for (k=0;k<nDim;k++) {
+			r1[k] = xyz_s[atom1+k] - xyz_s[atom2+k];
+			r2[k] = xyz_s[atom2+k] - xyz_s[atom3+k];
+			// assuming no more than one box away
+			if (r1[k] > hbox) {
+				r1[k] -= lbox;
+			} else if (r1[k] < -hbox) {
+				r1[k] += lbox;
+			}
+			if (r2[k] > hbox) {
+				r2[k] -= lbox;
+			} else if (r2[k] < -hbox) {
+				r2[k] += lbox;
+			}
+			c11 += r1[k]*r1[k];
+			c22 += r2[k]*r2[k];
+			c12 += r1[k]*r2[k];
+		}
+		b = -c12/sqrtf(c11*c22);
+		if (b>=0.0f) {
+			theta = 1.0E-16;
+		} else if (b <= -1.0f) {
+			theta = PI;
+		} else {
+			theta = acos(b);
+		}
+		fang = angleKs[index]*(theta - angleX0s[index])/sqrtf(c11*c22-c12*c12);
+		for (k=0;k<3;k++) {
+			atomicAdd(&f[atom1+k], fang*(c12/c11*r1[k]-r2[k]));
+			atomicAdd(&f[atom2+k], fang*((1.0f+c12/c22)*r2[k]-(1.0f+c12/c11)*r1[k]));
+			atomicAdd(&f[atom3+k], fang*(r1[k]-c12/c22*r2[k]));
+		}
+
+	}
+}
+
+/* C wrappers for kernels */
+
+extern "C" void angle_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, int *angleAtoms_d, float *angleKs_d, float *angleX0s_d, int nAngles) {
+	int blockSize;      // The launch configurator returned block size 
+    	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
+    	int gridSize;       // The actual grid size needed, based on input size 
+
+	// determine gridSize and blockSize
+	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, angle_force_kernel, 0, nAngles); 
+
+    	// Round up according to array size 
+    	gridSize = (nAngles + blockSize - 1) / blockSize; 
+	blockSize = nAtoms*nDim;
+	gridSize = 1;
+	// run nonangle cuda kernel
+	angle_force_kernel<<<gridSize, blockSize, blockSize*sizeof(float)>>>(xyz_d, f_d, nAtoms, lbox, angleAtoms_d, angleKs_d, angleX0s_d, nAngles);
+
+}
+
