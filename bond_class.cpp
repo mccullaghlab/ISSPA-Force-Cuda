@@ -31,3 +31,20 @@ void bond::initialize_gpu()
 	cudaMemcpy(bondX0s_d, bondX0s_h, nBonds*sizeof(float), cudaMemcpyHostToDevice);
 
 }
+
+
+void bond::free_arrays() {
+	// free host variables
+	free(bondAtoms_h);
+	free(bondKs_h);
+	free(bondX0s_h);
+	free(bondKUnique);
+	free(bondX0Unique);
+}
+
+void bond::free_arrays_gpu() {
+	// free device variables
+	cudaFree(bondX0s_d);
+	cudaFree(bondKs_d);
+	cudaFree(bondAtoms_d);
+}

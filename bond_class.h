@@ -24,5 +24,7 @@ class bond
 
 		void allocate();
 		void initialize_gpu();
+		void free_arrays();
+		void free_arrays_gpu();
 
 };

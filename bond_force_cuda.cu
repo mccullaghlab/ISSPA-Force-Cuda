@@ -12,14 +12,21 @@
 
 __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int *bondAtoms, float *bondKs, float *bondX0s, int nBonds) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
+	unsigned int t = threadIdx.x;
+	extern __shared__ float xyz_s[];
+	extern __shared__ int bondAtoms_s[];
 	int atom1;
 	int atom2;
 	float dist2;	
 	int k;
-	float r[3];
+	float r[nDim];
 	float fbnd;
 	float hbox;
-	float temp;
+	
+	if (t < nAtoms*nDim) {
+		xyz_s[t] = xyz[t];	
+		__syncthreads();
+	}
 
 	if (index < nBonds)
 	{
@@ -29,7 +36,7 @@ __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, 
 		atom2 = bondAtoms[index*2+1];
 		dist2 = 0.0f;
 		for (k=0;k<nDim;k++) {
-			r[k] = xyz[atom1+k] - xyz[atom2+k];
+			r[k] = xyz_s[atom1+k] - xyz_s[atom2+k];
 			// assuming no more than one box away
 			if (r[k] > hbox) {
 				r[k] -= lbox;
@@ -59,10 +66,11 @@ extern "C" void bond_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox
 	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, bond_force_kernel, 0, nBonds); 
 
     	// Round up according to array size 
-    	gridSize = (nAtoms + blockSize - 1) / blockSize; 
-
+    	gridSize = (nBonds + blockSize - 1) / blockSize; 
+	blockSize = nAtoms*nDim;
+	gridSize = 1;
 	// run nonbond cuda kernel
-	bond_force_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, nAtoms, lbox, bondAtoms_d, bondKs_d, bondX0s_d, nBonds);
+	bond_force_kernel<<<gridSize, blockSize, blockSize*sizeof(float)>>>(xyz_d, f_d, nAtoms, lbox, bondAtoms_d, bondKs_d, bondX0s_d, nBonds);
 
 }
 

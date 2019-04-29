@@ -123,6 +123,8 @@ int main(int argc, char* argv[])
 	// free up arrays
 	atoms.free_arrays();
 	atoms.free_arrays_gpu();
+	bonds.free_arrays();
+	bonds.free_arrays_gpu();
 
 	return 0;
 
