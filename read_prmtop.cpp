@@ -28,8 +28,8 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 	char const *dihKFlag = "DIHEDRAL_FORCE_CONSTANT";
 	char const *dihNFlag = "DIHEDRAL_PERIODICITY";
 	char const *dihPFlag = "DIHEDRAL_PHASE";
-	char const *dihnHFlag = "ANGLES_WITHOUT_HYDROGEN";
-	char const *dihHFlag = "ANGLES_INC_HYDROGEN";
+	char const *dihnHFlag = "DIHEDRALS_WITHOUT_HYDROGEN";
+	char const *dihHFlag = "DIHEDRALS_INC_HYDROGEN";
 	char const *atomsPerMoleculeFlag = "ATOMS_PER_MOLECULE";
 	char const *solventPointerFlag = "SOLVENT_POINTERS";
 	char *flag;
@@ -117,7 +117,6 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 				} else if (strcmp(flag,bondX0Flag) == 0) {
 					// read bond k values
 					nLines = (int) (bonds.nTypes + 4) / 5.0 ;
-					//printf("number of lines to read for bond equilibrium value: %d\n", nLines);
 					/* skip format line */
 					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
@@ -181,6 +180,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 				// Dihedral parameters
 				} else if (strcmp(flag,dihNFlag) == 0) {
+					printf("Reading DIH Periodicity\n");
 					// read dih periodicity values
 					nLines = (int) (dihs.nTypes + 4) / 5.0 ;
 					/* skip format line */
@@ -214,6 +214,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						}
 					}
 				} else if (strcmp(flag,dihPFlag) == 0) {
+					printf("Reading DIH Phase\n");
 					// read dih phase values
 					nLines = (int) (dihs.nTypes + 4) / 5.0 ;
 					/* skip format line */
@@ -335,6 +336,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					free(tempAngleArray);
 				// Dihedral atoms
 				} else if (strcmp(flag,dihHFlag) == 0) { 
+					printf("Reading DIH w/H\n");
 					/* FORMAT 10I8 */
 					nLines = (int) (dihs.nDihHs*5 + 9) / 10.0 ;
 					/* skip format line */
@@ -363,6 +365,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					free(tempDihArray);
 				} else if (strcmp(flag,dihnHFlag) == 0) { 
+					printf("Reading DIH wo/H\n");
 					/* FORMAT 10I8 */
 					nLines = (int) (dihs.nDihnHs*5 + 9) / 10.0 ;
 					/* skip format line */
