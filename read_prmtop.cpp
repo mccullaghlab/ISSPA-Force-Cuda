@@ -2,10 +2,11 @@
 #include "atom_class.h"
 #include "bond_class.h"
 #include "angle_class.h"
+#include "dih_class.h"
 #include "read_prmtop.h"
 #include "constants.h"
 
-void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) {
+void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, dih& dihs) {
 
 	char line[MAXCHAR];
 	char const *FlagSearch = "\%FLAG";
@@ -24,6 +25,11 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 	char const *angleX0Flag = "ANGLE_EQUIL_VALUE";
 	char const *anglenHFlag = "ANGLES_WITHOUT_HYDROGEN";
 	char const *angleHFlag = "ANGLES_INC_HYDROGEN";
+	char const *dihKFlag = "DIHEDRAL_FORCE_CONSTANT";
+	char const *dihNFlag = "DIHEDRAL_PERIODICITY";
+	char const *dihPFlag = "DIHEDRAL_PHASE";
+	char const *dihnHFlag = "ANGLES_WITHOUT_HYDROGEN";
+	char const *dihHFlag = "ANGLES_INC_HYDROGEN";
 	char const *atomsPerMoleculeFlag = "ATOMS_PER_MOLECULE";
 	char const *solventPointerFlag = "SOLVENT_POINTERS";
 	char *flag;
@@ -69,12 +75,19 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					angles.nAnglenHs = atoi(strncpy(token,line+40,8));
 					printf("Number of angles NOT containing hydrogens: %d\n", angles.nAnglenHs);
 					angles.nAngles = angles.nAngleHs + angles.nAnglenHs;
+					dihs.nDihHs = atoi(strncpy(token,line+48,8));
+					printf("Number of dihs containing hydrogens: %d\n", dihs.nDihHs);
+					dihs.nDihnHs = atoi(strncpy(token,line+56,8));
+					printf("Number of dihs NOT containing hydrogens: %d\n", dihs.nDihnHs);
+					dihs.nDihs = dihs.nDihHs + dihs.nDihnHs;
 					/* line 2: */
 					temp = fgets(line, MAXCHAR, prmFile);
 					bonds.nTypes = atoi(strncpy(token,line+40,8));
 					printf("Number of unique bond types: %d\n", bonds.nTypes);
 					angles.nTypes = atoi(strncpy(token,line+48,8));
 					printf("Number of unique angle types: %d\n", angles.nTypes);
+					dihs.nTypes = atoi(strncpy(token,line+56,8));
+					printf("Number of unique dih types: %d\n", dihs.nTypes);
 					/* line 3: */
 					temp = fgets(line, MAXCHAR, prmFile);
 					/* line 4: */
@@ -84,6 +97,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					atoms.allocate();
 					bonds.allocate();
 					angles.allocate();
+					dihs.allocate();
 				} else if (strcmp(flag,massFlag) == 0) {
 					// read bond k values
 					nLines = (int) (atoms.nAtoms + 4) / 5.0 ;
@@ -165,6 +179,57 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 							lineCount++;
 						}
 					}
+				// Dihedral parameters
+				} else if (strcmp(flag,dihNFlag) == 0) {
+					// read dih periodicity values
+					nLines = (int) (dihs.nTypes + 4) / 5.0 ;
+					/* skip format line */
+					temp = fgets(line, MAXCHAR, prmFile);
+					/* loop over lines */
+					dihCount = 0;
+					for (i=0;i<nLines;i++) {
+						temp = fgets(line, MAXCHAR, prmFile);
+						lineCount = 0;
+						while (dihCount < dihs.nTypes && lineCount < 5) {
+							dihs.dihNUnique[dihCount] = atof(strncpy(token,line+lineCount*16,16));
+							dihCount++;
+							lineCount++;
+						}
+					}
+				} else if (strcmp(flag,dihKFlag) == 0) {
+					printf("Reading DIH Ks\n");
+					// read dih k values
+					nLines = (int) (dihs.nTypes + 4) / 5.0 ;
+					/* skip format line */
+					temp = fgets(line, MAXCHAR, prmFile);
+					/* loop over lines */
+					dihCount = 0;
+					for (i=0;i<nLines;i++) {
+						temp = fgets(line, MAXCHAR, prmFile);
+						lineCount = 0;
+						while (dihCount < dihs.nTypes && lineCount < 5) {
+							dihs.dihKUnique[dihCount] = atof(strncpy(token,line+lineCount*16,16));
+							dihCount++;
+							lineCount++;
+						}
+					}
+				} else if (strcmp(flag,dihPFlag) == 0) {
+					// read dih phase values
+					nLines = (int) (dihs.nTypes + 4) / 5.0 ;
+					/* skip format line */
+					temp = fgets(line, MAXCHAR, prmFile);
+					/* loop over lines */
+					dihCount = 0;
+					for (i=0;i<nLines;i++) {
+						temp = fgets(line, MAXCHAR, prmFile);
+						lineCount = 0;
+						while (dihCount < dihs.nTypes && lineCount < 5) {
+							dihs.dihPUnique[dihCount] = atof(strncpy(token,line+lineCount*16,16));
+							dihCount++;
+							lineCount++;
+						}
+					}
+				// Bond atoms
 				} else if (strcmp(flag,bondHFlag) == 0) { 
 					/* FORMAT 10I8 */
 					nLines = (int) (bonds.nBondHs*3 + 9) / 10.0 ;
@@ -215,6 +280,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 						bonds.bondX0s_h[(i+bonds.nBondHs)] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
 					}
 					free(tempBondArray);
+				// Angle atoms
 				} else if (strcmp(flag,angleHFlag) == 0) { 
 					/* FORMAT 10I8 */
 					nLines = (int) (angles.nAngleHs*4 + 9) / 10.0 ;
@@ -267,6 +333,63 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 						angles.angleX0s_h[(i+angles.nAngleHs)] = angles.angleX0Unique[tempAngleArray[i*4+3]-1];
 					}
 					free(tempAngleArray);
+				// Dihedral atoms
+				} else if (strcmp(flag,dihHFlag) == 0) { 
+					/* FORMAT 10I8 */
+					nLines = (int) (dihs.nDihHs*5 + 9) / 10.0 ;
+					/* skip format line */
+					temp = fgets(line, MAXCHAR, prmFile);
+					/* loop over lines */
+					dihCount = 0;
+					tempDihArray = (int *) malloc(dihs.nDihHs*5*sizeof(int));
+					for (i=0;i<nLines;i++) {
+						temp = fgets(line, MAXCHAR, prmFile);
+						lineCount = 0;
+						while (dihCount < dihs.nDihHs*5 && lineCount < 10) {
+							tempDihArray[dihCount] = atoi(strncpy(token,line+lineCount*8,8)); 
+							dihCount++;
+							lineCount++;
+						}
+					}
+					// parse to dih arrays
+					for (i=0;i<dihs.nDihHs;i++) {
+						dihs.dihAtoms_h[i*4] = tempDihArray[i*5];
+						dihs.dihAtoms_h[i*4+1] = tempDihArray[i*5+1];
+						dihs.dihAtoms_h[i*4+2] = tempDihArray[i*5+2];
+						dihs.dihAtoms_h[i*4+3] = tempDihArray[i*5+3];
+						dihs.dihKs_h[i] = dihs.dihKUnique[tempDihArray[i*5+4]-1]*2.0;
+						dihs.dihPs_h[i] = dihs.dihPUnique[tempDihArray[i*5+4]-1];
+						dihs.dihNs_h[i] = dihs.dihNUnique[tempDihArray[i*5+4]-1];
+					}
+					free(tempDihArray);
+				} else if (strcmp(flag,dihnHFlag) == 0) { 
+					/* FORMAT 10I8 */
+					nLines = (int) (dihs.nDihnHs*5 + 9) / 10.0 ;
+					/* skip format line */
+					temp = fgets(line, MAXCHAR, prmFile);
+					/* loop over lines */
+					dihCount = 0;
+					tempDihArray = (int *) malloc(dihs.nDihnHs*5*sizeof(int));
+					for (i=0;i<nLines;i++) {
+						temp = fgets(line, MAXCHAR, prmFile);
+						lineCount = 0;
+						while (dihCount < dihs.nDihnHs*5 && lineCount < 10) {
+							tempDihArray[dihCount] = atoi(strncpy(token,line+lineCount*8,8));
+							dihCount++;
+							lineCount++;
+						}
+					}
+					// parse to dih arrays
+					for (i=0;i<dihs.nDihnHs;i++) {
+						dihs.dihAtoms_h[(i+dihs.nDihHs)*4] = tempDihArray[i*5];
+						dihs.dihAtoms_h[(i+dihs.nDihHs)*4+1] = tempDihArray[i*5+1];
+						dihs.dihAtoms_h[(i+dihs.nDihHs)*4+2] = tempDihArray[i*5+2];
+						dihs.dihAtoms_h[(i+dihs.nDihHs)*4+3] = tempDihArray[i*5+3];
+						dihs.dihKs_h[(i+dihs.nDihHs)] = dihs.dihKUnique[tempDihArray[i*5+4]-1]*2.0;
+						dihs.dihPs_h[(i+dihs.nDihHs)] = dihs.dihPUnique[tempDihArray[i*5+4]-1];
+						dihs.dihNs_h[(i+dihs.nDihHs)] = dihs.dihNUnique[tempDihArray[i*5+4]-1];
+					}
+					free(tempDihArray);
 				} else if (strcmp(flag,solventPointerFlag) == 0) {
 					/* skip format line */
 					temp = fgets(line, MAXCHAR, prmFile);

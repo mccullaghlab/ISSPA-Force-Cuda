@@ -4,5 +4,5 @@
 #include <string.h>
 using namespace std;
 
-void read_prmtop(char*, atom& , bond&, angle&);
+void read_prmtop(char*, atom& , bond&, angle&, dih&);
 

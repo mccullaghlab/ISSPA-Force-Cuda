@@ -7,11 +7,13 @@
 #include "nonbond_cuda.h"
 #include "bond_force_cuda.h"
 #include "angle_force_cuda.h"
+#include "dih_force_cuda.h"
 #include "leapfrog_cuda.h"
 #include "neighborlist_cuda.h"
 #include "atom_class.h"
 #include "bond_class.h"
 #include "angle_class.h"
+#include "dih_class.h"
 #include "config_class.h"
 #include "read_prmtop.h"
 #include "constants.h"
@@ -26,6 +28,7 @@ int main(int argc, char* argv[])
 	atom atoms;
 	bond bonds;
 	angle angles;
+	dih dihs;
 	config configs;
 	int i;
 	int step;
@@ -43,10 +46,10 @@ int main(int argc, char* argv[])
 	configs.initialize(argv[1]);
 	// read atom parameters
 	printf("prmtop file name in main:%s\n",configs.prmtopFileName);
-	read_prmtop(configs.prmtopFileName, atoms, bonds, angles);
-	for (i=0;i<angles.nAngles;i++) {
-		printf("%3d-%3d-%3d: %8.3f %8.3f\n", angles.angleAtoms_h[i*3],angles.angleAtoms_h[i*3+1],angles.angleAtoms_h[i*3+2],angles.angleKs_h[i],angles.angleX0s_h[i]);
-	}
+	read_prmtop(configs.prmtopFileName, atoms, bonds, angles, dihs);
+/*	for (i=0;i<dihs.nDihs;i++) {
+		printf("%3d-%3d-%3d-%3d: %8.3f %8.3f %8.3f\n", dihs.dihAtoms_h[i*4]/3,dihs.dihAtoms_h[i*4+1]/3,dihs.dihAtoms_h[i*4+2]/3, dihs.dihAtoms_h[i*4+3]/3,dihs.dihKs_h[i],dihs.dihNs_h[i],dihs.dihPs_h[i]);
+	}*/
 	// initialize atom positions, velocities and solvent parameters
 	atoms.read_initial_positions(configs.inputCoordFileName);
 	atoms.initialize(configs.T, configs.lbox, configs.nMC);
@@ -55,6 +58,8 @@ int main(int argc, char* argv[])
 	bonds.initialize_gpu();
 	// initialize angles on gpu
 	angles.initialize_gpu();
+	// initialize dihs on gpu
+	dihs.initialize_gpu();
 	
 	// start device timer
 	cudaEventCreate(&start);
@@ -98,6 +103,8 @@ int main(int argc, char* argv[])
 		// compute angle forces on device
 		angle_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, angles.angleAtoms_d, angles.angleKs_d, angles.angleX0s_d, angles.nAngles);
 
+		// compute dihedral forces on device
+		dih_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, dihs.dihAtoms_d, dihs.dihKs_d, dihs.dihNs_d, dihs.dihPs_d, dihs.nDihs);
 		// run isspa force cuda kernal
 //		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, isspa_seed);
 //		isspa_seed += 1;
@@ -138,6 +145,8 @@ int main(int argc, char* argv[])
 	bonds.free_arrays_gpu();
 	angles.free_arrays();
 	angles.free_arrays_gpu();
+	dihs.free_arrays();
+	dihs.free_arrays_gpu();
 
 	return 0;
 
