@@ -148,6 +148,4 @@ int main(int argc, char* argv[])
 	dihs.free_arrays();
 	dihs.free_arrays_gpu();
 
-	return 0;
-
 }

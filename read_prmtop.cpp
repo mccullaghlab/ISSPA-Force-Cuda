@@ -180,7 +180,6 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 				// Dihedral parameters
 				} else if (strcmp(flag,dihNFlag) == 0) {
-					printf("Reading DIH Periodicity\n");
 					// read dih periodicity values
 					nLines = (int) (dihs.nTypes + 4) / 5.0 ;
 					/* skip format line */
@@ -197,7 +196,6 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						}
 					}
 				} else if (strcmp(flag,dihKFlag) == 0) {
-					printf("Reading DIH Ks\n");
 					// read dih k values
 					nLines = (int) (dihs.nTypes + 4) / 5.0 ;
 					/* skip format line */
@@ -214,7 +212,6 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						}
 					}
 				} else if (strcmp(flag,dihPFlag) == 0) {
-					printf("Reading DIH Phase\n");
 					// read dih phase values
 					nLines = (int) (dihs.nTypes + 4) / 5.0 ;
 					/* skip format line */
@@ -336,7 +333,6 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					free(tempAngleArray);
 				// Dihedral atoms
 				} else if (strcmp(flag,dihHFlag) == 0) { 
-					printf("Reading DIH w/H\n");
 					/* FORMAT 10I8 */
 					nLines = (int) (dihs.nDihHs*5 + 9) / 10.0 ;
 					/* skip format line */
@@ -365,7 +361,6 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					free(tempDihArray);
 				} else if (strcmp(flag,dihnHFlag) == 0) { 
-					printf("Reading DIH wo/H\n");
 					/* FORMAT 10I8 */
 					nLines = (int) (dihs.nDihnHs*5 + 9) / 10.0 ;
 					/* skip format line */
@@ -413,7 +408,6 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						lineCount = 0;
 						while (molCount < atoms.nMols && lineCount < 10) {
 							atoms.molPointer_h[molCount] = atof(strncpy(token,line+lineCount*8,8));
-							printf("%d %d\n", molCount + 1, atoms.molPointer_h[molCount]);
 							molCount++;
 							lineCount++;
 						}
