@@ -92,23 +92,24 @@ void atom::read_initial_positions(char *inputFileName) {
 
 	char line[MAXCHAR];
 	char temp[13];
+	char *bunk;
 	FILE *coordFile = fopen(inputFileName, "r");
 	int nLines, i, j;
 
 	if ( coordFile != NULL) {
 		/* skip first two line */
-		fgets(line, MAXCHAR, coordFile);
-		fgets(line, MAXCHAR, coordFile);
+		bunk = fgets(line, MAXCHAR, coordFile);
+		bunk = fgets(line, MAXCHAR, coordFile);
 		/* loop over atom position lines */
 		nLines = (int) ( nAtoms / 2 ); 
 		for (i=0;i<nLines;i++) {
-			fgets(line, MAXCHAR, coordFile);
+			bunk = fgets(line, MAXCHAR, coordFile);
 			for (j=0;j<6;j++) {
 				xyz_h[i*6+j] = atof(strncpy(temp,line+j*12,12));
 			}
 		}
 		if (nAtoms%2 != 0) {
-			fgets(line, MAXCHAR, coordFile);
+			bunk = fgets(line, MAXCHAR, coordFile);
 			for (j=0;j<3;j++) {
 				xyz_h[nLines*6+j] = atof(strncpy(temp,line+j*12,12));
 			}
@@ -138,7 +139,6 @@ float atom::rand_gauss()
 
 void atom::initialize_gpu()
 {
-	printf("nAtomBytes*nDim: %d\n", nAtomBytes*nDim);
 	// allocate atom coordinate arrays
 	cudaMalloc((void **) &xyz_d, nAtomBytes*nDim);
 	// allocate atom velocity arrays

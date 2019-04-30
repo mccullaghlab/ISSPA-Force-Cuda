@@ -15,7 +15,7 @@ __global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2,
 	int atom1;
 	int atom2;
 	float temp, dist2;	
-	int i, k;
+	int k;
 	int count;
 	int start;
 	float hbox;

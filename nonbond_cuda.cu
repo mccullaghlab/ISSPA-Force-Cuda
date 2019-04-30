@@ -17,11 +17,9 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	int atom1;
 	int atom2;
-	int it;    // atom type of atom of interest
-	int jt;    // atom type of other atom
-	float temp, dist2;	
+	int it, jt;    // atom type of atom of interest
+	float dist2;	
 	int i, k;
-	int count;
 	int start;
 	float r[3];
 	float r2, r6, fs;

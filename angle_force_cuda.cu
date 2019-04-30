@@ -36,9 +36,9 @@ __global__ void angle_force_kernel(float *xyz, float *f, int nAtoms, float lbox,
 	{
 		hbox = lbox/2.0;
 		// determine two atoms to work  - these will be unique to each index
-		atom1 = angleAtoms[index*2];
-		atom2 = angleAtoms[index*2+1];
-		atom3 = angleAtoms[index*3+1];
+		atom1 = angleAtoms[index*3];
+		atom2 = angleAtoms[index*3+1];
+		atom3 = angleAtoms[index*3+2];
 		c11 = 0.0f;
 		c22 = 0.0f;
 		c12 = 0.0f;
@@ -61,11 +61,15 @@ __global__ void angle_force_kernel(float *xyz, float *f, int nAtoms, float lbox,
 			c12 += r1[k]*r2[k];
 		}
 		b = -c12/sqrtf(c11*c22);
-		if (b>=0.0f) {
-			theta = 1.0E-16;
+		// make sure b is in the domain of the arccos
+		if (b>=1.0f) {
+			// theta is zero
+			theta = 1.0e-16;
 		} else if (b <= -1.0f) {
+			// theta is pi
 			theta = PI;
 		} else {
+			// b is in domain so take arccos
 			theta = acos(b);
 		}
 		fang = angleKs[index]*(theta - angleX0s[index])/sqrtf(c11*c22-c12*c12);

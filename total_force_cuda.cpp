@@ -44,12 +44,16 @@ int main(int argc, char* argv[])
 	// read atom parameters
 	printf("prmtop file name in main:%s\n",configs.prmtopFileName);
 	read_prmtop(configs.prmtopFileName, atoms, bonds, angles);
+	for (i=0;i<angles.nAngles;i++) {
+		printf("%3d-%3d-%3d: %8.3f %8.3f\n", angles.angleAtoms_h[i*3],angles.angleAtoms_h[i*3+1],angles.angleAtoms_h[i*3+2],angles.angleKs_h[i],angles.angleX0s_h[i]);
+	}
 	// initialize atom positions, velocities and solvent parameters
 	atoms.read_initial_positions(configs.inputCoordFileName);
 	atoms.initialize(configs.T, configs.lbox, configs.nMC);
 	atoms.initialize_gpu();
-	// initialize bonds on gpus
+	// initialize bonds on gpu
 	bonds.initialize_gpu();
+	// initialize angles on gpu
 	angles.initialize_gpu();
 	
 	// start device timer

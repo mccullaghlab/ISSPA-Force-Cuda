@@ -28,6 +28,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 	char const *solventPointerFlag = "SOLVENT_POINTERS";
 	char *flag;
 	char *token;
+	char *temp;
 	int i, nLines;
 	int bondCount;
 	int angleCount;
@@ -50,10 +51,10 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					// read meta data
 					printf("Reading system metadata from prmtop file\n");
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* read meta data section line by line */
 					/* line 1: */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					atoms.nAtoms = atoi(strncpy(token,line,8));
 					printf("Number of atoms from prmtop file: %d\n", atoms.nAtoms);
 					atoms.nAtomTypes = atoi(strncpy(token,line+8,8));
@@ -69,15 +70,15 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					printf("Number of angles NOT containing hydrogens: %d\n", angles.nAnglenHs);
 					angles.nAngles = angles.nAngleHs + angles.nAnglenHs;
 					/* line 2: */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					bonds.nTypes = atoi(strncpy(token,line+40,8));
 					printf("Number of unique bond types: %d\n", bonds.nTypes);
 					angles.nTypes = atoi(strncpy(token,line+48,8));
 					printf("Number of unique angle types: %d\n", angles.nTypes);
 					/* line 3: */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* line 4: */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 
 					/* allocate arrays */
 					atoms.allocate();
@@ -85,13 +86,13 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					angles.allocate();
 				} else if (strcmp(flag,massFlag) == 0) {
 					// read bond k values
-					nLines = (int) atoms.nAtoms / 5.0 + 1;
+					nLines = (int) (atoms.nAtoms + 4) / 5.0 ;
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
 					atomCount = 0;
 					for (i=0;i<nLines;i++) {
-						fgets(line, MAXCHAR, prmFile);
+						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (atomCount < atoms.nAtoms && lineCount < 5) {
 							atoms.mass_h[atomCount] = atof(strncpy(token,line+lineCount*16,16));
@@ -101,14 +102,14 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					}
 				} else if (strcmp(flag,bondX0Flag) == 0) {
 					// read bond k values
-					nLines = (int) bonds.nTypes / 5.0 + 1;
+					nLines = (int) (bonds.nTypes + 4) / 5.0 ;
 					//printf("number of lines to read for bond equilibrium value: %d\n", nLines);
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
 					bondCount = 0;
 					for (i=0;i<nLines;i++) {
-						fgets(line, MAXCHAR, prmFile);
+						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (bondCount < bonds.nTypes && lineCount < 5) {
 							bonds.bondX0Unique[bondCount] = atof(strncpy(token,line+lineCount*16,16));
@@ -118,14 +119,13 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					}
 				} else if (strcmp(flag,bondKFlag) == 0) {
 					// read bond k values
-					nLines = (int) bonds.nTypes / 5.0 + 1;
-					//printf("number of lines to read for bond force constant: %d\n", nLines);
+					nLines = (int) (bonds.nTypes + 4) / 5.0;
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
 					bondCount = 0;
 					for (i=0;i<nLines;i++) {
-						fgets(line, MAXCHAR, prmFile);
+						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (bondCount < bonds.nTypes && lineCount < 5) {
 							bonds.bondKUnique[bondCount] = atof(strncpy(token,line+lineCount*16,16));
@@ -135,13 +135,13 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					}
 				} else if (strcmp(flag,angleX0Flag) == 0) {
 					// read angle k values
-					nLines = (int) angles.nTypes / 5.0 + 1;
+					nLines = (int) (angles.nTypes + 4) / 5.0 ;
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
 					angleCount = 0;
 					for (i=0;i<nLines;i++) {
-						fgets(line, MAXCHAR, prmFile);
+						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (angleCount < angles.nTypes && lineCount < 5) {
 							angles.angleX0Unique[angleCount] = atof(strncpy(token,line+lineCount*16,16));
@@ -151,13 +151,13 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					}
 				} else if (strcmp(flag,angleKFlag) == 0) {
 					// read angle k values
-					nLines = (int) angles.nTypes / 5.0 + 1;
+					nLines = (int) (angles.nTypes + 4) / 5.0 ;
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
 					angleCount = 0;
 					for (i=0;i<nLines;i++) {
-						fgets(line, MAXCHAR, prmFile);
+						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (angleCount < angles.nTypes && lineCount < 5) {
 							angles.angleKUnique[angleCount] = atof(strncpy(token,line+lineCount*16,16));
@@ -167,15 +167,14 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					}
 				} else if (strcmp(flag,bondHFlag) == 0) { 
 					/* FORMAT 10I8 */
-					nLines = (int) bonds.nBondHs*3 / 10.0 + 1;
-					//DEBUG printf("number of lines to read for bonds with hydrogens: %d\n", nLines);
+					nLines = (int) (bonds.nBondHs*3 + 9) / 10.0 ;
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
 					bondCount = 0;
 					tempBondArray = (int *) malloc(bonds.nBondHs*3*sizeof(int));
 					for (i=0;i<nLines;i++) {
-						fgets(line, MAXCHAR, prmFile);
+						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (bondCount < bonds.nBondHs*3 && lineCount < 10) {
 							tempBondArray[bondCount] = atoi(strncpy(token,line+lineCount*8,8));
@@ -193,15 +192,14 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					free(tempBondArray);
 				} else if (strcmp(flag,bondnHFlag) == 0) { 
 					/* FORMAT 10I8 */
-					nLines = (int) bonds.nBondnHs*3 / 10.0 + 1;
-					//printf("number of lines to read for bonds without hydrogens: %d\n", nLines);
+					nLines = (int) (bonds.nBondnHs*3 + 9) / 10.0 ;
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
 					bondCount = 0;
 					tempBondArray = (int *) malloc(bonds.nBondnHs*3*sizeof(int));
 					for (i=0;i<nLines;i++) {
-						fgets(line, MAXCHAR, prmFile);
+						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (bondCount < bonds.nBondnHs*3 && lineCount < 10) {
 							tempBondArray[bondCount] = atoi(strncpy(token,line+lineCount*8,8));
@@ -219,14 +217,14 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					free(tempBondArray);
 				} else if (strcmp(flag,angleHFlag) == 0) { 
 					/* FORMAT 10I8 */
-					nLines = (int) angles.nAngleHs*4 / 10.0 + 1;
+					nLines = (int) (angles.nAngleHs*4 + 9) / 10.0 ;
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
 					angleCount = 0;
 					tempAngleArray = (int *) malloc(angles.nAngleHs*4*sizeof(int));
 					for (i=0;i<nLines;i++) {
-						fgets(line, MAXCHAR, prmFile);
+						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (angleCount < angles.nAngleHs*4 && lineCount < 10) {
 							tempAngleArray[angleCount] = atoi(strncpy(token,line+lineCount*8,8));
@@ -236,23 +234,23 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					}
 					// parse to angle arrays
 					for (i=0;i<angles.nAngleHs;i++) {
-						angles.angleAtoms_h[i*2] = tempAngleArray[i*4];
-						angles.angleAtoms_h[i*2+1] = tempAngleArray[i*4+1];
-						angles.angleAtoms_h[i*2+2] = tempAngleArray[i*4+2];
+						angles.angleAtoms_h[i*3] = tempAngleArray[i*4];
+						angles.angleAtoms_h[i*3+1] = tempAngleArray[i*4+1];
+						angles.angleAtoms_h[i*3+2] = tempAngleArray[i*4+2];
 						angles.angleKs_h[i] = angles.angleKUnique[tempAngleArray[i*4+3]-1]*2.0;
 						angles.angleX0s_h[i] = angles.angleX0Unique[tempAngleArray[i*4+3]-1];
 					}
 					free(tempAngleArray);
 				} else if (strcmp(flag,anglenHFlag) == 0) { 
 					/* FORMAT 10I8 */
-					nLines = (int) angles.nAnglenHs*4 / 10.0 + 1;
+					nLines = (int) (angles.nAnglenHs*4 + 9) / 10.0 ;
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
 					angleCount = 0;
 					tempAngleArray = (int *) malloc(angles.nAnglenHs*4*sizeof(int));
 					for (i=0;i<nLines;i++) {
-						fgets(line, MAXCHAR, prmFile);
+						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (angleCount < angles.nAnglenHs*4 && lineCount < 10) {
 							tempAngleArray[angleCount] = atoi(strncpy(token,line+lineCount*8,8));
@@ -271,21 +269,21 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles) 
 					free(tempAngleArray);
 				} else if (strcmp(flag,solventPointerFlag) == 0) {
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* Read line with three integers */
-					fgets(line, MAXCHAR, prmFile);
-					atoms.nMols = atoi(strncpy(token,line+lineCount*8,8));
+					temp = fgets(line, MAXCHAR, prmFile);
+					atoms.nMols = atoi(strncpy(token,line+8,8));
 					printf("Number of molecules in prmtop file: %d\n", atoms.nMols);
 					atoms.allocate_molecule_arrays();
 				} else if (strcmp(flag,atomsPerMoleculeFlag) == 0) {
-					// read bond k values
-					nLines = (int) atoms.nMols / 10.0 + 1;
+					// 
+					nLines = (int) (atoms.nMols + 9) / 10.0 ;
 					/* skip format line */
-					fgets(line, MAXCHAR, prmFile);
+					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
 					molCount = 0;
 					for (i=0;i<nLines;i++) {
-						fgets(line, MAXCHAR, prmFile);
+						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (molCount < atoms.nMols && lineCount < 10) {
 							atoms.molPointer_h[molCount] = atof(strncpy(token,line+lineCount*8,8));
