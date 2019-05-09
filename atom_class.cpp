@@ -16,21 +16,31 @@ void atom::allocate()
 	numNNmax = 200;
 	// size of xyz arrays
 	nAtomBytes = nAtoms*sizeof(float);
-	nTypeBytes = nAtomTypes*sizeof(float);
+	nTypeBytes = nTypes*sizeof(float);
 	// allocate atom coordinate arrays
-	xyz_h = (float *)malloc(nAtomBytes*nDim);
+//	xyz_h = (float *)malloc(nAtomBytes*nDim);
+	cudaMallocHost((float **) &xyz_h, nAtomBytes*nDim);
 	// allocate atom velocity arrays
-	v_h = (float *)malloc(nAtomBytes*nDim);
+//	v_h = (float *)malloc(nAtomBytes*nDim);
+	cudaMallocHost((float **) &v_h, nAtomBytes*nDim);
 	// allocate atom force arrays
-	f_h = (float *)malloc(nAtomBytes*nDim);
+//	f_h = (float *)malloc(nAtomBytes*nDim);
+	cudaMallocHost((float **) &f_h, nAtomBytes*nDim);
 	// alocate mass array
-	mass_h = (float *)malloc(nAtoms*sizeof(float));
+	//mass_h = (float *)malloc(nAtoms*sizeof(float));
+	cudaMallocHost((float **) &mass_h, nAtomBytes);
 	// alocate charge array
-	charges_h = (float *)malloc(nAtoms*sizeof(float));
+	//charges_h = (float *)malloc(nAtoms*sizeof(float));
+	cudaMallocHost((float **) &charges_h, nAtomBytes);
 	// allocate key array - atom number
 	key = (int *)malloc(nAtoms*sizeof(int));
 	// allocate atom type arrays
 	ityp_h = (int *)malloc(nAtoms*sizeof(int));
+	// allocate atom type arrays
+	nExcludedAtoms_h = (int *)malloc(nAtoms*sizeof(int));
+	excludedAtomsList_h = (int *)malloc(excludedAtomsListLength*sizeof(int));
+	// allocate atom type arrays
+	nonBondedParmIndex_h = (int *)malloc(nTypes*nTypes*sizeof(int));
 	// allocate atom based parameter arrays
 	x0_h = (float *)malloc(nTypeBytes);
 	g0_h = (float *)malloc(nTypeBytes);
@@ -38,8 +48,8 @@ void atom::allocate()
 	w_h = (float *)malloc(nTypeBytes);
 	alpha_h = (float *)malloc(nTypeBytes);
 	vtot_h = (float *)malloc(nTypeBytes);
-	lj_A_h = (float *)malloc(nTypeBytes);
-	lj_B_h = (float *)malloc(nTypeBytes);
+	ljA_h = (float *)malloc(nTypes*(nTypes+1)/2*sizeof(float));
+	ljB_h = (float *)malloc(nTypes*(nTypes+1)/2*sizeof(float));
 
 }
 
@@ -61,16 +71,17 @@ void atom::initialize(float T, float lbox, int nMC)
 	g0_h[0] = 1.714; // height of parabola
 	x0_h[0] = 4.118;
 	alpha_h[0] = 2.674; 
-	lj_A_h[0] = 6.669e7;
-	lj_B_h[0] = 1.103e4;
+//	ljA_h[0] = 6.669e7;
+//	ljB_h[0] = 1.103e4;
 	vtot_h[0] = 16.0/3.0*3.1415926535*w_h[0]*g0_h[0]/((float) nMC)*0.0334*1E-2;
-	sigma = pow(lj_A_h[0]/lj_B_h[0],(1.0/6.0));
+	sigma = pow(ljA_h[0]/ljB_h[0],(1.0/6.0));
 	sigma2 = sigma*sigma;
 
+	// initialize velocities
 	for (i=0;i<nAtoms;i++) {
 		f_h[i*nDim] = f_h[i*nDim+1] = f_h[i*nDim+2] = 0.0f;
-		ityp_h[i] = 0;
-		charges_h[i] = 0.0;
+		//ityp_h[i] = 0;
+		//charges_h[i] = 0.0;
 		//mass_h[i] = 12.0;
 		// reweight hydrogens
 		if (mass_h[i] < 2.0) {
@@ -154,6 +165,10 @@ void atom::initialize_gpu()
 	cudaMalloc((void **) &NN_d, nAtoms*numNNmax*sizeof(int));
 	// allocate atom type arrays
 	cudaMalloc((void **) &ityp_d, nAtoms*sizeof(int));
+	cudaMalloc((void **) &nonBondedParmIndex_d, nTypes*nTypes*sizeof(int));
+	// exluded atoms stuff
+	cudaMalloc((void **) &nExcludedAtoms_d, nAtoms*sizeof(int));
+	cudaMalloc((void **) &excludedAtomsList_d, excludedAtomsListLength*sizeof(int));
 	// allocate atom based parameter arrays
 	cudaMalloc((void **) &x0_d, nTypeBytes);
 	cudaMalloc((void **) &g0_d, nTypeBytes);
@@ -161,12 +176,9 @@ void atom::initialize_gpu()
 	cudaMalloc((void **) &w_d, nTypeBytes);
 	cudaMalloc((void **) &alpha_d, nTypeBytes);
 	cudaMalloc((void **) &vtot_d, nTypeBytes);
-	cudaMalloc((void **) &lj_A_d, nTypeBytes);
-	cudaMalloc((void **) &lj_B_d, nTypeBytes);
+	cudaMalloc((void **) &ljA_d, nTypes*(nTypes+1)/2*sizeof(float));
+	cudaMalloc((void **) &ljB_d, nTypes*(nTypes+1)/2*sizeof(float));
 
-	cudaMalloc((void **) &numNN_d, nAtoms*sizeof(int));
-	// the following will change depending on max density
-	cudaMalloc((void **) &NN_d, nAtoms*nAtoms*sizeof(int));
 }	
 
 
@@ -175,16 +187,19 @@ void atom::copy_params_to_gpu() {
 
 	// copy data to device
 	cudaMemcpy(ityp_d, ityp_h, nAtoms*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(nonBondedParmIndex_d, nonBondedParmIndex_h, nTypes*nTypes*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(nExcludedAtoms_d, nExcludedAtoms_h, nAtoms*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(excludedAtomsList_d, excludedAtomsList_h, excludedAtomsListLength*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(w_d, w_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(x0_d, x0_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(g0_d, g0_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(gr2_d, gr2_h, 2*nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(alpha_d, alpha_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(vtot_d, vtot_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	cudaMemcpy(lj_A_d, lj_A_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	cudaMemcpy(lj_B_d, lj_B_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	cudaMemcpy(mass_d, mass_h, nAtoms*sizeof(float), cudaMemcpyHostToDevice);	
-	cudaMemcpy(charges_d, charges_h, nAtoms*sizeof(float), cudaMemcpyHostToDevice);	
+	cudaMemcpy(ljA_d, ljA_h, nTypes*(nTypes+1)/2*sizeof(float), cudaMemcpyHostToDevice);	
+	cudaMemcpy(ljB_d, ljB_h, nTypes*(nTypes+1)/2*sizeof(float), cudaMemcpyHostToDevice);	
+	cudaMemcpy(mass_d, mass_h, nAtomBytes, cudaMemcpyHostToDevice);	
+	cudaMemcpy(charges_d, charges_h, nAtomBytes, cudaMemcpyHostToDevice);	
 }
 // copy position, force and velocity arrays to GPU
 void atom::copy_pos_v_to_gpu() {
@@ -248,8 +263,10 @@ void atom::print_v() {
 void atom::free_arrays() {
 	// free host variables
 	free(key);
-	free(xyz_h);
-	free(f_h); 
+	cudaFree(xyz_h);
+	cudaFree(f_h); 
+	cudaFree(charges_h); 
+	cudaFree(mass_h); 
 	free(ityp_h); 
 	free(w_h); 
 	free(g0_h); 
@@ -257,9 +274,8 @@ void atom::free_arrays() {
 	free(x0_h); 
 	free(alpha_h); 
 	free(vtot_h); 
-	free(lj_A_h); 
-	free(lj_B_h); 
-	free(charges_h); 
+	free(ljA_h); 
+	free(ljB_h); 
 	fclose(forceXyzFile);
 	fclose(xyzFile);
 	fclose(vFile);
@@ -270,14 +286,15 @@ void atom::free_arrays_gpu() {
 	cudaFree(xyz_d); 
 	cudaFree(f_d); 
 	cudaFree(ityp_d); 
+	cudaFree(nonBondedParmIndex_d); 
 	cudaFree(w_d); 
 	cudaFree(g0_d); 
 	cudaFree(gr2_d); 
 	cudaFree(x0_d); 
 	cudaFree(alpha_d); 
 	cudaFree(vtot_d); 
-	cudaFree(lj_A_d); 
-	cudaFree(lj_B_d); 
+	cudaFree(ljA_d); 
+	cudaFree(ljB_d); 
 	cudaFree(charges_d); 
 	cudaFree(numNN_d);
 	cudaFree(NN_d);

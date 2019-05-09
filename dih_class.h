@@ -25,6 +25,13 @@ class dih
 		float *dihNs_d;
 		float *dihPs_d;
 
+		// scaled NB interactions to be computed in dihedral routine
+		float *sceeScaleFactor_h;
+		float *sceeScaleFactor_d;
+		float *scnbScaleFactor_h;
+		float *scnbScaleFactor_d;
+
+
 		void allocate();
 		void initialize_gpu();
 		void free_arrays();

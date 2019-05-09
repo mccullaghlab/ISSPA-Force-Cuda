@@ -12,9 +12,12 @@
 void bond::allocate()
 {
 	//
-	bondAtoms_h= (int *)malloc(2*nBonds*sizeof(int));
-	bondKs_h= (float *)malloc(nBonds*sizeof(float));
-	bondX0s_h= (float *)malloc(nBonds*sizeof(float));
+	//bondAtoms_h= (int *)malloc(2*nBonds*sizeof(int));
+	cudaMallocHost((int**) &bondAtoms_h, 2*nBonds*sizeof(int));
+	cudaMallocHost((float**) &bondKs_h, nBonds*sizeof(float));
+	cudaMallocHost((float**) &bondX0s_h, nBonds*sizeof(float));
+	//bondKs_h= (float *)malloc(nBonds*sizeof(float));
+	//bondX0s_h= (float *)malloc(nBonds*sizeof(float));
 	bondKUnique = (float *)malloc(nTypes*sizeof(float));
 	bondX0Unique = (float *)malloc(nTypes*sizeof(float));
 }
@@ -30,14 +33,17 @@ void bond::initialize_gpu()
 	cudaMemcpy(bondKs_d, bondKs_h, nBonds*sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(bondX0s_d, bondX0s_h, nBonds*sizeof(float), cudaMemcpyHostToDevice);
 
+	// get gridSize and blockSize
+	bond_force_cuda_grid_block(nBonds, &gridSize, &blockSize, &minGridSize);
+
 }
 
 
 void bond::free_arrays() {
 	// free host variables
-	free(bondAtoms_h);
-	free(bondKs_h);
-	free(bondX0s_h);
+	cudaFree(bondAtoms_h);
+	cudaFree(bondKs_h);
+	cudaFree(bondX0s_h);
 	free(bondKUnique);
 	free(bondX0Unique);
 }

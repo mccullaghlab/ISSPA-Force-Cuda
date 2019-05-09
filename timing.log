@@ -18,5 +18,5 @@ Number of unique bond types: 9
 Number of unique angle types: 15
 Number of unique dih types: 10
 Number of molecules in prmtop file: 1
-Elapsed time =      1339.7275390625 ms
-Average ns/day =      1289.8144654957
+Elapsed time =      1248.6113281250 ms
+Average ns/day =      1383.9374924728

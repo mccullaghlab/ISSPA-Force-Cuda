@@ -13,7 +13,7 @@
 //}
 // CUDA Kernels
 
-__global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A, float *lj_B, int *ityp, int nAtoms, float lbox, int *NN, int *numNN, int numNNmax) {
+__global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A, float *lj_B, int *ityp, int nAtoms, float lbox, int *NN, int *numNN, int numNNmax, int *nbparm, int nTypes) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	int atom1;
 	int atom2;
@@ -22,8 +22,11 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 	int i, k;
 	int start;
 	float r[3];
-	float r2, r6, fs;
+	float r2, r6;
+	float fc;
+	float flj;
 	float hbox;
+	int nlj;
 
 	if (index < nAtoms)
 	{
@@ -39,6 +42,8 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 				// get interaction type
 				it = ityp[atom1];
 				jt = ityp[atom2];
+				nlj = nTypes*(it-1)+jt-1;
+				nlj = nbparm[nlj];
 				dist2 = 0.0f;
 				for (k=0;k<nDim;k++) {
 					r[k] = xyz[atom1*nDim+k] - xyz[atom2*nDim+k];
@@ -54,11 +59,11 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 				// LJ force
 				r2 = 1.0 / dist2;
 				r6 = r2 * r2 * r2;
-//				fs = r6 * (12.0 * lj_A[it] * r6 - 6.0 * lj_B[it]) / dist2;
-				fs = r6 * r2 * ( r6 * lj_A[it] - lj_B[it]);
-				f[atom1*nDim] += fs*r[0];
-				f[atom1*nDim+1] += fs*r[1];
-				f[atom1*nDim+2] += fs*r[2];
+				flj = r6 * (12.0 * lj_A[nlj] * r6 - 6.0 * lj_B[nlj]) / dist2;
+				fc = charges[atom1]*charges[atom2]/dist2/sqrtf(dist2);
+				f[atom1*nDim] += (flj+fc)*r[0];
+				f[atom1*nDim+1] += (flj+fc)*r[1];
+				f[atom1*nDim+2] += (flj+fc)*r[2];
 			}
 		}
 
@@ -67,7 +72,7 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 
 /* C wrappers for kernels */
 
-extern "C" void nonbond_cuda(float *xyz_d, float *f_d, float *charges_d, float *lj_A_d, float *lj_B_d, int *ityp_d, int nAtoms, float lbox, int *NN_d, int *numNN_d, int numNNmax) {
+extern "C" void nonbond_cuda(float *xyz_d, float *f_d, float *charges_d, float *lj_A_d, float *lj_B_d, int *ityp_d, int nAtoms, float lbox, int *NN_d, int *numNN_d, int numNNmax, int *nbparm_d, int nTypes) {
 	int blockSize;      // The launch configurator returned block size 
     	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
     	int gridSize;       // The actual grid size needed, based on input size 
@@ -79,7 +84,7 @@ extern "C" void nonbond_cuda(float *xyz_d, float *f_d, float *charges_d, float *
     	gridSize = (nAtoms + blockSize - 1) / blockSize; 
 
 	// run nonbond cuda kernel
-	nonbond_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, charges_d, lj_A_d, lj_B_d, ityp_d, nAtoms, lbox, NN_d, numNN_d, numNNmax);
+	nonbond_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, charges_d, lj_A_d, lj_B_d, ityp_d, nAtoms, lbox, NN_d, numNN_d, numNNmax, nbparm_d, nTypes);
 
 }
 

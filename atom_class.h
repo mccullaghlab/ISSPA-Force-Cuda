@@ -18,7 +18,8 @@ class atom
 		float rand_gauss();
 	public:
 		int nAtoms;
-		int nAtomTypes;
+		int nTypes;
+		int excludedAtomsListLength;
 		int nAtomBytes;
 		int nTypeBytes;
 		int nMols;	// number of molecules
@@ -34,6 +35,12 @@ class atom
 		float *mass_d;      // mass array - device data
 		int *ityp_h;     // atom type array - host data
 		int *ityp_d;     // atom type array - device data
+		int *nExcludedAtoms_h;     // number of excluded atoms per atom array - host data
+		int *nExcludedAtoms_d;     // number of excluded atoms per atom array - device data
+		int *excludedAtomsList_h;     // excluded atoms list - host data
+		int *excludedAtomsList_d;     // excluded atoms list - device data
+		int *nonBondedParmIndex_h;     // nonbonded parameter index - host data
+		int *nonBondedParmIndex_d;     // nonbonded parameter index - device data
 		float *x0_h;     // center position of parabola and g - host data 
 		float *x0_d;     // center position of parabola and g - device data
 		float *g0_h;     // height of parabola approximation of g - host data 
@@ -48,10 +55,10 @@ class atom
 		float *vtot_d;  // Monte Carlo normalization factor - device data
 		float *charges_h;    // coordinate array - host data
 		float *charges_d;    // coordinate array - device data
-		float *lj_A_h;   // Lennard-Jones A parameter - host data
-		float *lj_A_d;   // Lennard-Jones A parameter - device data
-		float *lj_B_h;   // Lennard-Jones B parameter - host data
-		float *lj_B_d;   // Lennard-Jones B parameter - device data
+		float *ljA_h;   // Lennard-Jones A parameter - host data
+		float *ljA_d;   // Lennard-Jones A parameter - device data
+		float *ljB_h;   // Lennard-Jones B parameter - host data
+		float *ljB_d;   // Lennard-Jones B parameter - device data
 		int numNNmax;
 		int *numNN_d;   // list of neighors per atom
 		int *NN_d;       // neighbor list - will be size nAtoms*nNNmax

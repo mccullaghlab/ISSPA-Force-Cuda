@@ -47,9 +47,9 @@ int main(int argc, char* argv[])
 	// read atom parameters
 	printf("prmtop file name in main:%s\n",configs.prmtopFileName);
 	read_prmtop(configs.prmtopFileName, atoms, bonds, angles, dihs);
-/*	for (i=0;i<dihs.nDihs;i++) {
-		printf("%3d-%3d-%3d-%3d: %8.3f %8.3f %8.3f\n", dihs.dihAtoms_h[i*4]/3,dihs.dihAtoms_h[i*4+1]/3,dihs.dihAtoms_h[i*4+2]/3, dihs.dihAtoms_h[i*4+3]/3,dihs.dihKs_h[i],dihs.dihNs_h[i],dihs.dihPs_h[i]);
-	}*/
+//	for (i=0;i<dihs.nDihs;i++) {
+//		printf("%4d %4d %4d %4d: %8.3f %8.3f\n", dihs.dihAtoms_h[i*5]/3+1, dihs.dihAtoms_h[i*5+1]/3+1, dihs.dihAtoms_h[i*5+2]/3+1, dihs.dihAtoms_h[i*5+3]/3+1, dihs.sceeScaleFactor_h[dihs.dihAtoms_h[i*5+4]], dihs.scnbScaleFactor_h[dihs.dihAtoms_h[i*5+4]]);
+//	}
 	// initialize atom positions, velocities and solvent parameters
 	atoms.read_initial_positions(configs.inputCoordFileName);
 	atoms.initialize(configs.T, configs.lbox, configs.nMC);
@@ -72,45 +72,27 @@ int main(int argc, char* argv[])
 	for (step=0;step<configs.nSteps;step++) {
 
 		if (step%configs.deltaNN==0) {
-//			if (step > 0) {
-//				// get positions, velocities, and forces from gpu
-//				atoms.get_pos_v_from_gpu();
-//			}
-			// reorder based on hilbert curve position
-//			atoms.reorder();
-			// send positions and velocities back
-//			atoms.copy_pos_v_to_gpu();
 			// compute the neighborlist
-		//	neighborlist_cuda(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, configs.rNN2, atoms.nAtoms, atoms.numNNmax, configs.lbox);
-/*			if (step==0) {
-			// MM debug
-			cudaMemcpy(NN_h, atoms.NN_d, atoms.nAtoms*atoms.numNNmax*sizeof(int), cudaMemcpyDeviceToHost);
-			cudaMemcpy(numNN_h, atoms.numNN_d, atoms.nAtoms*sizeof(int), cudaMemcpyDeviceToHost);
-			for (i=0;i<atoms.nAtoms;i++) {
-				printf("%10d: %10d\n", i+1, numNN_h[i]);
-			}
-			// MM debug
-			}
-*/
+			neighborlist_cuda(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, configs.rNN2, atoms.nAtoms, atoms.numNNmax, configs.lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d);
 		}
 
 		// zero force array on gpu
 		cudaMemset(atoms.f_d, 0.0f,  atoms.nAtoms*nDim*sizeof(float));
 
 		// compute bond forces on device
-		bond_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, bonds.bondAtoms_d, bonds.bondKs_d, bonds.bondX0s_d, bonds.nBonds);
-
+		bond_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, bonds.bondAtoms_d, bonds.bondKs_d, bonds.bondX0s_d, bonds.nBonds, bonds.gridSize, bonds.blockSize);
+		
 		// compute angle forces on device
 		angle_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, angles.angleAtoms_d, angles.angleKs_d, angles.angleX0s_d, angles.nAngles);
 
 		// compute dihedral forces on device
-		dih_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, dihs.dihAtoms_d, dihs.dihKs_d, dihs.dihNs_d, dihs.dihPs_d, dihs.nDihs);
+		dih_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, dihs.dihAtoms_d, dihs.dihKs_d, dihs.dihNs_d, dihs.dihPs_d, dihs.nDihs, dihs.sceeScaleFactor_d, dihs.scnbScaleFactor_d, atoms.charges_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes);
 		// run isspa force cuda kernal
-//		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, isspa_seed);
+//		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, isspa_seed);
 //		isspa_seed += 1;
 
 		// run nonbond cuda kernel
-//		nonbond_cuda(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.lj_A_d, atoms.lj_B_d, atoms.ityp_d, atoms.nAtoms, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax);
+		nonbond_cuda(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nAtoms, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, atoms.nonBondedParmIndex_d, atoms.nTypes);
 
 		// print stuff every so often
 		if (step%configs.deltaWrite==0) {

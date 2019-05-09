@@ -10,7 +10,7 @@
 
 // CUDA Kernels
 
-__global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2, int nAtoms, int numNNmax, float lbox) {
+__global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2, int nAtoms, int numNNmax, float lbox, int *nExcludedAtoms, int *excludedAtomsList) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	int atom1;
 	int atom2;
@@ -18,17 +18,35 @@ __global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2,
 	int k;
 	int count;
 	int start;
+	int exStart;
+	int exStop;
+	int exPass;
+	int exAtom;
 	float hbox;
 
 	if (index < nAtoms)
 	{
 		hbox = lbox/2.0;
-		// determine two atoms to work on based on recursive definition
+		// 
 		atom1 = index;
 		start = atom1*numNNmax;
 		count = 0;
+		if (atom1==0) {
+			exStart = 0;
+		} else {
+			exStart = nExcludedAtoms[atom1-1];
+		}
+		exStop = nExcludedAtoms[atom1];
 		for (atom2=0;atom2<nAtoms;atom2++) {
-			if (atom2 != atom1) {
+			// check exclusions
+			exPass = 0;
+			for (exAtom=exStart;exAtom<exStop;exAtom++) {
+				if (excludedAtomsList[exAtom]-1 == atom2) {
+					exPass = 1;
+					break;
+				}
+			}
+			if (atom2 != atom1 && exPass == 0) {
 				// compute distance
 				dist2 = 0.0f;
 				for (k=0;k<nDim;k++) {
@@ -52,7 +70,7 @@ __global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2,
 
 /* C wrappers for kernels */
 
-extern "C" void neighborlist_cuda(float *xyz_d, int *NN_d, int *numNN_d, float rNN2, int nAtoms, int numNNmax, float lbox) {
+extern "C" void neighborlist_cuda(float *xyz_d, int *NN_d, int *numNN_d, float rNN2, int nAtoms, int numNNmax, float lbox, int *nExcludedAtoms_d, int *excludedAtomsList_d) {
 	int blockSize;      // The launch configurator returned block size 
     	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
     	int gridSize;       // The actual grid size needed, based on input size 
@@ -64,7 +82,7 @@ extern "C" void neighborlist_cuda(float *xyz_d, int *NN_d, int *numNN_d, float r
     	gridSize = (nAtoms + blockSize - 1) / blockSize; 
 
 	// run nonbond cuda kernel
-	neighborlist_kernel<<<gridSize, blockSize>>>(xyz_d, NN_d, numNN_d, rNN2, nAtoms, numNNmax, lbox);
+	neighborlist_kernel<<<gridSize, blockSize>>>(xyz_d, NN_d, numNN_d, rNN2, nAtoms, numNNmax, lbox, nExcludedAtoms_d, excludedAtomsList_d);
 
 }
 

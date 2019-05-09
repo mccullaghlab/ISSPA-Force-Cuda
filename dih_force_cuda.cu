@@ -10,15 +10,15 @@
 
 // CUDA Kernels
 
-__global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int *dihAtoms, float *dihKs, float *dihNs, float *dihPs, int nDihs) {
+__global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int *dihAtoms, float *dihKs, float *dihNs, float *dihPs, int nDihs, float *scee, float *scnb, float *charge, float *ljA, float *ljB, int *atomType, int *nbparm, int nAtomTypes) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
-	extern __shared__ float xyz_s[];
-	extern __shared__ int dihAtoms_s[];
+//	extern __shared__ float xyz_s[];
 	int atom1;
 	int atom2;
 	int atom3;
 	int atom4;
+	int dihType;
 	int k;
 	float r1[nDim];
 	float r2[nDim];
@@ -30,26 +30,48 @@ __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, i
 	float phi;
 	float fdih;
 	float hbox;
+	float rMag, r6;
+	int it, jt,  nlj;
+	float f14e,f14v;
 	
-	if (t < nAtoms*nDim) {
-		xyz_s[t] = xyz[t];	
-		__syncthreads();
-	}
+	//if (t < nAtoms*nDim) {
+	//	xyz_s[t] = xyz[t];	
+	//	__syncthreads();
+	//}
 
 	if (index < nDihs)
 	{
 		hbox = lbox/2.0;
 		// determine two atoms to work  - these will be unique to each index
-		atom1 = dihAtoms[index*4];
-		atom2 = dihAtoms[index*4+1];
-		atom3 = dihAtoms[index*4+2];
-		atom4 = dihAtoms[index*4+3];
-		if (atom4 < 0) { atom4 = -atom4;}
-		if (atom3 < 0) {
-			atom3 = -atom3;
-		} else {
-			// remove non-bonded interaction between atom1 and atom4 to avoid double counting
+		atom1 = dihAtoms[index*5];
+		atom2 = dihAtoms[index*5+1];
+		atom3 = dihAtoms[index*5+2];
+		atom4 = dihAtoms[index*5+3];
+		dihType = dihAtoms[index*5+4];
+		// Check to see if we want to compute the scaled 1-4 interaction
+		if (atom3 > 0 && atom4 > 0) {
+			//Scaled non-bonded interaction for 1-4
+			rMag = 0.0f;
+			for (k=0;k<nDim;k++) {
+				r1[k] = xyz[atom1+k]-xyz[atom4+k];
+				rMag += r1[k] * r1[k];
+			}
+			r6 = rMag*rMag*rMag;
+			r6 = 1.0/r6;
+			it = atomType[atom1];
+			jt = atomType[atom4];
+			nlj = nAtomTypes * (it-1) + jt - 1;
+			nlj = nbparm[nlj];
+			f14e = charge[atom1]*charge[atom4]/rMag/sqrtf(rMag)/scee[dihType];
+			f14v = r6*(12.0f*ljA[nlj]*r6-6.0f*ljB[nlj])/scnb[dihType]/rMag;
+			f14v = 0.0f;
+			for (k=0;k<nDim;k++) {
+				atomicAdd(&f[atom1+k], (f14e+f14v)*r1[k]);
+				atomicAdd(&f[atom4+k], -(f14e+f14v)*r1[k]);
+			}
 		}
+		if (atom4 < 0) { atom4 = -atom4;} // atom4 is negative if the torsion is improper
+		if (atom3 < 0) { atom3 = -atom3;} // atom3 is negative if we don't want to compute the scaled 1-4 for this torsion
 
 		c11 = 0.0f;
 		c22 = 0.0f;
@@ -58,9 +80,9 @@ __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, i
 		c13 = 0.0f;
 		c23 = 0.0f;
 		for (k=0;k<nDim;k++) {
-			r1[k] = xyz_s[atom1+k] - xyz_s[atom2+k];
-			r2[k] = xyz_s[atom2+k] - xyz_s[atom3+k];
-			r3[k] = xyz_s[atom3+k] - xyz_s[atom4+k];
+			r1[k] = xyz[atom1+k] - xyz[atom2+k];
+			r2[k] = xyz[atom2+k] - xyz[atom3+k];
+			r3[k] = xyz[atom3+k] - xyz[atom4+k];
 			// assuming no more than one box away
 			if (r1[k] > hbox) {
 				r1[k] -= lbox;
@@ -100,7 +122,7 @@ __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, i
 			fdih = 0.0;	
 		} else {
 			phi = acos(a);
-			fdih = dihNs[index] * dihKs[index] * sinf(dihNs[index]*phi-dihPs[index])/sinf(phi)*c22/b;
+			fdih = dihNs[dihType] * dihKs[dihType] * sinf(dihNs[dihType]*phi-dihPs[dihType])/sinf(phi)*c22/b;
 		}
 		for (k=0;k<3;k++) {
 			f1=fdih*(t1*r1[k]+t2*r2[k]+t3*r3[k])/t3;
@@ -116,7 +138,7 @@ __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, i
 
 /* C wrappers for kernels */
 
-extern "C" void dih_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, int *dihAtoms_d, float *dihKs_d, float *dihNs_d, float *dihPs_d, int nDihs) {
+extern "C" void dih_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, int *dihAtoms_d, float *dihKs_d, float *dihNs_d, float *dihPs_d, int nDihs, float *scee_d, float *scnb_d, float *charge_d, float *ljA_d, float *ljB_d, int *atomType_d, int *nbparm_d, int nAtomTypes) {
 	int blockSize;      // The launch configurator returned block size 
     	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
     	int gridSize;       // The actual grid size needed, based on input size 
@@ -127,7 +149,8 @@ extern "C" void dih_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox,
     	// Round up according to array size 
     	gridSize = (nDihs + blockSize - 1) / blockSize; 
 	// run nondih cuda kernel
-	dih_force_kernel<<<gridSize, blockSize, nAtoms*nDim*sizeof(float)>>>(xyz_d, f_d, nAtoms, lbox, dihAtoms_d, dihKs_d, dihNs_d, dihPs_d, nDihs);
+	//dih_force_kernel<<<gridSize, blockSize, nAtoms*nDim*sizeof(float)>>>(xyz_d, f_d, nAtoms, lbox, dihAtoms_d, dihKs_d, dihNs_d, dihPs_d, nDihs);
+	dih_force_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, nAtoms, lbox, dihAtoms_d, dihKs_d, dihNs_d, dihPs_d, nDihs, scee_d, scnb_d, charge_d, ljA_d, ljB_d, atomType_d, nbparm_d, nAtomTypes);
 
 }
 
