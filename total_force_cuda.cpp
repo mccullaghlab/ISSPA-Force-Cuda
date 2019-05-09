@@ -30,7 +30,7 @@ int main(int argc, char* argv[])
 	angle angles;
 	dih dihs;
 	config configs;
-	int i;
+	int i, j, listStart;
 	int step;
 	int *NN_h, *numNN_h;
 	long long leapfrog_seed;
@@ -74,6 +74,27 @@ int main(int argc, char* argv[])
 		if (step%configs.deltaNN==0) {
 			// compute the neighborlist
 			neighborlist_cuda(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, configs.rNN2, atoms.nAtoms, atoms.numNNmax, configs.lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d);
+/*			// DEBUG
+			cudaMemcpy(atoms.NN_h, atoms.NN_d, atoms.nAtoms*atoms.numNNmax*sizeof(int), cudaMemcpyDeviceToHost);	
+			cudaMemcpy(atoms.numNN_h, atoms.numNN_d, atoms.nAtoms*sizeof(int), cudaMemcpyDeviceToHost);	
+			for (i=0;i<2;i++) {
+				printf("Neighbor list for atom %d:",i+1);
+				for (j=0;j<atoms.numNN_h[i];j++) {
+					printf(" %4d", atoms.NN_h[i*atoms.numNNmax+j]);
+				}
+				printf("\n");
+				printf("Excluded atom list for atom %d:",i+1);
+				if (i==0) {
+					listStart = 0;
+				} else{
+					listStart = atoms.nExcludedAtoms_h[i-1];
+				}
+				for (j=listStart;j<atoms.nExcludedAtoms_h[i];j++) {
+					printf(" %4d", atoms.excludedAtomsList_h[j]);
+				}
+				printf("\n");
+			}
+			*/
 		}
 
 		// zero force array on gpu

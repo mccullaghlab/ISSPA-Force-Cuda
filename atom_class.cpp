@@ -50,7 +50,9 @@ void atom::allocate()
 	vtot_h = (float *)malloc(nTypeBytes);
 	ljA_h = (float *)malloc(nTypes*(nTypes+1)/2*sizeof(float));
 	ljB_h = (float *)malloc(nTypes*(nTypes+1)/2*sizeof(float));
-
+	// debug
+	NN_h = (int *)malloc(nAtoms*numNNmax*sizeof(int));
+	numNN_h = (int *)malloc(nAtoms*sizeof(int));
 }
 
 void atom::allocate_molecule_arrays()

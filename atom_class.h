@@ -61,7 +61,9 @@ class atom
 		float *ljB_d;   // Lennard-Jones B parameter - device data
 		int numNNmax;
 		int *numNN_d;   // list of neighors per atom
+		int *numNN_h;   // list of neighors per atom
 		int *NN_d;       // neighbor list - will be size nAtoms*nNNmax
+		int *NN_h;       // neighbor list - will be size nAtoms*nNNmax
 		int   *key;      // array to determine current position of atoms (after shuffle)
 		
 		// allocate arrays

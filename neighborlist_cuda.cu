@@ -31,19 +31,42 @@ __global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2,
 		atom1 = index;
 		start = atom1*numNNmax;
 		count = 0;
-		if (atom1==0) {
-			exStart = 0;
-		} else {
-			exStart = nExcludedAtoms[atom1-1];
-		}
-		exStop = nExcludedAtoms[atom1];
 		for (atom2=0;atom2<nAtoms;atom2++) {
 			// check exclusions
 			exPass = 0;
-			for (exAtom=exStart;exAtom<exStop;exAtom++) {
-				if (excludedAtomsList[exAtom]-1 == atom2) {
-					exPass = 1;
-					break;
+			if (atom1 < atom2) {
+				if (atom1==0) {
+					exStart = 0;
+				} else {
+					exStart = nExcludedAtoms[atom1-1];
+				}
+				exStop = nExcludedAtoms[atom1];
+				for (exAtom=exStart;exAtom<exStop;exAtom++) {
+					if (excludedAtomsList[exAtom]-1 == atom2) {
+						exPass = 1;
+						break;
+					}
+					// the following only applies if exluded atom list is in strictly ascending order
+					if (excludedAtomsList[exAtom]-1 > atom2) {
+						break;
+					}
+				}
+			} else if (atom1 > atom2) {
+				if (atom2==0) {
+					exStart = 0;
+				} else {
+					exStart = nExcludedAtoms[atom2-1];
+				}
+				exStop = nExcludedAtoms[atom2];
+				for (exAtom=exStart;exAtom<exStop;exAtom++) {
+					if (excludedAtomsList[exAtom]-1 == atom1) {
+						exPass = 1;
+						break;
+					}
+					// the following only applies if exluded atom list is in strictly ascending order
+					if (excludedAtomsList[exAtom]-1 > atom1) {
+						break;
+					}
 				}
 			}
 			if (atom2 != atom1 && exPass == 0) {
