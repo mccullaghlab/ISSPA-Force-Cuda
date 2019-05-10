@@ -5,7 +5,7 @@
 #include <cuda_runtime.h>
 #include <string.h>
 #include "stringlib.h"
-
+#include "constants_cuda.cuh"
 using namespace std;
 #include "config_class.h"
 
@@ -61,5 +61,13 @@ void config::initialize(char *cfgFileName)
 	rNN2 = rNN*rNN;
 
 
+}
+
+void config::set_cuda_constants()
+{
+	cudaMemcpyToSymbol(&dt_d, &dt, sizeof(float));
+	cudaMemcpyToSymbol(&pnu_d, &pnu, sizeof(float));
+	cudaMemcpyToSymbol(&T_d, &T, sizeof(float));
+	cudaMemcpyToSymbol(&lbox_d, &lbox, sizeof(float));
 }
 

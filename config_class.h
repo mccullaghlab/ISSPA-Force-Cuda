@@ -4,6 +4,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include "constants.h"
+//#include "constants_cuda.h"
 
 class config
 {
@@ -25,5 +26,6 @@ class config
 		char inputCoordFileName[MAXCHAR];
 		// initialize all variables
 		void initialize(char *);
+		void set_cuda_constants();
 		
 };

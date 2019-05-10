@@ -23,6 +23,18 @@ using namespace std;
 int main(int argc, char* argv[])
 {
 	cudaEvent_t start, stop;
+	cudaEvent_t bondStart, bondStop;
+	float bondTime;
+	cudaEvent_t angleStart, angleStop;
+	float angleTime;
+	cudaEvent_t dihStart, dihStop;
+	float dihTime;
+	cudaEvent_t nonbondStart, nonbondStop;
+	float nonbondTime;
+	cudaEvent_t neighborListStart, neighborListStop;
+	float neighborListTime;
+	cudaEvent_t leapFrogStart, leapFrogStop;
+	float leapFrogTime;
 	float milliseconds;
 	float day_per_millisecond;
 	atom atoms;
@@ -47,9 +59,6 @@ int main(int argc, char* argv[])
 	// read atom parameters
 	printf("prmtop file name in main:%s\n",configs.prmtopFileName);
 	read_prmtop(configs.prmtopFileName, atoms, bonds, angles, dihs);
-//	for (i=0;i<dihs.nDihs;i++) {
-//		printf("%4d %4d %4d %4d: %8.3f %8.3f\n", dihs.dihAtoms_h[i*5]/3+1, dihs.dihAtoms_h[i*5+1]/3+1, dihs.dihAtoms_h[i*5+2]/3+1, dihs.dihAtoms_h[i*5+3]/3+1, dihs.sceeScaleFactor_h[dihs.dihAtoms_h[i*5+4]], dihs.scnbScaleFactor_h[dihs.dihAtoms_h[i*5+4]]);
-//	}
 	// initialize atom positions, velocities and solvent parameters
 	atoms.read_initial_positions(configs.inputCoordFileName);
 	atoms.initialize(configs.T, configs.lbox, configs.nMC);
@@ -65,6 +74,24 @@ int main(int argc, char* argv[])
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 	cudaEventRecord(start);
+	cudaEventCreate(&bondStart);
+	cudaEventCreate(&bondStop);
+	cudaEventCreate(&angleStart);
+	cudaEventCreate(&angleStop);
+	cudaEventCreate(&dihStart);
+	cudaEventCreate(&dihStop);
+	cudaEventCreate(&nonbondStart);
+	cudaEventCreate(&nonbondStop);
+	cudaEventCreate(&neighborListStart);
+	cudaEventCreate(&neighborListStop);
+	cudaEventCreate(&leapFrogStart);
+	cudaEventCreate(&leapFrogStop);
+	bondTime = 0.0f;
+	angleTime = 0.0f;
+	dihTime = 0.0f;
+	nonbondTime = 0.0f;
+	neighborListTime = 0.0f;
+	leapFrogTime = 0.0f;
 	// copy atom data to device
 	atoms.copy_params_to_gpu();
 	atoms.copy_pos_v_to_gpu();
@@ -73,48 +100,51 @@ int main(int argc, char* argv[])
 
 		if (step%configs.deltaNN==0) {
 			// compute the neighborlist
+			cudaEventRecord(neighborListStart);
 			neighborlist_cuda(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, configs.rNN2, atoms.nAtoms, atoms.numNNmax, configs.lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d);
-/*			// DEBUG
-			cudaMemcpy(atoms.NN_h, atoms.NN_d, atoms.nAtoms*atoms.numNNmax*sizeof(int), cudaMemcpyDeviceToHost);	
-			cudaMemcpy(atoms.numNN_h, atoms.numNN_d, atoms.nAtoms*sizeof(int), cudaMemcpyDeviceToHost);	
-			for (i=0;i<2;i++) {
-				printf("Neighbor list for atom %d:",i+1);
-				for (j=0;j<atoms.numNN_h[i];j++) {
-					printf(" %4d", atoms.NN_h[i*atoms.numNNmax+j]);
-				}
-				printf("\n");
-				printf("Excluded atom list for atom %d:",i+1);
-				if (i==0) {
-					listStart = 0;
-				} else{
-					listStart = atoms.nExcludedAtoms_h[i-1];
-				}
-				for (j=listStart;j<atoms.nExcludedAtoms_h[i];j++) {
-					printf(" %4d", atoms.excludedAtomsList_h[j]);
-				}
-				printf("\n");
-			}
-			*/
+			cudaEventRecord(neighborListStop);
+    			cudaEventSynchronize(neighborListStop);
+			cudaEventElapsedTime(&milliseconds, neighborListStart, neighborListStop);
+			neighborListTime += milliseconds;
 		}
 
 		// zero force array on gpu
 		cudaMemset(atoms.f_d, 0.0f,  atoms.nAtoms*nDim*sizeof(float));
 
 		// compute bond forces on device
+		cudaEventRecord(bondStart);
 		bond_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, bonds.bondAtoms_d, bonds.bondKs_d, bonds.bondX0s_d, bonds.nBonds, bonds.gridSize, bonds.blockSize);
-		
+		cudaEventRecord(bondStop);
+		cudaEventSynchronize(bondStop);
+		cudaEventElapsedTime(&milliseconds, bondStart, bondStop);
+		bondTime += milliseconds;
+
 		// compute angle forces on device
+		cudaEventRecord(angleStart);
 		angle_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, angles.angleAtoms_d, angles.angleKs_d, angles.angleX0s_d, angles.nAngles);
+		cudaEventRecord(angleStop);
+		cudaEventSynchronize(angleStop);
+		cudaEventElapsedTime(&milliseconds, angleStart, angleStop);
+		angleTime += milliseconds;
 
 		// compute dihedral forces on device
+		cudaEventRecord(dihStart);
 		dih_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, dihs.dihAtoms_d, dihs.dihKs_d, dihs.dihNs_d, dihs.dihPs_d, dihs.nDihs, dihs.sceeScaleFactor_d, dihs.scnbScaleFactor_d, atoms.charges_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes);
+		cudaEventRecord(dihStop);
+		cudaEventSynchronize(dihStop);
+		cudaEventElapsedTime(&milliseconds, dihStart, dihStop);
+		dihTime += milliseconds;
 		// run isspa force cuda kernal
 //		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, isspa_seed);
 //		isspa_seed += 1;
 
 		// run nonbond cuda kernel
+		cudaEventRecord(nonbondStart);
 		nonbond_cuda(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nAtoms, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, atoms.nonBondedParmIndex_d, atoms.nTypes);
-
+		cudaEventRecord(nonbondStop);
+		cudaEventSynchronize(nonbondStop);
+		cudaEventElapsedTime(&milliseconds, nonbondStart, nonbondStop);
+		nonbondTime += milliseconds;
 		// print stuff every so often
 		if (step%configs.deltaWrite==0) {
 			// get positions, velocities, and forces from gpu
@@ -128,8 +158,13 @@ int main(int argc, char* argv[])
 		}
 
 		// Move atoms and velocities
+		cudaEventRecord(leapFrogStart);
 		leapfrog_cuda(atoms.xyz_d, atoms.v_d, atoms.f_d, atoms.mass_d, configs.T, configs.dt, configs.pnu, atoms.nAtoms, configs.lbox, leapfrog_seed);
 		leapfrog_seed += 1;
+		cudaEventRecord(leapFrogStop);
+		cudaEventSynchronize(leapFrogStop);
+		cudaEventElapsedTime(&milliseconds, leapFrogStart, leapFrogStop);
+		leapFrogTime += milliseconds;
 	}
 
 
@@ -137,9 +172,16 @@ int main(int argc, char* argv[])
 	cudaEventRecord(stop);
     	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("Elapsed time = %20.10f ms\n", milliseconds);
+	printf("Elapsed time = %10.2f ms\n", milliseconds);
 	day_per_millisecond = 1e-3 /60.0/60.0/24.0;
-	printf("Average ns/day = %20.10f\n", configs.nSteps*2e-6/(milliseconds*day_per_millisecond) );
+	printf("Average ns/day = %10.2f\n", configs.nSteps*2e-6/(milliseconds*day_per_millisecond) );
+	
+	printf("Bond force calculation time = %10.2f ms (%5.1f %%)\n", bondTime, bondTime/milliseconds*100);
+	printf("Angle force calculation time = %10.2f ms (%5.1f %%)\n", angleTime, angleTime/milliseconds*100);
+	printf("Dihedral force calculation time = %10.2f ms (%5.1f %%)\n", dihTime, dihTime/milliseconds*100);
+	printf("Nonbond force calculation time = %10.2f ms (%5.1f %%)\n", nonbondTime, nonbondTime/milliseconds*100);
+	printf("Neighbor list calculation time = %10.2f ms (%5.1f %%)\n", neighborListTime, neighborListTime/milliseconds*100);
+	printf("Leap-frog propogation time = %10.2f ms (%5.1f %%)\n", leapFrogTime, leapFrogTime/milliseconds*100);
 
 	// free up arrays
 	atoms.free_arrays();
