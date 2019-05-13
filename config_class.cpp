@@ -55,8 +55,8 @@ void config::initialize(char *cfgFileName)
 	pnu = 0.001f;
 	lbox = 200.0;
 	deltaNN = 10;
-	rcut = 12.0;
-	rcut2 = rcut*rcut;
+	rCut = 12.0;
+	rCut2 = rCut*rCut;
 	rNN = 15.0;
 	rNN2 = rNN*rNN;
 	seed = 12345;

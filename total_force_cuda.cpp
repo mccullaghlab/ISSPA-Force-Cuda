@@ -141,7 +141,7 @@ int main(int argc, char* argv[])
 
 		// run nonbond cuda kernel
 		cudaEventRecord(nonbondStart);
-		nonbond_cuda(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nAtoms, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, atoms.nonBondedParmIndex_d, atoms.nTypes);
+		nonbond_cuda(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nAtoms, configs.rCut2, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, atoms.nonBondedParmIndex_d, atoms.nTypes);
 		cudaEventRecord(nonbondStop);
 		cudaEventSynchronize(nonbondStop);
 		cudaEventElapsedTime(&milliseconds, nonbondStart, nonbondStop);

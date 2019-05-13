@@ -6,11 +6,8 @@
 #include "constants.h"
 #include "bond_class.h"
 
-//Fast integer multiplication
-#define MUL(a, b) __umul24(a, b)
-
 // Texture reference for 2D float texture
-texture<float, 1, cudaReadModeElementType> tex;
+//texture<float, 1, cudaReadModeElementType> tex;
 
 // CUDA Kernels
 
@@ -65,12 +62,12 @@ __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, 
 extern "C" void bond_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, int *bondAtoms_d, float *bondKs_d, float *bondX0s_d, int nBonds, int gridSize, int blockSize) 
 {
 	// Set texture parameters
-	tex.addressMode[0] = cudaAddressModeWrap;
-	tex.filterMode = cudaFilterModeLinear;
-	tex.normalized = true;    // access with normalized texture coordinates
+	//tex.addressMode[0] = cudaAddressModeWrap;
+	//tex.filterMode = cudaFilterModeLinear;
+	//tex.normalized = true;    // access with normalized texture coordinates
 
 	// Bind the array to the texture
-	cudaBindTexture(0, tex, xyz_d, nAtoms*nDim*sizeof(float));
+	//cudaBindTexture(0, tex, xyz_d, nAtoms*nDim*sizeof(float));
 	// run nonbond cuda kernel
 	//bond_force_kernel<<<gridSize, blockSize, blockSize*sizeof(float)>>>(xyz_d, f_d, nAtoms, lbox, bondAtoms_d, bondKs_d, bondX0s_d, nBonds);
 	bond_force_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, nAtoms, lbox, bondAtoms_d, bondKs_d, bondX0s_d, nBonds);

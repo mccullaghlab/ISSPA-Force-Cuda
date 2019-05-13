@@ -21,7 +21,7 @@ class config
 		int nMC;    // number of Monte Carlo points for solvent
 		int seed;
 		float lbox;
-		float rcut,rcut2;
+		float rCut,rCut2;
 		float rNN,rNN2;
 		char prmtopFileName[MAXCHAR];
 		char inputCoordFileName[MAXCHAR];

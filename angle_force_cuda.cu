@@ -5,9 +5,6 @@
 #include "angle_force_cuda.h"
 #include "constants.h"
 
-//Fast integer multiplication
-#define MUL(a, b) __umul24(a, b)
-
 // CUDA Kernels
 
 __global__ void angle_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int *angleAtoms, float *angleKs, float *angleX0s, int nAngles) {

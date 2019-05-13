@@ -5,9 +5,6 @@
 #include "dih_force_cuda.h"
 #include "constants.h"
 
-//Fast integer multiplication
-#define MUL(a, b) __umul24(a, b)
-
 // CUDA Kernels
 
 __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int *dihAtoms, float *dihKs, float *dihNs, float *dihPs, int nDihs, float *scee, float *scnb, float *charge, float *ljA, float *ljB, int *atomType, int *nbparm, int nAtomTypes) {
@@ -43,11 +40,16 @@ __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, i
 	{
 		hbox = lbox/2.0;
 		// determine two atoms to work  - these will be unique to each index
-		atom1 = dihAtoms[index*5];
-		atom2 = dihAtoms[index*5+1];
-		atom3 = dihAtoms[index*5+2];
-		atom4 = dihAtoms[index*5+3];
-		dihType = dihAtoms[index*5+4];
+		//atom1 = dihAtoms[index*5];
+		//atom2 = dihAtoms[index*5+1];
+		//atom3 = dihAtoms[index*5+2];
+		//atom4 = dihAtoms[index*5+3];
+		//dihType = dihAtoms[index*5+4];
+		atom1 = __ldg(dihAtoms+index*5);
+		atom2 = __ldg(dihAtoms+index*5+1);
+		atom3 = __ldg(dihAtoms+index*5+2);
+		atom4 = __ldg(dihAtoms+index*5+3);
+		dihType = __ldg(dihAtoms+index*5+4);
 		// Check to see if we want to compute the scaled 1-4 interaction
 		if (atom3 > 0 && atom4 > 0) {
 			//Scaled non-bonded interaction for 1-4
@@ -58,12 +60,12 @@ __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, i
 			}
 			r6 = rMag*rMag*rMag;
 			r6 = 1.0/r6;
-			it = atomType[atom1];
-			jt = atomType[atom4];
+			it = __ldg(atomType+atom1);
+			jt = __ldg(atomType+atom4);
 			nlj = nAtomTypes * (it-1) + jt - 1;
-			nlj = nbparm[nlj];
-			f14e = charge[atom1]*charge[atom4]/rMag/sqrtf(rMag)/scee[dihType];
-			f14v = r6*(12.0f*ljA[nlj]*r6-6.0f*ljB[nlj])/scnb[dihType]/rMag;
+			nlj = __ldg(nbparm+nlj);
+			f14e = __ldg(charge+atom1)*__ldg(charge+atom4)/rMag/sqrtf(rMag)/__ldg(scee+dihType);
+			f14v = r6*(12.0f*__ldg(ljA+nlj)*r6-6.0f*__ldg(ljB+nlj))/__ldg(scnb+dihType)/rMag;
 			f14v = 0.0f;
 			for (k=0;k<nDim;k++) {
 				atomicAdd(&f[atom1+k], (f14e+f14v)*r1[k]);
@@ -80,9 +82,9 @@ __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, i
 		c13 = 0.0f;
 		c23 = 0.0f;
 		for (k=0;k<nDim;k++) {
-			r1[k] = xyz[atom1+k] - xyz[atom2+k];
-			r2[k] = xyz[atom2+k] - xyz[atom3+k];
-			r3[k] = xyz[atom3+k] - xyz[atom4+k];
+			r1[k] = __ldg(xyz+atom1+k) - __ldg(xyz+atom2+k);
+			r2[k] = __ldg(xyz+atom2+k) - __ldg(xyz+atom3+k);
+			r3[k] = __ldg(xyz+atom3+k) - __ldg(xyz+atom4+k);
 			// assuming no more than one box away
 			if (r1[k] > hbox) {
 				r1[k] -= lbox;
@@ -122,7 +124,7 @@ __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, i
 			fdih = 0.0;	
 		} else {
 			phi = acos(a);
-			fdih = dihNs[dihType] * dihKs[dihType] * sinf(dihNs[dihType]*phi-dihPs[dihType])/sinf(phi)*c22/b;
+			fdih = __ldg(dihNs+dihType) * __ldg(dihKs+dihType) * sinf(__ldg(dihNs+dihType)*phi-__ldg(dihPs+dihType))/sinf(phi)*c22/b;
 		}
 		for (k=0;k<3;k++) {
 			f1=fdih*(t1*r1[k]+t2*r2[k]+t3*r3[k])/t3;
