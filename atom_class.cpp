@@ -73,8 +73,6 @@ void atom::initialize(float T, float lbox, int nMC)
 	g0_h[0] = 1.714; // height of parabola
 	x0_h[0] = 4.118;
 	alpha_h[0] = 2.674; 
-//	ljA_h[0] = 6.669e7;
-//	ljB_h[0] = 1.103e4;
 	vtot_h[0] = 16.0/3.0*3.1415926535*w_h[0]*g0_h[0]/((float) nMC)*0.0334*1E-2;
 	sigma = pow(ljA_h[0]/ljB_h[0],(1.0/6.0));
 	sigma2 = sigma*sigma;
@@ -82,9 +80,6 @@ void atom::initialize(float T, float lbox, int nMC)
 	// initialize velocities
 	for (i=0;i<nAtoms;i++) {
 		f_h[i*nDim] = f_h[i*nDim+1] = f_h[i*nDim+2] = 0.0f;
-		//ityp_h[i] = 0;
-		//charges_h[i] = 0.0;
-		//mass_h[i] = 12.0;
 		// reweight hydrogens
 		if (mass_h[i] < 2.0) {
 			mass_h[i] = 12.0;
@@ -150,7 +145,7 @@ float atom::rand_gauss()
 	return v1*fac;
 }
 
-void atom::initialize_gpu()
+void atom::initialize_gpu(int seed)
 {
 	// allocate atom coordinate arrays
 	cudaMalloc((void **) &xyz_d, nAtomBytes*nDim);
@@ -180,6 +175,9 @@ void atom::initialize_gpu()
 	cudaMalloc((void **) &vtot_d, nTypeBytes);
 	cudaMalloc((void **) &ljA_d, nTypes*(nTypes+1)/2*sizeof(float));
 	cudaMalloc((void **) &ljB_d, nTypes*(nTypes+1)/2*sizeof(float));
+	// random number states
+	cudaMalloc((void**) &randStates_d, nAtoms*sizeof(curandState));
+	init_rand_states(randStates_d, seed, nAtoms);
 
 }	
 

@@ -59,7 +59,7 @@ void config::initialize(char *cfgFileName)
 	rcut2 = rcut*rcut;
 	rNN = 15.0;
 	rNN2 = rNN*rNN;
-
+	seed = 12345;
 	set_cuda_constants();
 
 }

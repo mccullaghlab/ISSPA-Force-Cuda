@@ -3,9 +3,10 @@
 #include <stdlib.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <curand_kernel.h>
 #include <math.h>
-
-#define nDim 3
+#include "constants.h"
+#include "init_rand.cuh"
 
 class atom
 {
@@ -65,6 +66,8 @@ class atom
 		int *NN_d;       // neighbor list - will be size nAtoms*nNNmax
 		int *NN_h;       // neighbor list - will be size nAtoms*nNNmax
 		int   *key;      // array to determine current position of atoms (after shuffle)
+		// random number generator on gpu
+		curandState *randStates_d;
 		
 		// allocate arrays
 		void allocate();
@@ -74,7 +77,7 @@ class atom
 		// initialize all atom velocities and solvent parameters
 		void initialize(float T, float lbox, int nMC);
 		// initialize all arrays on GPU memory
-		void initialize_gpu();
+		void initialize_gpu(int);
 		// copy parameter arrays to GPU
 		void copy_params_to_gpu();
 		// copy position, force and velocity arrays to GPU

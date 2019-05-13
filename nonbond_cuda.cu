@@ -63,8 +63,9 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 					dist2 += r[k]*r[k];
 				}
 				// LJ force
-				r2 = 1.0 / dist2;
-				r6 = r2 * r2 * r2;
+				//r2 = 1.0 / dist2;
+				//r6 = r2 * r2 * r2;
+				r6 = powf(dist2,-3.0);
 				flj = r6 * (12.0 * __ldg(lj_A+nlj) * r6 - 6.0 * __ldg(lj_B+nlj)) / dist2;
 				fc = __ldg(charges+atom1)*__ldg(charges+atom2)/dist2/sqrtf(dist2);
 				f[atom1*nDim] += (flj+fc)*r[0];

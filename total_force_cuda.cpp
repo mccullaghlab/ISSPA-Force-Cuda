@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <curand_kernel.h>
 #include "isspa_force_cuda.h"
 #include "nonbond_cuda.h"
 #include "bond_force_cuda.h"
@@ -62,7 +63,7 @@ int main(int argc, char* argv[])
 	// initialize atom positions, velocities and solvent parameters
 	atoms.read_initial_positions(configs.inputCoordFileName);
 	atoms.initialize(configs.T, configs.lbox, configs.nMC);
-	atoms.initialize_gpu();
+	atoms.initialize_gpu(configs.seed);
 	// initialize bonds on gpu
 	bonds.initialize_gpu();
 	// initialize angles on gpu
@@ -159,7 +160,7 @@ int main(int argc, char* argv[])
 
 		// Move atoms and velocities
 		cudaEventRecord(leapFrogStart);
-		leapfrog_cuda(atoms.xyz_d, atoms.v_d, atoms.f_d, atoms.mass_d, configs.T, configs.dt, configs.pnu, atoms.nAtoms, configs.lbox, leapfrog_seed);
+		leapfrog_cuda(atoms.xyz_d, atoms.v_d, atoms.f_d, atoms.mass_d, configs.T, configs.dt, configs.pnu, atoms.nAtoms, configs.lbox, atoms.randStates_d);
 		leapfrog_seed += 1;
 		cudaEventRecord(leapFrogStop);
 		cudaEventSynchronize(leapFrogStop);

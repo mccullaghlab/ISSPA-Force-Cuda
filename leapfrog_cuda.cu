@@ -27,7 +27,7 @@
 
 }*/
 
-__global__ void leapfrog_kernel(float *xyz, float *v, float *f, float *mass, float T, float dt, float pnu, int nAtoms, float lbox, long long seed) {
+__global__ void leapfrog_kernel(float *xyz, float *v, float *f, float *mass, float T, float dt, float pnu, int nAtoms, float lbox, curandState *state) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	float attempt;
 	float force;
@@ -35,20 +35,20 @@ __global__ void leapfrog_kernel(float *xyz, float *v, float *f, float *mass, flo
 	float tempPos;
 	float tempVel;
 	int k;
-	curandState_t state;
+	//curandState_t state;
 
 	if (index < nAtoms)
 	{
 		// initialize random number generator
-  		curand_init(seed,index,0,&state);
-		attempt = curand_uniform(&state);
+  		//curand_init(seed,index,0,&state);
+		attempt = curand_uniform(&state[index]);
 		tempMass = __ldg(mass+index);
 		// anderson thermostat
 		if (attempt < pnu) {
 			//thermo_kernel(&v[index*nDim],T,mass[index],index, blockIdx);
 			for (k=0;k<nDim;k++) {
 				force = __ldg(f+index*nDim+k);
-				tempVel = curand_normal(&state) * sqrtf( T / tempMass );
+				tempVel = curand_normal(&state[index]) * sqrtf( T / tempMass );
 				tempVel += force/tempMass*dt/2.0;
 				v[index*nDim+k] = tempVel;
 				//xyz[index*nDim+k] += temp*dt;
@@ -84,7 +84,7 @@ __global__ void leapfrog_kernel(float *xyz, float *v, float *f, float *mass, flo
 
 /* C wrappers for kernels */
 
-extern "C" void leapfrog_cuda(float *xyz_d, float *v_d, float *f_d, float *mass_d, float T, float dt, float pnu, int nAtoms, float lbox, long long seed) {
+extern "C" void leapfrog_cuda(float *xyz_d, float *v_d, float *f_d, float *mass_d, float T, float dt, float pnu, int nAtoms, float lbox, curandState *randStates_d) {
 	int blockSize;      // The launch configurator returned block size
     	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch
     	int gridSize;       // The actual grid size needed, based on input size
@@ -95,6 +95,6 @@ extern "C" void leapfrog_cuda(float *xyz_d, float *v_d, float *f_d, float *mass_
     	// Round up according to array size
     	gridSize = (nAtoms + blockSize - 1) / blockSize;
 	// run nonbond cuda kernel
-	leapfrog_kernel<<<gridSize, blockSize>>>(xyz_d, v_d, f_d, mass_d, T, dt, pnu, nAtoms, lbox, seed);
+	leapfrog_kernel<<<gridSize, blockSize>>>(xyz_d, v_d, f_d, mass_d, T, dt, pnu, nAtoms, lbox, randStates_d);
 
 }
