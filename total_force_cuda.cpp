@@ -102,7 +102,7 @@ int main(int argc, char* argv[])
 		if (step%configs.deltaNN==0) {
 			// compute the neighborlist
 			cudaEventRecord(neighborListStart);
-			neighborlist_cuda(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, configs.rNN2, atoms.nAtoms, atoms.numNNmax, configs.lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d);
+			neighborlist_cuda(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, configs.rNN2, atoms.nAtoms, atoms.numNNmax, configs.lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.excludedAtomsListLength);
 			cudaEventRecord(neighborListStop);
     			cudaEventSynchronize(neighborListStop);
 			cudaEventElapsedTime(&milliseconds, neighborListStart, neighborListStop);

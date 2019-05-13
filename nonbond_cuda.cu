@@ -10,6 +10,7 @@
 
 __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A, float *lj_B, int *ityp, int nAtoms, float rCut2, float lbox, int *NN, int *numNN, int numNNmax, int *nbparm, int nTypes) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
+	unsigned int t = threadIdx.x;
 	extern __shared__ float xyz_s[];
 	int atom1;
 	int atom2;
@@ -24,15 +25,18 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 	float flj;
 	float hbox;
 	int nlj;
+	int chunk;
 
+
+	// copy positions from global memory to shared memory for each block
+	chunk = (int) ( (nAtoms*nDim+blockDim.x-1)/blockDim.x);
+	for (i=t*chunk;i<(t+1)*chunk;i++) {
+		xyz_s[i] = xyz[i];
+	}
+	__syncthreads();
+	// move on
 	if (index < nAtoms)
 	{
-		// copy positions from global memory to shared memory
-		for (i=index*nDim;i<(index+1)*nDim;i++) {
-			xyz_s[i] = xyz[i];
-		}
-		__syncthreads();
-		// move on
 		hbox = lbox/2.0;
 		atom1 = index;
 		// start position in neighbor list:
@@ -89,7 +93,7 @@ extern "C" void nonbond_cuda(float *xyz_d, float *f_d, float *charges_d, float *
     	gridSize = (nAtoms + blockSize - 1) / blockSize; 
 
 	// run nonbond cuda kernel
-	nonbond_kernel<<<1, nAtoms, nAtoms*nDim*sizeof(float)>>>(xyz_d, f_d, charges_d, lj_A_d, lj_B_d, ityp_d, nAtoms, rCut2, lbox, NN_d, numNN_d, numNNmax, nbparm_d, nTypes);
+	nonbond_kernel<<<gridSize, blockSize, nAtoms*nDim*sizeof(float)>>>(xyz_d, f_d, charges_d, lj_A_d, lj_B_d, ityp_d, nAtoms, rCut2, lbox, NN_d, numNN_d, numNNmax, nbparm_d, nTypes);
 
 }
 
