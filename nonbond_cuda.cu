@@ -20,6 +20,7 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 	int it, jt;    // atom type of atom of interest
 	float dist2;	
 	int i, k;
+	int N;
 	int start;
 	float r[3];
 	float r2, r6;
@@ -34,19 +35,24 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 		// determine two atoms to work on based on recursive definition
 		atom1 = index;
 		start = atom1*numNNmax;
-//		f[atom1*nDim] = f[atom1*nDim+1] = f[atom1*nDim+2] = 0.0f;
-//		for (atom2=0;atom2<nAtoms;atom2++) {
-		for (i=0;i<numNN[atom1];i++) {
-			atom2 = NN[start+i];
+		N = __ldg(numNN+atom1);
+		//for (i=0;i<numNN[atom1];i++) {
+		for (i=0;i<N;i++) {
+			//atom2 = NN[start+i];
+			atom2 = __ldg(NN+start+i);
 			if (atom2 != atom1) {
 				// get interaction type
-				it = ityp[atom1];
-				jt = ityp[atom2];
+				//it = ityp[atom1];
+				//jt = ityp[atom2];
+				//nlj = nTypes*(it-1)+jt-1;
+				//nlj = nbparm[nlj];
+				it = __ldg(ityp+atom1);
+				jt = __ldg(ityp+atom2);
 				nlj = nTypes*(it-1)+jt-1;
-				nlj = nbparm[nlj];
+				nlj = __ldg(nbparm+nlj);
 				dist2 = 0.0f;
 				for (k=0;k<nDim;k++) {
-					r[k] = xyz[atom1*nDim+k] - xyz[atom2*nDim+k];
+					r[k] = __ldg(xyz+atom1*nDim+k) - __ldg(xyz+atom2*nDim+k);
 					if (r[k] > hbox) {
 //						r[k] -= (int)(temp/lbox+0.5) * lbox;
 						r[k] -= lbox;
@@ -59,8 +65,8 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 				// LJ force
 				r2 = 1.0 / dist2;
 				r6 = r2 * r2 * r2;
-				flj = r6 * (12.0 * lj_A[nlj] * r6 - 6.0 * lj_B[nlj]) / dist2;
-				fc = charges[atom1]*charges[atom2]/dist2/sqrtf(dist2);
+				flj = r6 * (12.0 * __ldg(lj_A+nlj) * r6 - 6.0 * __ldg(lj_B+nlj)) / dist2;
+				fc = __ldg(charges+atom1)*__ldg(charges+atom2)/dist2/sqrtf(dist2);
 				f[atom1*nDim] += (flj+fc)*r[0];
 				f[atom1*nDim+1] += (flj+fc)*r[1];
 				f[atom1*nDim+2] += (flj+fc)*r[2];

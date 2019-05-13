@@ -60,14 +60,15 @@ void config::initialize(char *cfgFileName)
 	rNN = 15.0;
 	rNN2 = rNN*rNN;
 
+	set_cuda_constants();
 
 }
 
 void config::set_cuda_constants()
 {
-	cudaMemcpyToSymbol(&dt_d, &dt, sizeof(float));
-	cudaMemcpyToSymbol(&pnu_d, &pnu, sizeof(float));
-	cudaMemcpyToSymbol(&T_d, &T, sizeof(float));
-	cudaMemcpyToSymbol(&lbox_d, &lbox, sizeof(float));
+	cudaMemcpyToSymbol(&dt_d, &dt, sizeof(float),0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(&pnu_d, &pnu, sizeof(float),0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(&T_d, &T, sizeof(float),0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(&lbox_d, &lbox, sizeof(float),0, cudaMemcpyHostToDevice);
 }
 
