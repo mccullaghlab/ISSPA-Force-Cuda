@@ -13,7 +13,8 @@ class config
 		FILE *configFile;
 	public:
 		float T;    // temperature
-		float dt;   // integration timestep
+		float dt;   // integration timestep in amber units
+		float dtPs;   // integration timestep in ps
 		float pnu;  // Anderson thermostat frequency	
 		int nSteps;
 		int deltaWrite;

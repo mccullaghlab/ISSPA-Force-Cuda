@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
+#include "atom_class.h"
+#include "dih_class.h"
 #include "dih_force_cuda.h"
 #include "constants.h"
 
@@ -140,19 +142,32 @@ __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, i
 
 /* C wrappers for kernels */
 
-extern "C" void dih_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, int *dihAtoms_d, float *dihKs_d, float *dihNs_d, float *dihPs_d, int nDihs, float *scee_d, float *scnb_d, float *charge_d, float *ljA_d, float *ljB_d, int *atomType_d, int *nbparm_d, int nAtomTypes) {
-	int blockSize;      // The launch configurator returned block size 
-    	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
-    	int gridSize;       // The actual grid size needed, based on input size 
+float dih_force_cuda(atom& atoms, dih& dihs, float lbox)
+{
+	cudaEvent_t dihStart, dihStop;
+	float milliseconds;
 
-	// determine gridSize and blockSize
-	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, dih_force_kernel, 0, nDihs); 
+	// timing
+	cudaEventCreate(&dihStart);
+	cudaEventCreate(&dihStop);
+	cudaEventRecord(dihStart);
 
-    	// Round up according to array size 
-    	gridSize = (nDihs + blockSize - 1) / blockSize; 
-	// run nondih cuda kernel
-	//dih_force_kernel<<<gridSize, blockSize, nAtoms*nDim*sizeof(float)>>>(xyz_d, f_d, nAtoms, lbox, dihAtoms_d, dihKs_d, dihNs_d, dihPs_d, nDihs);
-	dih_force_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, nAtoms, lbox, dihAtoms_d, dihKs_d, dihNs_d, dihPs_d, nDihs, scee_d, scnb_d, charge_d, ljA_d, ljB_d, atomType_d, nbparm_d, nAtomTypes);
+	// run dih cuda kernel
+	dih_force_kernel<<<dihs.gridSize, dihs.blockSize>>>(atoms.xyz_d, atoms.f_d, atoms.nAtoms, lbox, dihs.dihAtoms_d, dihs.dihKs_d, dihs.dihNs_d, dihs.dihPs_d, dihs.nDihs, dihs.sceeScaleFactor_d, dihs.scnbScaleFactor_d, atoms.charges_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes);
+
+	// finalize timing
+	cudaEventRecord(dihStop);
+	cudaEventSynchronize(dihStop);
+	cudaEventElapsedTime(&milliseconds, dihStart, dihStop);
+	return milliseconds;
+
 
 }
+extern "C" void dih_force_cuda_grid_block(int nDihs, int *gridSize, int *blockSize, int *minGridSize)
+{
+	// determine gridSize and blockSize
+	cudaOccupancyMaxPotentialBlockSize(minGridSize, blockSize, dih_force_kernel, 0, nDihs); 
 
+    	// Round up according to array size 
+    	*gridSize = (nDihs + *blockSize - 1) / *blockSize; 
+}

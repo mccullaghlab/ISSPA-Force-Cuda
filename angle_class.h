@@ -21,6 +21,10 @@ class angle
 		int *angleAtoms_d;
 		float *angleKs_d;
 		float *angleX0s_d;
+		// gpu kernel call size stuff
+		int gridSize;
+		int blockSize;
+		int minGridSize;
 
 		void allocate();
 		void initialize_gpu();

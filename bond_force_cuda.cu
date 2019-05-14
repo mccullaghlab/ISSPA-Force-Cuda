@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
-#include "bond_force_cuda.h"
 #include "constants.h"
 #include "bond_class.h"
+#include "bond_force_cuda.h"
 
 // Texture reference for 2D float texture
 //texture<float, 1, cudaReadModeElementType> tex;
@@ -58,9 +58,11 @@ __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, 
 
 /* C wrappers for kernels */
 
-//extern "C" void bond_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, bond bonds) 
-extern "C" void bond_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, int *bondAtoms_d, float *bondKs_d, float *bondX0s_d, int nBonds, int gridSize, int blockSize) 
+//extern "C" float bond_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, int *bondAtoms_d, float *bondKs_d, float *bondX0s_d, int nBonds, int gridSize, int blockSize) 
+float bond_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, bond& bonds) 
 {
+	cudaEvent_t bondStart, bondStop;
+	float milliseconds;
 	// Set texture parameters
 	//tex.addressMode[0] = cudaAddressModeWrap;
 	//tex.filterMode = cudaFilterModeLinear;
@@ -68,9 +70,17 @@ extern "C" void bond_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox
 
 	// Bind the array to the texture
 	//cudaBindTexture(0, tex, xyz_d, nAtoms*nDim*sizeof(float));
+	// initialize cuda kernel timing
+	cudaEventCreate(&bondStart);
+	cudaEventCreate(&bondStop);
+	cudaEventRecord(bondStart);
 	// run nonbond cuda kernel
 	//bond_force_kernel<<<gridSize, blockSize, blockSize*sizeof(float)>>>(xyz_d, f_d, nAtoms, lbox, bondAtoms_d, bondKs_d, bondX0s_d, nBonds);
-	bond_force_kernel<<<gridSize, blockSize>>>(xyz_d, f_d, nAtoms, lbox, bondAtoms_d, bondKs_d, bondX0s_d, nBonds);
+	bond_force_kernel<<<bonds.gridSize, bonds.blockSize>>>(xyz_d, f_d, nAtoms, lbox, bonds.bondAtoms_d, bonds.bondKs_d, bonds.bondX0s_d, bonds.nBonds);
+	cudaEventRecord(bondStop);
+	cudaEventSynchronize(bondStop);
+	cudaEventElapsedTime(&milliseconds, bondStart, bondStop);
+	return milliseconds;
 
 }
 

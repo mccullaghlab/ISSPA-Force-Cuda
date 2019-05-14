@@ -30,7 +30,10 @@ class dih
 		float *sceeScaleFactor_d;
 		float *scnbScaleFactor_h;
 		float *scnbScaleFactor_d;
-
+		// gpu blocksize info
+		int gridSize;
+		int blockSize;
+		int minGridSize;
 
 		void allocate();
 		void initialize_gpu();

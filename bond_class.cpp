@@ -33,9 +33,6 @@ void bond::initialize_gpu()
 	cudaMemcpy(bondKs_d, bondKs_h, nBonds*sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(bondX0s_d, bondX0s_h, nBonds*sizeof(float), cudaMemcpyHostToDevice);
 
-	// get gridSize and blockSize
-	bond_force_cuda_grid_block(nBonds, &gridSize, &blockSize, &minGridSize);
-
 }
 
 

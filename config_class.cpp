@@ -50,8 +50,9 @@ void config::initialize(char *cfgFileName)
 		}
 		fclose( inFile );
 	}
-	dt = 0.002*20.455;
-	T = 298.0 * 0.00198717;
+	dtPs = 0.002;
+	dt = dtPs*20.455; // convert to amber time units
+	T = 298.0 * 0.00198717; // convert to energy units
 	pnu = 0.001f;
 	lbox = 200.0;
 	deltaNN = 10;

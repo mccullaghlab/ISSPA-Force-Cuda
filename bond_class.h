@@ -5,7 +5,7 @@
 #include <cuda_runtime.h>
 #include <math.h>
 #include "constants.h"
-#include "bond_force_cuda.h"
+//#include "bond_force_cuda.h"
 
 class bond
 {
@@ -22,7 +22,7 @@ class bond
 		int *bondAtoms_d;
 		float *bondKs_d;
 		float *bondX0s_d;
-
+		// gpu kernel call size stuff
 		int gridSize;
 		int blockSize;
 		int minGridSize;

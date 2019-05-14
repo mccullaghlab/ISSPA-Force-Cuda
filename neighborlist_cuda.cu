@@ -106,20 +106,30 @@ __global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2,
 
 /* C wrappers for kernels */
 
-extern "C" void neighborlist_cuda(float *xyz_d, int *NN_d, int *numNN_d, float rNN2, int nAtoms, int numNNmax, float lbox, int *nExcludedAtoms_d, int *excludedAtomsList_d, int excludedAtomsListLength) {
+extern "C" float neighborlist_cuda(float *xyz_d, int *NN_d, int *numNN_d, float rNN2, int nAtoms, int numNNmax, float lbox, int *nExcludedAtoms_d, int *excludedAtomsList_d, int excludedAtomsListLength) {
 	int blockSize;      // The launch configurator returned block size 
     	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
     	int gridSize;       // The actual grid size needed, based on input size 
+	cudaEvent_t neighborListStart, neighborListStop;
+	float milliseconds;
 
 	// determine gridSize and blockSize
 	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, neighborlist_kernel, 0, nAtoms); 
 
     	// Round up according to array size 
     	gridSize = (nAtoms + blockSize - 1) / blockSize; 
-
+	// initialize cuda timing events
+	cudaEventCreate(&neighborListStart);
+	cudaEventCreate(&neighborListStop);
+	cudaEventRecord(neighborListStart);
 	// run nonbond cuda kernel
 	//neighborlist_kernel<<<gridSize, blockSize>>>(xyz_d, NN_d, numNN_d, rNN2, nAtoms, numNNmax, lbox, nExcludedAtoms_d, excludedAtomsList_d);
 	neighborlist_kernel<<<gridSize, blockSize, excludedAtomsListLength*sizeof(int)>>>(xyz_d, NN_d, numNN_d, rNN2, nAtoms, numNNmax, lbox, nExcludedAtoms_d, excludedAtomsList_d, excludedAtomsListLength);
+	// record kernel timing
+	cudaEventRecord(neighborListStop);
+    	cudaEventSynchronize(neighborListStop);
+	cudaEventElapsedTime(&milliseconds, neighborListStart, neighborListStop);
+	return milliseconds;
 
 }
 
