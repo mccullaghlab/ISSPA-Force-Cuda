@@ -2,13 +2,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
-#include "nonbond_cuda.h"
+#include "atom_class.h"
+#include "nonbond_force_cuda.h"
 
 #define nDim 3
 
 // CUDA Kernels
 
-__global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A, float *lj_B, int *ityp, int nAtoms, float rCut2, float lbox, int *NN, int *numNN, int numNNmax, int *nbparm, int nTypes) {
+__global__ void nonbond_force_kernel(float *xyz, float *f, float *charges, float *lj_A, float *lj_B, int *ityp, int nAtoms, float rCut2, float lbox, int *NN, int *numNN, int numNNmax, int *nbparm, int nTypes) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float xyz_s[];
@@ -81,19 +82,34 @@ __global__ void nonbond_kernel(float *xyz, float *f, float *charges, float *lj_A
 
 /* C wrappers for kernels */
 
-extern "C" void nonbond_cuda(float *xyz_d, float *f_d, float *charges_d, float *lj_A_d, float *lj_B_d, int *ityp_d, int nAtoms, float rCut2, float lbox, int *NN_d, int *numNN_d, int numNNmax, int *nbparm_d, int nTypes) {
-	int blockSize;      // The launch configurator returned block size 
-    	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
-    	int gridSize;       // The actual grid size needed, based on input size 
+//extern "C" void nonbond_cuda(float *xyz_d, float *f_d, float *charges_d, float *lj_A_d, float *lj_B_d, int *ityp_d, int nAtoms, float rCut2, float lbox, int *NN_d, int *numNN_d, int numNNmax, int *nbparm_d, int nTypes) {
+float nonbond_force_cuda(atom &atoms, float rCut2, float lbox) 
+{
+	cudaEvent_t nonbondStart, nonbondStop;
+	float milliseconds;
 
-	// determine gridSize and blockSize
-	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, nonbond_kernel, 0, nAtoms); 
-
-    	// Round up according to array size 
-    	gridSize = (nAtoms + blockSize - 1) / blockSize; 
+	// timing
+	cudaEventCreate(&nonbondStart);
+	cudaEventCreate(&nonbondStop);
+	cudaEventRecord(nonbondStart);
 
 	// run nonbond cuda kernel
-	nonbond_kernel<<<gridSize, blockSize, nAtoms*nDim*sizeof(float)>>>(xyz_d, f_d, charges_d, lj_A_d, lj_B_d, ityp_d, nAtoms, rCut2, lbox, NN_d, numNN_d, numNNmax, nbparm_d, nTypes);
+	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.nAtoms*nDim*sizeof(float)>>>(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nAtoms, rCut2, lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, atoms.nonBondedParmIndex_d, atoms.nTypes);
+
+	// finish timing
+	cudaEventRecord(nonbondStop);
+	cudaEventSynchronize(nonbondStop);
+	cudaEventElapsedTime(&milliseconds, nonbondStart, nonbondStop);
+	return milliseconds;
 
 }
 
+extern "C" void nonbond_force_cuda_grid_block(int nAtoms, int *gridSize, int *blockSize, int *minGridSize)
+{
+	// determine gridSize and blockSize
+	cudaOccupancyMaxPotentialBlockSize(minGridSize, blockSize, nonbond_force_kernel, 0, nAtoms); 
+
+    	// Round up according to array size 
+    	*gridSize = (nAtoms + *blockSize - 1) / *blockSize; 
+
+}

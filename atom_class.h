@@ -66,6 +66,10 @@ class atom
 		int *NN_d;       // neighbor list - will be size nAtoms*nNNmax
 		int *NN_h;       // neighbor list - will be size nAtoms*nNNmax
 		int   *key;      // array to determine current position of atoms (after shuffle)
+		// nAtoms kernel grid/block configurations
+		int gridSize;
+		int blockSize;
+		int minGridSize;
 		// random number generator on gpu
 		curandState *randStates_d;
 		

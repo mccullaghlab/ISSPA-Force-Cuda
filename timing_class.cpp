@@ -9,10 +9,6 @@ void timing::initialize()
 	cudaEventCreate(&totalStart);
 	cudaEventCreate(&totalStop);
 	cudaEventRecord(totalStart);
-	cudaEventCreate(&nonbondStart);
-	cudaEventCreate(&nonbondStop);
-	cudaEventCreate(&neighborListStart);
-	cudaEventCreate(&neighborListStop);
 	cudaEventCreate(&leapFrogStart);
 	cudaEventCreate(&leapFrogStop);
 	bondTime = 0.0f;

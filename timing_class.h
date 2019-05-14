@@ -14,9 +14,7 @@ class timing
 		float bondTime;
 		float angleTime;
 		float dihTime;
-		cudaEvent_t nonbondStart, nonbondStop;
 		float nonbondTime;
-		cudaEvent_t neighborListStart, neighborListStop;
 		float neighborListTime;
 		cudaEvent_t leapFrogStart, leapFrogStop;
 		float leapFrogTime;

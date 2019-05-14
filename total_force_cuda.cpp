@@ -10,7 +10,7 @@
 #include "dih_class.h"
 #include "config_class.h"
 #include "isspa_force_cuda.h"
-#include "nonbond_cuda.h"
+#include "nonbond_force_cuda.h"
 #include "bond_force_cuda.h"
 #include "angle_force_cuda.h"
 #include "dih_force_cuda.h"
@@ -51,6 +51,7 @@ int main(int argc, char* argv[])
 	atoms.read_initial_positions(configs.inputCoordFileName);
 	atoms.initialize(configs.T, configs.lbox, configs.nMC);
 	atoms.initialize_gpu(configs.seed);
+	nonbond_force_cuda_grid_block(atoms.nAtoms, &atoms.gridSize, &atoms.blockSize, &atoms.minGridSize);
 	// initialize bonds on gpu
 	bonds.initialize_gpu();
 	bond_force_cuda_grid_block(bonds.nBonds, &bonds.gridSize, &bonds.blockSize, &bonds.minGridSize);
@@ -71,7 +72,7 @@ int main(int argc, char* argv[])
 
 		if (step%configs.deltaNN==0) {
 			// compute the neighborlist
-			times.neighborListTime += neighborlist_cuda(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, configs.rNN2, atoms.nAtoms, atoms.numNNmax, configs.lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.excludedAtomsListLength);
+			times.neighborListTime += neighborlist_cuda(atoms, configs.rNN2, configs.lbox);
 		}
 
 		// zero force array on gpu
@@ -90,12 +91,7 @@ int main(int argc, char* argv[])
 //		isspa_seed += 1;
 
 		// run nonbond cuda kernel
-		cudaEventRecord(times.nonbondStart);
-		nonbond_cuda(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nAtoms, configs.rCut2, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, atoms.nonBondedParmIndex_d, atoms.nTypes);
-		cudaEventRecord(times.nonbondStop);
-		cudaEventSynchronize(times.nonbondStop);
-		cudaEventElapsedTime(&times.milliseconds, times.nonbondStart, times.nonbondStop);
-		times.nonbondTime += times.milliseconds;
+		times.nonbondTime += nonbond_force_cuda(atoms, configs.rCut2, configs.lbox);
 		// print stuff every so often
 		if (step%configs.deltaWrite==0) {
 			// get positions, velocities, and forces from gpu
