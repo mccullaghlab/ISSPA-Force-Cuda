@@ -12,9 +12,9 @@ class atom
 {
 	private:
 		int i, j, k;
-		FILE *forceXyzFile;
-		FILE *xyzFile;
-		FILE *vFile;
+		FILE *forFile;
+		FILE *posFile;
+		FILE *velFile;
 		float sigma;
 		float rand_gauss();
 	public:
@@ -26,14 +26,14 @@ class atom
 		int nMols;	// number of molecules
 		int *molPointer_h;
 		int *molPointer_d;
-		float *xyz_h;    // coordinate array - host data
-		float *xyz_d;    // coordinate array - device data
-		float *f_h;      // force array - host data
-		float *f_d;      // force array - device data
-		float *v_h;      // velocity array - host data
-		float *v_d;      // velocity array - device data
-		float *mass_h;      // mass array - host data
-		float *mass_d;      // mass array - device data
+		float4 *pos_h;    // coordinate array - host data
+		float4 *pos_d;    // coordinate array - device data
+		float4 *for_h;      // force array - host data
+		float4 *for_d;      // force array - device data
+		float4 *vel_h;      // velocity array - host data
+		float4 *vel_d;      // velocity array - device data
+//		float *mass_h;      // mass array - host data
+//		float *mass_d;      // mass array - device data
 		int *ityp_h;     // atom type array - host data
 		int *ityp_d;     // atom type array - device data
 		int *nExcludedAtoms_h;     // number of excluded atoms per atom array - host data
@@ -91,17 +91,17 @@ class atom
 		// copy parameter arrays to GPU
 		void copy_params_to_gpu();
 		// copy position, force and velocity arrays to GPU
-		void copy_pos_v_to_gpu();
+		void copy_pos_vel_to_gpu();
 		// copy position, force, and velocity arrays from GPU
-		void get_pos_f_v_from_gpu();
+		void get_pos_vel_for_from_gpu();
 		// copy position, and velocity arrays from GPU
-		void get_pos_v_from_gpu();
+		void get_pos_vel_from_gpu();
 		// print positions
-		void print_xyz();
+		void print_pos();
 		// print velocities
-		void print_v();
+		void print_vel();
 		// print forces
-		void print_forces();
+		void print_for();
 		// reorder
 		void reorder();
 		// free all arrays on CPU memory

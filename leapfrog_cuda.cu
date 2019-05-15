@@ -4,6 +4,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 #include <cuda.h>
+#include "cuda_vector_routines.h"
 #include "atom_class.h"
 #include "config_class.h"
 #include "leapfrog_cuda.h"
@@ -29,58 +30,38 @@
 
 }*/
 
-__global__ void leapfrog_kernel(float *xyz, float *v, float *f, float *mass, float T, float dt, float pnu, int nAtoms, float lbox, curandState *state) {
+__global__ void leapfrog_kernel(float4 *xyz, float4 *v, float4 *f, float T, float dt, float pnu, int nAtoms, float lbox, curandState *state) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	float attempt;
-	float force;
-	float tempMass;
-	float tempPos;
-	float tempVel;
-	int k;
+	float4 force;
+	float4 tempPos;
+	float4 tempVel;
 	//curandState_t state;
 
 	if (index < nAtoms)
 	{
-		// initialize random number generator
-  		//curand_init(seed,index,0,&state);
+		// generate random number
 		attempt = curand_uniform(&state[index]);
-		tempMass = __ldg(mass+index);
+		// load values
+		force = __ldg(f+index);
+		tempVel = __ldg(v+index);
+		tempPos = __ldg(xyz+index);
 		// anderson thermostat
 		if (attempt < pnu) {
-			//thermo_kernel(&v[index*nDim],T,mass[index],index, blockIdx);
-			for (k=0;k<nDim;k++) {
-				force = __ldg(f+index*nDim+k);
-				tempVel = curand_normal(&state[index]) * sqrtf( T / tempMass );
-				tempVel += force/tempMass*dt/2.0;
-				v[index*nDim+k] = tempVel;
-				//xyz[index*nDim+k] += temp*dt;
-				tempPos = __ldg(xyz+index*nDim+k);
-				tempPos += tempVel*dt;
-				if (tempPos > lbox) {
-					//xyz[index*nDik] -= (int) (xyz[index*nDim+k]/lbox) * lbox;
-					tempPos -= lbox;
-				} else if (tempPos < 0.0f) {
-					//xyz[index*nDim+k] += (int) (-xyz[index*nDim+k]/lbox+1) * lbox;
-					tempPos += lbox;
-				}
-				xyz[index*nDim+k] = tempPos;
-			}
+			tempVel.x = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
+			tempVel.y = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
+			tempVel.z = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
+			tempVel += force/tempVel.w*dt/2.0;
+			tempPos += tempVel*dt;
 		} else {
-			for (k=0;k<nDim;k++) {
-				force = __ldg(f+index*nDim+k);
-				tempVel = __ldg(v+index*nDim+k);
-				tempVel += force/tempMass*dt;
-				v[index*nDim+k] = tempVel;
-				tempPos = __ldg(xyz+index*nDim+k);
-			       	tempPos += tempVel*dt;
-				if (tempPos > lbox) {
-					tempPos -= lbox;
-				} else if (tempPos < 0.0f) {
-					tempPos += lbox;
-				}
-				xyz[index*nDim+k] = tempPos;
-			}
+			tempVel += force/tempVel.w*dt;
+			tempPos += tempVel*dt;
 		}
+		// save new velocities and positions to global memory
+		v[index] = tempVel;
+		//xyz[index] = wrap(tempPos,lbox);
+		xyz[index] = tempPos;
+
 	}
 }
 
@@ -94,10 +75,21 @@ float leapfrog_cuda(atom& atoms, config& configs)
 	// timing
 	cudaEventRecord(atoms.leapFrogStart);
 	// run nonbond cuda kernel
-	leapfrog_kernel<<<atoms.gridSize, atoms.blockSize>>>(atoms.xyz_d, atoms.v_d, atoms.f_d, atoms.mass_d, configs.T, configs.dt, configs.pnu, atoms.nAtoms, configs.lbox, atoms.randStates_d);
+	leapfrog_kernel<<<atoms.gridSize, atoms.blockSize>>>(atoms.pos_d, atoms.vel_d, atoms.for_d, configs.T, configs.dt, configs.pnu, atoms.nAtoms, configs.lbox, atoms.randStates_d);
 	// finalize timing
 	cudaEventRecord(atoms.leapFrogStop);
 	cudaEventSynchronize(atoms.leapFrogStop);
 	cudaEventElapsedTime(&milliseconds, atoms.leapFrogStart, atoms.leapFrogStop);
 	return milliseconds;
 }
+
+extern "C" void leapfrog_cuda_grid_block(int nAtoms, int *gridSize, int *blockSize, int *minGridSize)
+{
+	// determine gridSize and blockSize
+	cudaOccupancyMaxPotentialBlockSize(minGridSize, blockSize, leapfrog_kernel, 0, nAtoms); 
+
+    	// Round up according to array size 
+    	*gridSize = (nAtoms + *blockSize - 1) / *blockSize; 
+
+}
+

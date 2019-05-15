@@ -14,15 +14,17 @@ class bond
 		int nBondHs;
 		int nBondnHs;
 		int nTypes;
-		float *bondKUnique;
-		float *bondX0Unique;
+		//float *bondKUnique;
+		//float *bondX0Unique;
 		//int *bondAtoms_h;
-		int2 *bondAtoms_h;
-		float *bondKs_h;
-		float *bondX0s_h;
-		int2 *bondAtoms_d;
-		float *bondKs_d;
-		float *bondX0s_d;
+		int4 *bondAtoms_h;
+		float2 *bondParams_h;
+		//float *bondKs_h;
+		//float *bondX0s_h;
+		int4 *bondAtoms_d;
+		float2 *bondParams_d;
+		//float *bondKs_d;
+		//float *bondX0s_d;
 		// gpu kernel call size stuff
 		int gridSize;
 		int blockSize;

@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
+#include <vector_functions.h>
+#include "helper_math.h"
 #include "atom_class.h"
 #include "nonbond_force_cuda.h"
 
@@ -9,10 +11,10 @@
 
 // CUDA Kernels
 
-__global__ void nonbond_force_kernel(float *xyz, float *f, float *charges, float2 *lj, int *ityp, int nAtoms, float rCut2, float lbox, int *NN, int *numNN, int numNNmax, int *nbparm, int nTypes) {
+__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float *charges, float2 *lj, int *ityp, int nAtoms, float rCut2, float lbox, int *NN, int *numNN, int numNNmax, int *nbparm, int nTypes) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
-	extern __shared__ float xyz_s[];
+	extern __shared__ float4 xyz_s[];
 	int atom1;
 	int atom2;
 	int it, jt;    // atom type of atom of interest
@@ -20,7 +22,7 @@ __global__ void nonbond_force_kernel(float *xyz, float *f, float *charges, float
 	int i, k;
 	int N;
 	int start;
-	float r[3];
+	float4 r;
 	float r6;
 	float fc;
 	float flj;
@@ -31,9 +33,9 @@ __global__ void nonbond_force_kernel(float *xyz, float *f, float *charges, float
 
 
 	// copy positions from global memory to shared memory for each block
-	chunk = (int) ( (nAtoms*nDim+blockDim.x-1)/blockDim.x);
+	chunk = (int) ( (nAtoms+blockDim.x-1)/blockDim.x);
 	for (i=t*chunk;i<(t+1)*chunk;i++) {
-		xyz_s[i] = xyz[i];
+		xyz_s[i] = __ldg(xyz+i);
 	}
 	__syncthreads();
 	// move on
@@ -48,19 +50,21 @@ __global__ void nonbond_force_kernel(float *xyz, float *f, float *charges, float
 		for (i=0;i<N;i++) {
 			atom2 = __ldg(NN+start+i);
 			if (atom2 != atom1) {
-				dist2 = 0.0f;
-				for (k=0;k<nDim;k++) {
+				//dist2 = 0.0f;
+				r = __ldg(xyz+atom1) - __ldg(xyz+atom2);
+//				for (k=0;k<nDim;k++) {
 					//r[k] = __ldg(xyz+atom1*nDim+k) - __ldg(xyz+atom2*nDim+k);
-					r[k] = xyz_s[atom1*nDim+k] - xyz_s[atom2*nDim+k];
-					if (r[k] > hbox) {
+//					r[k] = xyz_s[atom1*nDim+k] - xyz_s[atom2*nDim+k];
+//					if (r[k] > hbox) {
 //						r[k] -= (int)(temp/lbox+0.5) * lbox;
-						r[k] -= lbox;
-					} else if (r[k] < -hbox) {
+//						r[k] -= lbox;
+//					} else if (r[k] < -hbox) {
 //						r[k] += (int)(-temp/lbox+0.5) * lbox;
-						r[k] += lbox;
-					}
-					dist2 += r[k]*r[k];
-				}
+//						r[k] += lbox;
+//					}
+//					dist2 += r[k]*r[k];
+//				}
+				dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 				if (dist2 < rCut2) {
 					// get interaction type
 					it = __ldg(ityp+atom1);
@@ -72,9 +76,9 @@ __global__ void nonbond_force_kernel(float *xyz, float *f, float *charges, float
 					r6 = powf(dist2,-3.0);
 					flj = r6 * (12.0 * ljAB.x * r6 - 6.0 * ljAB.y) / dist2;
 					fc = __ldg(charges+atom1)*__ldg(charges+atom2)/dist2/sqrtf(dist2);
-					f[atom1*nDim] += (flj+fc)*r[0];
-					f[atom1*nDim+1] += (flj+fc)*r[1];
-					f[atom1*nDim+2] += (flj+fc)*r[2];
+					f[atom1].x += (flj+fc)*r.x;
+					f[atom1].y += (flj+fc)*r.y;
+					f[atom1].z += (flj+fc)*r.z;
 				}
 			}
 		}
@@ -93,7 +97,7 @@ float nonbond_force_cuda(atom &atoms, float rCut2, float lbox)
 	cudaEventRecord(atoms.nonbondStart);
 
 	// run nonbond cuda kernel
-	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.nAtoms*nDim*sizeof(float)>>>(atoms.xyz_d, atoms.f_d, atoms.charges_d, atoms.lj_d, atoms.ityp_d, atoms.nAtoms, rCut2, lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, atoms.nonBondedParmIndex_d, atoms.nTypes);
+	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.nAtoms*sizeof(float4)>>>(atoms.pos_d, atoms.for_d, atoms.charges_d, atoms.lj_d, atoms.ityp_d, atoms.nAtoms, rCut2, lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, atoms.nonBondedParmIndex_d, atoms.nTypes);
 
 	// finish timing
 	cudaEventRecord(atoms.nonbondStop);

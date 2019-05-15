@@ -5,6 +5,7 @@
 #include <string.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <vector_functions.h>
 #include "constants.h"
 
 using namespace std;
@@ -14,23 +15,19 @@ void atom::allocate()
 {
 	// atoms and types
 	numNNmax = 200;
-	// size of xyz arrays
+	// size of pos arrays
 	nAtomBytes = nAtoms*sizeof(float);
 	nTypeBytes = nTypes*sizeof(float);
 	// allocate atom coordinate arrays
-//	xyz_h = (float *)malloc(nAtomBytes*nDim);
-	cudaMallocHost((float **) &xyz_h, nAtomBytes*nDim);
+	cudaMallocHost((float4 **) &pos_h, nAtoms*sizeof(float4));
 	// allocate atom velocity arrays
-//	v_h = (float *)malloc(nAtomBytes*nDim);
-	cudaMallocHost((float **) &v_h, nAtomBytes*nDim);
+	cudaMallocHost((float4 **) &vel_h, nAtoms*sizeof(float4));
 	// allocate atom force arrays
 //	f_h = (float *)malloc(nAtomBytes*nDim);
-	cudaMallocHost((float **) &f_h, nAtomBytes*nDim);
+	cudaMallocHost((float4 **) &for_h, nAtoms*sizeof(float4));
 	// alocate mass array
-	//mass_h = (float *)malloc(nAtoms*sizeof(float));
-	cudaMallocHost((float **) &mass_h, nAtomBytes);
+	//cudaMallocHost((float **) &mass_h, nAtomBytes);
 	// alocate charge array
-	//charges_h = (float *)malloc(nAtoms*sizeof(float));
 	cudaMallocHost((float **) &charges_h, nAtomBytes);
 	// allocate key array - atom number
 	key = (int *)malloc(nAtoms*sizeof(int));
@@ -79,20 +76,20 @@ void atom::initialize(float T, float lbox, int nMC)
 
 	// initialize velocities
 	for (i=0;i<nAtoms;i++) {
-		f_h[i*nDim] = f_h[i*nDim+1] = f_h[i*nDim+2] = 0.0f;
 		// reweight hydrogens
-		if (mass_h[i] < 2.0) {
-			mass_h[i] = 12.0;
+		if (vel_h[i].w < 2.0) {
+			vel_h[i].w = 12.0;
 		}
-		for (k=0;k<nDim;k++) {
-			v_h[i*nDim+k] = rand_gauss()*sqrt(T/mass_h[i]);	
-		}
+		//vel_h[i] = make_float4(rand_gauss()*sqrt(T/mass_h[i]),rand_gauss()*sqrt(T/mass_h[i]),rand_gauss()*sqrt(T/mass_h[i]),mass_h[i]);	
+		vel_h[i].x = rand_gauss()*sqrt(T/vel_h[i].w);
+		vel_h[i].y = rand_gauss()*sqrt(T/vel_h[i].w);
+		vel_h[i].z = rand_gauss()*sqrt(T/vel_h[i].w);
 	}
 
 	// open files for printing later
-	forceXyzFile = fopen("forces.xyz","w");
-	xyzFile = fopen("positions.xyz","w");
-	vFile = fopen("velocities.xyz","w");
+	forFile = fopen("forces.xyz","w");
+	posFile = fopen("positions.xyz","w");
+	velFile = fopen("velocities.xyz","w");
 
 }
 
@@ -103,6 +100,7 @@ void atom::read_initial_positions(char *inputFileName) {
 	char *bunk;
 	FILE *coordFile = fopen(inputFileName, "r");
 	int nLines, i, j;
+	float tempPos[nAtoms*3];
 
 	if ( coordFile != NULL) {
 		/* skip first two line */
@@ -113,15 +111,21 @@ void atom::read_initial_positions(char *inputFileName) {
 		for (i=0;i<nLines;i++) {
 			bunk = fgets(line, MAXCHAR, coordFile);
 			for (j=0;j<6;j++) {
-				xyz_h[i*6+j] = atof(strncpy(temp,line+j*12,12));
+				tempPos[i*6+j] = atof(strncpy(temp,line+j*12,12));
 			}
 		}
 		if (nAtoms%2 != 0) {
 			bunk = fgets(line, MAXCHAR, coordFile);
 			for (j=0;j<3;j++) {
-				xyz_h[nLines*6+j] = atof(strncpy(temp,line+j*12,12));
+				tempPos[nLines*6+j] = atof(strncpy(temp,line+j*12,12));
 			}
 
+		}
+		// now populate pos_h float4 array
+		for (i=0;i<nAtoms;i++) {
+			pos_h[i].x = tempPos[i*3];
+			pos_h[i].y = tempPos[i*3+1];
+			pos_h[i].z = tempPos[i*3+2];
 		}
 	} else {
 		printf("Could not find coordinate file\n");
@@ -151,13 +155,13 @@ float atom::rand_gauss()
 void atom::initialize_gpu(int seed)
 {
 	// allocate atom coordinate arrays
-	cudaMalloc((void **) &xyz_d, nAtomBytes*nDim);
+	cudaMalloc((void **) &pos_d, nAtoms*sizeof(float4));
 	// allocate atom velocity arrays
-	cudaMalloc((void **) &v_d, nAtomBytes*nDim);
+	cudaMalloc((void **) &vel_d, nAtoms*sizeof(float4));
 	// allocate atom force arrays
-	cudaMalloc((void **) &f_d, nAtomBytes*nDim);
+	cudaMalloc((void **) &for_d, nAtoms*sizeof(float4));
 	// allocate mass array
-	cudaMalloc((void **) &mass_d, nAtomBytes);
+	//cudaMalloc((void **) &mass_d, nAtomBytes);
 	// allocate charges array
 	cudaMalloc((void **) &charges_d, nAtomBytes);
 	// allocate neighborlist stuff
@@ -210,75 +214,76 @@ void atom::copy_params_to_gpu() {
 	//cudaMemcpy(ljA_d, ljA_h, nTypes*(nTypes+1)/2*sizeof(float), cudaMemcpyHostToDevice);	
 	//cudaMemcpy(ljB_d, ljB_h, nTypes*(nTypes+1)/2*sizeof(float), cudaMemcpyHostToDevice);	
 	cudaMemcpy(lj_d, lj_h, nTypes*(nTypes+1)/2*sizeof(float2), cudaMemcpyHostToDevice);	
-	cudaMemcpy(mass_d, mass_h, nAtomBytes, cudaMemcpyHostToDevice);	
+	//cudaMemcpy(mass_d, mass_h, nAtomBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(charges_d, charges_h, nAtomBytes, cudaMemcpyHostToDevice);	
 }
 // copy position, force and velocity arrays to GPU
-void atom::copy_pos_v_to_gpu() {
-	cudaMemcpy(v_d, v_h, nAtomBytes*nDim, cudaMemcpyHostToDevice);	
-	cudaMemcpy(xyz_d, xyz_h, nAtomBytes*nDim, cudaMemcpyHostToDevice);	
+void atom::copy_pos_vel_to_gpu() {
+	cudaMemcpy(vel_d, vel_h, nAtoms*sizeof(float4), cudaMemcpyHostToDevice);	
+	cudaMemcpy(pos_d, pos_h, nAtoms*sizeof(float4), cudaMemcpyHostToDevice);	
 }
 // copy position, force, and velocity arrays from GPU
-void atom::get_pos_f_v_from_gpu() {
+void atom::get_pos_vel_for_from_gpu() {
 	// pass device variable, f_d, to host variable f_h
-	cudaMemcpy(f_h, f_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
-	// pass device variable, xyz_d, to host variable xyz_h
-	cudaMemcpy(xyz_h, xyz_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
+	cudaMemcpy(for_h, for_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
+	// pass device variable, pos_d, to host variable pos_h
+	cudaMemcpy(pos_h, pos_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
 	// pass device variable, v_d, to host variable v_h
-	cudaMemcpy(v_h, v_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
+	cudaMemcpy(vel_h, vel_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
 }
 // copy position, and velocity arrays from GPU
-void atom::get_pos_v_from_gpu() {
-	// pass device variable, f_d, to host variable f_h
-	cudaMemcpy(v_h, v_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
-	// pass device variable, xyz_d, to host variable xyz_h
-	cudaMemcpy(xyz_h, xyz_d, nAtomBytes*nDim, cudaMemcpyDeviceToHost);	
+void atom::get_pos_vel_from_gpu() {
+	// grab velocities from device
+	cudaMemcpy(vel_h, vel_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
+	// grab positions from device
+	cudaMemcpy(pos_h, pos_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
 }
 
-void atom::print_forces() {
+void atom::print_for() {
 	int ip;
-	fprintf(forceXyzFile,"%d\n", nAtoms);
-	fprintf(forceXyzFile,"%d\n", nAtoms);
+	fprintf(forFile,"%d\n", nAtoms);
+	fprintf(forFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
 		ip = key[i];
-		fprintf(forceXyzFile,"C %10.6f %10.6f %10.6f\n", f_h[i*nDim],f_h[i*nDim+1],f_h[i*nDim+2]);
+		fprintf(forFile,"C %10.6f %10.6f %10.6f\n", for_h[i].x,for_h[i].y,for_h[i].z);
 	}
-	fflush(forceXyzFile);
+	fflush(forFile);
 }
 
-void atom::print_xyz() {
+void atom::print_pos() {
 	int ip;
-	fprintf(xyzFile,"%d\n", nAtoms);
-	fprintf(xyzFile,"%d\n", nAtoms);
+	fprintf(posFile,"%d\n", nAtoms);
+	fprintf(posFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
 		ip = key[i];
-		fprintf(xyzFile,"C %10.6f %10.6f %10.6f\n", xyz_h[i*nDim], xyz_h[i*nDim+1], xyz_h[i*nDim+2]);
+		fprintf(posFile,"C %10.6f %10.6f %10.6f\n", pos_h[i].x, pos_h[i].y, pos_h[i].z);
 	}
-	fflush(xyzFile);
+	fflush(posFile);
 }
 
-void atom::print_v() {
+void atom::print_vel() {
 	int ip;
-	fprintf(vFile,"%d\n", nAtoms);
-	fprintf(vFile,"%d\n", nAtoms);
+	fprintf(velFile,"%d\n", nAtoms);
+	fprintf(velFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
 		ip = key[i];
-		fprintf(vFile,"C %10.6f %10.6f %10.6f\n", v_h[i*nDim], v_h[i*nDim+1], v_h[i*nDim+2]);
+		fprintf(velFile,"C %10.6f %10.6f %10.6f %10.6f\n", vel_h[i].x, vel_h[i].y, vel_h[i].z, vel_h[i].w);
 	}
-	fflush(vFile);
+	fflush(velFile);
 }
 
 	
 void atom::free_arrays() {
 	// free host variables
 	free(key);
-	cudaFree(xyz_h);
-	cudaFree(f_h); 
+	cudaFree(pos_h);
+	cudaFree(vel_h);
+	cudaFree(for_h); 
 	cudaFree(charges_h); 
-	cudaFree(mass_h); 
+//	cudaFree(mass_h); 
 	free(ityp_h); 
 	free(w_h); 
 	free(g0_h); 
@@ -287,15 +292,16 @@ void atom::free_arrays() {
 	free(alpha_h); 
 	free(vtot_h); 
 	free(lj_h); 
-	fclose(forceXyzFile);
-	fclose(xyzFile);
-	fclose(vFile);
+	fclose(forFile);
+	fclose(posFile);
+	fclose(velFile);
 }
 
 void atom::free_arrays_gpu() {
 	// free device variables
-	cudaFree(xyz_d); 
-	cudaFree(f_d); 
+	cudaFree(pos_d); 
+	cudaFree(vel_d); 
+	cudaFree(for_d); 
 	cudaFree(ityp_d); 
 	cudaFree(nonBondedParmIndex_d); 
 	cudaFree(w_d); 

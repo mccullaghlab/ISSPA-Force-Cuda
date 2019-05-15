@@ -134,7 +134,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (atomCount < atoms.nAtoms && lineCount < 5) {
-							atoms.mass_h[atomCount] = atof(strncpy(token,line+lineCount*16,16));
+							atoms.vel_h[atomCount].w = atof(strncpy(token,line+lineCount*16,16));
 							atomCount++;
 							lineCount++;
 						}
@@ -203,7 +203,8 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (bondCount < bonds.nTypes && lineCount < 5) {
-							bonds.bondX0Unique[bondCount] = atof(strncpy(token,line+lineCount*16,16));
+							//bonds.bondX0Unique[bondCount] = atof(strncpy(token,line+lineCount*16,16));
+							bonds.bondParams_h[bondCount].y = atof(strncpy(token,line+lineCount*16,16));
 							bondCount++;
 							lineCount++;
 						}
@@ -219,7 +220,8 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (bondCount < bonds.nTypes && lineCount < 5) {
-							bonds.bondKUnique[bondCount] = atof(strncpy(token,line+lineCount*16,16));
+							//bonds.bondKUnique[bondCount] = atof(strncpy(token,line+lineCount*16,16));
+							bonds.bondParams_h[bondCount].x = atof(strncpy(token,line+lineCount*16,16));
 							bondCount++;
 							lineCount++;
 						}
@@ -389,10 +391,11 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					// parse to bond arrays
 					for (i=0;i<bonds.nBondHs;i++) {
-						bonds.bondAtoms_h[i].x = tempBondArray[i*3];
-						bonds.bondAtoms_h[i].y = tempBondArray[i*3+1];
-						bonds.bondKs_h[i] = bonds.bondKUnique[tempBondArray[i*3+2]-1]*2.0;
-						bonds.bondX0s_h[i] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
+						bonds.bondAtoms_h[i].x = tempBondArray[i*3]/3;    // first bond atom
+						bonds.bondAtoms_h[i].y = tempBondArray[i*3+1]/3;  // second bond atom
+						bonds.bondAtoms_h[i].z = tempBondArray[i*3+2]-1;  // bond type
+						//bonds.bondKs_h[i] = bonds.bondKUnique[tempBondArray[i*3+2]-1]*2.0;
+						//bonds.bondX0s_h[i] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
 					}
 					free(tempBondArray);
 				} else if (strcmp(flag,bondnHFlag) == 0) { 
@@ -414,10 +417,11 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					// parse to bond arrays
 					for (i=0;i<bonds.nBondnHs;i++) {
-						bonds.bondAtoms_h[(i+bonds.nBondHs)].x = tempBondArray[i*3];
-						bonds.bondAtoms_h[(i+bonds.nBondHs)].y = tempBondArray[i*3+1];
-						bonds.bondKs_h[(i+bonds.nBondHs)] = bonds.bondKUnique[tempBondArray[i*3+2]-1]*2.0;
-						bonds.bondX0s_h[(i+bonds.nBondHs)] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
+						bonds.bondAtoms_h[(i+bonds.nBondHs)].x = tempBondArray[i*3]/3;
+						bonds.bondAtoms_h[(i+bonds.nBondHs)].y = tempBondArray[i*3+1]/3;
+						bonds.bondAtoms_h[(i+bonds.nBondHs)].z = tempBondArray[i*3+2]-1;
+						//bonds.bondKs_h[(i+bonds.nBondHs)] = bonds.bondKUnique[tempBondArray[i*3+2]-1]*2.0;
+						//bonds.bondX0s_h[(i+bonds.nBondHs)] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
 					}
 					free(tempBondArray);
 				// Angle atoms
