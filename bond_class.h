@@ -16,10 +16,11 @@ class bond
 		int nTypes;
 		float *bondKUnique;
 		float *bondX0Unique;
-		int *bondAtoms_h;
+		//int *bondAtoms_h;
+		int2 *bondAtoms_h;
 		float *bondKs_h;
 		float *bondX0s_h;
-		int *bondAtoms_d;
+		int2 *bondAtoms_d;
 		float *bondKs_d;
 		float *bondX0s_d;
 		// gpu kernel call size stuff

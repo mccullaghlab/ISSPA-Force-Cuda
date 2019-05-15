@@ -11,12 +11,11 @@
 
 // CUDA Kernels
 
-__global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int *bondAtoms, float *bondKs, float *bondX0s, int nBonds) {
+__global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int2 *bondAtoms, float *bondKs, float *bondX0s, int nBonds) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 //	unsigned int t = threadIdx.x;
 	//extern __shared__ float xyz_s[];
-	int atom1;
-	int atom2;
+	int2 atoms;
 	float dist2;	
 	int k;
 	float r[nDim];
@@ -32,11 +31,10 @@ __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, 
 	{
 		hbox = lbox/2.0;
 		// determine two atoms to work 
-		atom1 = __ldg(bondAtoms+index*2);
-		atom2 = __ldg(bondAtoms+index*2+1);
+		atoms = __ldg(bondAtoms+index);
 		dist2 = 0.0f;
 		for (k=0;k<nDim;k++) {
-			r[k] = __ldg(xyz+atom1+k) - __ldg(xyz+atom2+k);
+			r[k] = __ldg(xyz+atoms.x+k) - __ldg(xyz+atoms.y+k);
 			//r[k] = xyz[atom1+k] - xyz[atom2+k];
 			// assuming no more than one box away
 			if (r[k] > hbox) {
@@ -48,8 +46,8 @@ __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, 
 		}
 		fbnd = bondKs[index]*(bondX0s[index]/sqrtf(dist2) - 1.0f);
 		for (k=0;k<3;k++) {
-			atomicAdd(&f[atom1+k], fbnd*r[k]);
-			atomicAdd(&f[atom2+k], -fbnd*r[k]);
+			atomicAdd(&f[atoms.x+k], fbnd*r[k]);
+			atomicAdd(&f[atoms.y+k], -fbnd*r[k]);
 		}
 
 	}

@@ -57,11 +57,11 @@ int main(int argc, char* argv[])
 	bonds.initialize_gpu();
 	bond_force_cuda_grid_block(bonds.nBonds, &bonds.gridSize, &bonds.blockSize, &bonds.minGridSize);
 	// initialize angles on gpu
-	angles.initialize_gpu();
-	angle_force_cuda_grid_block(angles.nAngles, &angles.gridSize, &angles.blockSize, &angles.minGridSize);
+//	angles.initialize_gpu();
+//	angle_force_cuda_grid_block(angles.nAngles, &angles.gridSize, &angles.blockSize, &angles.minGridSize);
 	// initialize dihs on gpu
-	dihs.initialize_gpu();
-	dih_force_cuda_grid_block(dihs.nDihs, &dihs.gridSize, &dihs.blockSize, &dihs.minGridSize);
+//	dihs.initialize_gpu();
+//	dih_force_cuda_grid_block(dihs.nDihs, &dihs.gridSize, &dihs.blockSize, &dihs.minGridSize);
 	
 	// initialize timing
 	times.initialize();
@@ -72,7 +72,7 @@ int main(int argc, char* argv[])
 	for (step=0;step<configs.nSteps;step++) {
 		if (step%configs.deltaNN==0) {
 			// compute the neighborlist
-			times.neighborListTime += neighborlist_cuda(atoms, configs.rNN2, configs.lbox);
+			//times.neighborListTime += neighborlist_cuda(atoms, configs.rNN2, configs.lbox);
 		}
 		// zero force array on gpu
 		cudaMemset(atoms.f_d, 0.0f,  atoms.nAtoms*nDim*sizeof(float));
@@ -80,17 +80,17 @@ int main(int argc, char* argv[])
 		times.bondTime += bond_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, bonds);
 		
 		// compute angle forces on device
-		times.angleTime += angle_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, angles);
+		//times.angleTime += angle_force_cuda(atoms.xyz_d, atoms.f_d, atoms.nAtoms, configs.lbox, angles);
 
 		// compute dihedral forces on device
-		times.dihTime += dih_force_cuda(atoms, dihs, configs.lbox);
+		//times.dihTime += dih_force_cuda(atoms, dihs, configs.lbox);
 
 		// run isspa force cuda kernal
 //		isspa_force_cuda(atoms.xyz_d, atoms.f_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, isspa_seed);
 //		isspa_seed += 1;
 
 		// run nonbond cuda kernel
-		times.nonbondTime += nonbond_force_cuda(atoms, configs.rCut2, configs.lbox);
+		//times.nonbondTime += nonbond_force_cuda(atoms, configs.rCut2, configs.lbox);
 
 		// print stuff every so often
 		if (step%configs.deltaWrite==0) {

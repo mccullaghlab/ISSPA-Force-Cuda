@@ -161,8 +161,8 @@ void atom::initialize_gpu(int seed)
 	// allocate charges array
 	cudaMalloc((void **) &charges_d, nAtomBytes);
 	// allocate neighborlist stuff
-	cudaMalloc((void **) &numNN_d, nAtoms*sizeof(int));
-	cudaMalloc((void **) &NN_d, nAtoms*numNNmax*sizeof(int));
+//	cudaMalloc((void **) &numNN_d, nAtoms*sizeof(int));
+//	cudaMalloc((void **) &NN_d, nAtoms*numNNmax*sizeof(int));
 	// allocate atom type arrays
 	cudaMalloc((void **) &ityp_d, nAtoms*sizeof(int));
 	cudaMalloc((void **) &nonBondedParmIndex_d, nTypes*nTypes*sizeof(int));

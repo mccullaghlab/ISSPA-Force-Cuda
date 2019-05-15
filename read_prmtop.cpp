@@ -389,8 +389,8 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					// parse to bond arrays
 					for (i=0;i<bonds.nBondHs;i++) {
-						bonds.bondAtoms_h[i*2] = tempBondArray[i*3];
-						bonds.bondAtoms_h[i*2+1] = tempBondArray[i*3+1];
+						bonds.bondAtoms_h[i].x = tempBondArray[i*3];
+						bonds.bondAtoms_h[i].y = tempBondArray[i*3+1];
 						bonds.bondKs_h[i] = bonds.bondKUnique[tempBondArray[i*3+2]-1]*2.0;
 						bonds.bondX0s_h[i] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
 					}
@@ -414,8 +414,8 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					// parse to bond arrays
 					for (i=0;i<bonds.nBondnHs;i++) {
-						bonds.bondAtoms_h[(i+bonds.nBondHs)*2] = tempBondArray[i*3];
-						bonds.bondAtoms_h[(i+bonds.nBondHs)*2+1] = tempBondArray[i*3+1];
+						bonds.bondAtoms_h[(i+bonds.nBondHs)].x = tempBondArray[i*3];
+						bonds.bondAtoms_h[(i+bonds.nBondHs)].y = tempBondArray[i*3+1];
 						bonds.bondKs_h[(i+bonds.nBondHs)] = bonds.bondKUnique[tempBondArray[i*3+2]-1]*2.0;
 						bonds.bondX0s_h[(i+bonds.nBondHs)] = bonds.bondX0Unique[tempBondArray[i*3+2]-1];
 					}
