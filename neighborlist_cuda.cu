@@ -108,27 +108,16 @@ __global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2,
 //extern "C" float neighborlist_cuda(float *xyz_d, int *NN_d, int *numNN_d, float rNN2, int nAtoms, int numNNmax, float lbox, int *nExcludedAtoms_d, int *excludedAtomsList_d, int excludedAtomsListLength) {
 float neighborlist_cuda(atom& atoms, float rNN2, float lbox)
 {
-	int blockSize;      // The launch configurator returned block size 
-    	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch 
-    	int gridSize;       // The actual grid size needed, based on input size 
-	cudaEvent_t neighborListStart, neighborListStop;
 	float milliseconds;
 
-	// determine gridSize and blockSize
-	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, neighborlist_kernel, 0, atoms.nAtoms); 
-
-    	// Round up according to array size 
-    	gridSize = (atoms.nAtoms + blockSize - 1) / blockSize; 
 	// initialize cuda timing events
-	cudaEventCreate(&neighborListStart);
-	cudaEventCreate(&neighborListStop);
-	cudaEventRecord(neighborListStart);
+	cudaEventRecord(atoms.neighborListStart);
 	// run nonbond cuda kernel
-	neighborlist_kernel<<<gridSize, blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, rNN2, atoms.nAtoms, atoms.numNNmax, lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.excludedAtomsListLength);
+	neighborlist_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, rNN2, atoms.nAtoms, atoms.numNNmax, lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.excludedAtomsListLength);
 	// record kernel timing
-	cudaEventRecord(neighborListStop);
-    	cudaEventSynchronize(neighborListStop);
-	cudaEventElapsedTime(&milliseconds, neighborListStart, neighborListStop);
+	cudaEventRecord(atoms.neighborListStop);
+    	cudaEventSynchronize(atoms.neighborListStop);
+	cudaEventElapsedTime(&milliseconds, atoms.neighborListStart, atoms.neighborListStop);
 	return milliseconds;
 
 }

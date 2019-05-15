@@ -26,7 +26,8 @@ class bond
 		int gridSize;
 		int blockSize;
 		int minGridSize;
-
+		// gpu timing variables
+		cudaEvent_t bondStart, bondStop;
 		void allocate();
 		void initialize_gpu();
 		void free_arrays();

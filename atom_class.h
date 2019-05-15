@@ -56,10 +56,12 @@ class atom
 		float *vtot_d;  // Monte Carlo normalization factor - device data
 		float *charges_h;    // coordinate array - host data
 		float *charges_d;    // coordinate array - device data
-		float *ljA_h;   // Lennard-Jones A parameter - host data
-		float *ljA_d;   // Lennard-Jones A parameter - device data
-		float *ljB_h;   // Lennard-Jones B parameter - host data
-		float *ljB_d;   // Lennard-Jones B parameter - device data
+//		float *ljA_h;   // Lennard-Jones A parameter - host data
+//		float *ljA_d;   // Lennard-Jones A parameter - device data
+//		float *ljB_h;   // Lennard-Jones B parameter - host data
+//		float *ljB_d;   // Lennard-Jones B parameter - device data
+		float2 *lj_h;
+		float2 *lj_d;
 		int numNNmax;
 		int *numNN_d;   // list of neighors per atom
 		int *numNN_h;   // list of neighors per atom
@@ -72,6 +74,10 @@ class atom
 		int minGridSize;
 		// random number generator on gpu
 		curandState *randStates_d;
+		// gpu timing events
+		cudaEvent_t nonbondStart, nonbondStop;
+		cudaEvent_t neighborListStart, neighborListStop;
+		cudaEvent_t leapFrogStop, leapFrogStart;
 		
 		// allocate arrays
 		void allocate();

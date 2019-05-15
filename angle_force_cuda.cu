@@ -30,15 +30,15 @@ __global__ void angle_force_kernel(float *xyz, float *f, int nAtoms, float lbox,
 	{
 		hbox = lbox/2.0;
 		// determine two atoms to work  - these will be unique to each index
-		atom1 = angleAtoms[index*3];
-		atom2 = angleAtoms[index*3+1];
-		atom3 = angleAtoms[index*3+2];
+		atom1 = __ldg(angleAtoms+index*3);
+		atom2 = __ldg(angleAtoms+index*3+1);
+		atom3 = __ldg(angleAtoms+index*3+2);
 		c11 = 0.0f;
 		c22 = 0.0f;
 		c12 = 0.0f;
 		for (k=0;k<nDim;k++) {
-			r1[k] = xyz[atom1+k] - xyz[atom2+k];
-			r2[k] = xyz[atom2+k] - xyz[atom3+k];
+			r1[k] = __ldg(xyz+atom1+k) - __ldg(xyz+atom2+k);
+			r2[k] = __ldg(xyz+atom2+k) - __ldg(xyz+atom3+k);
 			// assuming no more than one box away
 			if (r1[k] > hbox) {
 				r1[k] -= lbox;
@@ -80,19 +80,16 @@ __global__ void angle_force_kernel(float *xyz, float *f, int nAtoms, float lbox,
 
 float angle_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, angle& angles) 
 {
-	cudaEvent_t angleStart, angleStop;
 	float milliseconds;
 	// initialize timing stuff
-	cudaEventCreate(&angleStart);
-	cudaEventCreate(&angleStop);
-	cudaEventRecord(angleStart);
+	cudaEventRecord(angles.angleStart);
 
 	// run nonangle cuda kernel
 	angle_force_kernel<<<angles.gridSize, angles.blockSize>>>(xyz_d, f_d, nAtoms, lbox, angles.angleAtoms_d, angles.angleKs_d, angles.angleX0s_d, angles.nAngles);
 	// finalize timing
-	cudaEventRecord(angleStop);
-	cudaEventSynchronize(angleStop);
-	cudaEventElapsedTime(&milliseconds, angleStart, angleStop);
+	cudaEventRecord(angles.angleStop);
+	cudaEventSynchronize(angles.angleStop);
+	cudaEventElapsedTime(&milliseconds, angles.angleStart, angles.angleStop);
 	return milliseconds;
 
 }

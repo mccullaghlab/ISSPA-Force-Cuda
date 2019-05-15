@@ -13,18 +13,12 @@ class dih
 		int nDihHs;
 		int nDihnHs;
 		int nTypes;
-		float *dihKUnique;
-		float *dihNUnique;
-		float *dihPUnique;
-		int *dihAtoms_h;
-		float *dihKs_h;
-		float *dihNs_h;
-		float *dihPs_h;
-		int *dihAtoms_d;
-		float *dihKs_d;
-		float *dihNs_d;
-		float *dihPs_d;
-
+		int4 *dihAtoms_h;
+		int *dihTypes_h;
+		int4 *dihAtoms_d;
+		int *dihTypes_d;
+		float4 *dihParams_h;
+		float4 *dihParams_d;
 		// scaled NB interactions to be computed in dihedral routine
 		float *sceeScaleFactor_h;
 		float *sceeScaleFactor_d;
@@ -34,6 +28,8 @@ class dih
 		int gridSize;
 		int blockSize;
 		int minGridSize;
+		// gpu timing events
+		cudaEvent_t dihStart, dihStop;
 
 		void allocate();
 		void initialize_gpu();

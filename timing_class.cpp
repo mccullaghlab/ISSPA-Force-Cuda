@@ -9,17 +9,29 @@ void timing::initialize()
 	cudaEventCreate(&totalStart);
 	cudaEventCreate(&totalStop);
 	cudaEventRecord(totalStart);
-	cudaEventCreate(&leapFrogStart);
-	cudaEventCreate(&leapFrogStop);
+	cudaEventCreate(&writeStart);
+	cudaEventCreate(&writeStop);
 	bondTime = 0.0f;
 	angleTime = 0.0f;
 	dihTime = 0.0f;
 	nonbondTime = 0.0f;
 	neighborListTime = 0.0f;
+	writeTime = 0.0f;
 	leapFrogTime = 0.0f;
 
 }
 
+void timing::startWriteTimer()
+{
+	cudaEventRecord(writeStart);
+}
+void timing::stopWriteTimer()
+{
+	cudaEventRecord(writeStop);
+	cudaEventSynchronize(writeStop);
+	cudaEventElapsedTime(&milliseconds,writeStart,writeStop);
+	writeTime += milliseconds;
+}
 
 void timing::print_final(float elapsedns)
 {
@@ -39,6 +51,7 @@ void timing::print_final(float elapsedns)
 	printf("Nonbond force calculation time = %10.2f ms (%5.1f %%)\n", nonbondTime, nonbondTime/milliseconds*100);
 	printf("Neighbor list calculation time = %10.2f ms (%5.1f %%)\n", neighborListTime, neighborListTime/milliseconds*100);
 	printf("Leap-frog propogation time = %10.2f ms (%5.1f %%)\n", leapFrogTime, leapFrogTime/milliseconds*100);
+	printf("Write trajectory file time = %10.2f ms (%5.1f %%)\n", writeTime, writeTime/milliseconds*100);
 
 
 }

@@ -13,7 +13,7 @@
 
 __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int *bondAtoms, float *bondKs, float *bondX0s, int nBonds) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
-	unsigned int t = threadIdx.x;
+//	unsigned int t = threadIdx.x;
 	//extern __shared__ float xyz_s[];
 	int atom1;
 	int atom2;
@@ -31,13 +31,13 @@ __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, 
 	if (index < nBonds)
 	{
 		hbox = lbox/2.0;
-		// determine two atoms to work  - these will be unique to each index
+		// determine two atoms to work 
 		atom1 = __ldg(bondAtoms+index*2);
 		atom2 = __ldg(bondAtoms+index*2+1);
 		dist2 = 0.0f;
 		for (k=0;k<nDim;k++) {
-//			r[k] = __ldg(xyz+atom1+k) - __ldg(xyz+atom2+k);
-			r[k] = xyz[atom1+k] - xyz[atom2+k];
+			r[k] = __ldg(xyz+atom1+k) - __ldg(xyz+atom2+k);
+			//r[k] = xyz[atom1+k] - xyz[atom2+k];
 			// assuming no more than one box away
 			if (r[k] > hbox) {
 				r[k] -= lbox;
@@ -48,7 +48,6 @@ __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, 
 		}
 		fbnd = bondKs[index]*(bondX0s[index]/sqrtf(dist2) - 1.0f);
 		for (k=0;k<3;k++) {
-			//temp = fbnd*r[k];
 			atomicAdd(&f[atom1+k], fbnd*r[k]);
 			atomicAdd(&f[atom2+k], -fbnd*r[k]);
 		}
@@ -61,7 +60,6 @@ __global__ void bond_force_kernel(float *xyz, float *f, int nAtoms, float lbox, 
 //extern "C" float bond_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, int *bondAtoms_d, float *bondKs_d, float *bondX0s_d, int nBonds, int gridSize, int blockSize) 
 float bond_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, bond& bonds) 
 {
-	cudaEvent_t bondStart, bondStop;
 	float milliseconds;
 	// Set texture parameters
 	//tex.addressMode[0] = cudaAddressModeWrap;
@@ -71,15 +69,14 @@ float bond_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, bond& bo
 	// Bind the array to the texture
 	//cudaBindTexture(0, tex, xyz_d, nAtoms*nDim*sizeof(float));
 	// initialize cuda kernel timing
-	cudaEventCreate(&bondStart);
-	cudaEventCreate(&bondStop);
-	cudaEventRecord(bondStart);
+	cudaEventRecord(bonds.bondStart);
 	// run nonbond cuda kernel
 	//bond_force_kernel<<<gridSize, blockSize, blockSize*sizeof(float)>>>(xyz_d, f_d, nAtoms, lbox, bondAtoms_d, bondKs_d, bondX0s_d, nBonds);
+	//printf("bonds.gridSize= %d and bonds.blockSize=%d\n",bonds.gridSize,bonds.blockSize);
 	bond_force_kernel<<<bonds.gridSize, bonds.blockSize>>>(xyz_d, f_d, nAtoms, lbox, bonds.bondAtoms_d, bonds.bondKs_d, bonds.bondX0s_d, bonds.nBonds);
-	cudaEventRecord(bondStop);
-	cudaEventSynchronize(bondStop);
-	cudaEventElapsedTime(&milliseconds, bondStart, bondStop);
+	cudaEventRecord(bonds.bondStop);
+	cudaEventSynchronize(bonds.bondStop);
+	cudaEventElapsedTime(&milliseconds, bonds.bondStart, bonds.bondStop);
 	return milliseconds;
 
 }

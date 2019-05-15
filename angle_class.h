@@ -25,7 +25,8 @@ class angle
 		int gridSize;
 		int blockSize;
 		int minGridSize;
-
+		// gpu timing stuff
+		cudaEvent_t angleStart, angleStop;
 		void allocate();
 		void initialize_gpu();
 		void free_arrays();

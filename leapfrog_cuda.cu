@@ -4,6 +4,8 @@
 #include <curand.h>
 #include <curand_kernel.h>
 #include <cuda.h>
+#include "atom_class.h"
+#include "config_class.h"
 #include "leapfrog_cuda.h"
 //#include "constants_cuda.cuh"
 #include "constants.h"
@@ -84,17 +86,18 @@ __global__ void leapfrog_kernel(float *xyz, float *v, float *f, float *mass, flo
 
 /* C wrappers for kernels */
 
-extern "C" void leapfrog_cuda(float *xyz_d, float *v_d, float *f_d, float *mass_d, float T, float dt, float pnu, int nAtoms, float lbox, curandState *randStates_d) {
-	int blockSize;      // The launch configurator returned block size
-    	int minGridSize;    // The minimum grid size needed to achieve the maximum occupancy for a full device launch
-    	int gridSize;       // The actual grid size needed, based on input size
+//extern "C" void leapfrog_cuda(float *xyz_d, float *v_d, float *f_d, float *mass_d, float T, float dt, float pnu, int nAtoms, float lbox, curandState *randStates_d) {
+float leapfrog_cuda(atom& atoms, config& configs)
+{
+	float milliseconds;
 
-	// determine gridSize and blockSize
-	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, leapfrog_kernel, 0, nAtoms);
-
-    	// Round up according to array size
-    	gridSize = (nAtoms + blockSize - 1) / blockSize;
+	// timing
+	cudaEventRecord(atoms.leapFrogStart);
 	// run nonbond cuda kernel
-	leapfrog_kernel<<<gridSize, blockSize>>>(xyz_d, v_d, f_d, mass_d, T, dt, pnu, nAtoms, lbox, randStates_d);
-
+	leapfrog_kernel<<<atoms.gridSize, atoms.blockSize>>>(atoms.xyz_d, atoms.v_d, atoms.f_d, atoms.mass_d, configs.T, configs.dt, configs.pnu, atoms.nAtoms, configs.lbox, atoms.randStates_d);
+	// finalize timing
+	cudaEventRecord(atoms.leapFrogStop);
+	cudaEventSynchronize(atoms.leapFrogStop);
+	cudaEventElapsedTime(&milliseconds, atoms.leapFrogStart, atoms.leapFrogStop);
+	return milliseconds;
 }

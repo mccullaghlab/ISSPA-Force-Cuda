@@ -10,17 +10,19 @@ class timing
 
 	public:
 		cudaEvent_t totalStart, totalStop;
-		cudaEvent_t bondStart, bondStop;
+		cudaEvent_t writeStart, writeStop;
 		float bondTime;
 		float angleTime;
 		float dihTime;
 		float nonbondTime;
 		float neighborListTime;
-		cudaEvent_t leapFrogStart, leapFrogStop;
 		float leapFrogTime;
+		float writeTime;
 		float milliseconds;
 		float day_per_millisecond;
 
 		void initialize();
+		void startWriteTimer();
+		void stopWriteTimer();
 		void print_final(float );		
 };

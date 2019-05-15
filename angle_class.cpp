@@ -25,6 +25,8 @@ void angle::initialize_gpu()
 	cudaMemcpy(angleAtoms_d, angleAtoms_h, nAngles*3*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(angleKs_d, angleKs_h, nAngles*sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(angleX0s_d, angleX0s_h, nAngles*sizeof(float), cudaMemcpyHostToDevice);
+	cudaEventCreate(&angleStart);
+	cudaEventCreate(&angleStop);
 
 }
 

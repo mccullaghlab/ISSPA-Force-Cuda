@@ -48,8 +48,9 @@ void atom::allocate()
 	w_h = (float *)malloc(nTypeBytes);
 	alpha_h = (float *)malloc(nTypeBytes);
 	vtot_h = (float *)malloc(nTypeBytes);
-	ljA_h = (float *)malloc(nTypes*(nTypes+1)/2*sizeof(float));
-	ljB_h = (float *)malloc(nTypes*(nTypes+1)/2*sizeof(float));
+	//ljA_h = (float *)malloc(nTypes*(nTypes+1)/2*sizeof(float));
+	//ljB_h = (float *)malloc(nTypes*(nTypes+1)/2*sizeof(float));
+	lj_h = (float2 *)malloc(nTypes*(nTypes+1)/2*sizeof(float2));
 	// debug
 	NN_h = (int *)malloc(nAtoms*numNNmax*sizeof(int));
 	numNN_h = (int *)malloc(nAtoms*sizeof(int));
@@ -74,8 +75,7 @@ void atom::initialize(float T, float lbox, int nMC)
 	x0_h[0] = 4.118;
 	alpha_h[0] = 2.674; 
 	vtot_h[0] = 16.0/3.0*3.1415926535*w_h[0]*g0_h[0]/((float) nMC)*0.0334*1E-2;
-	sigma = pow(ljA_h[0]/ljB_h[0],(1.0/6.0));
-	sigma2 = sigma*sigma;
+	//sigma = pow(ljA_h[0]/ljB_h[0],(1.0/6.0));
 
 	// initialize velocities
 	for (i=0;i<nAtoms;i++) {
@@ -123,6 +123,9 @@ void atom::read_initial_positions(char *inputFileName) {
 			}
 
 		}
+	} else {
+		printf("Could not find coordinate file\n");
+		exit(1);
 	}
 
 }
@@ -173,11 +176,19 @@ void atom::initialize_gpu(int seed)
 	cudaMalloc((void **) &w_d, nTypeBytes);
 	cudaMalloc((void **) &alpha_d, nTypeBytes);
 	cudaMalloc((void **) &vtot_d, nTypeBytes);
-	cudaMalloc((void **) &ljA_d, nTypes*(nTypes+1)/2*sizeof(float));
-	cudaMalloc((void **) &ljB_d, nTypes*(nTypes+1)/2*sizeof(float));
+//	cudaMalloc((void **) &ljA_d, nTypes*(nTypes+1)/2*sizeof(float));
+//	cudaMalloc((void **) &ljB_d, nTypes*(nTypes+1)/2*sizeof(float));
+	cudaMalloc((void **) &lj_d, nTypes*(nTypes+1)/2*sizeof(float2));
 	// random number states
 	cudaMalloc((void**) &randStates_d, nAtoms*sizeof(curandState));
 	init_rand_states(randStates_d, seed, nAtoms);
+	// timing
+	cudaEventCreate(&nonbondStart);
+	cudaEventCreate(&nonbondStop);
+	cudaEventCreate(&neighborListStart);
+	cudaEventCreate(&neighborListStop);
+	cudaEventCreate(&leapFrogStart);
+	cudaEventCreate(&leapFrogStop);
 
 }	
 
@@ -196,8 +207,9 @@ void atom::copy_params_to_gpu() {
 	cudaMemcpy(gr2_d, gr2_h, 2*nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(alpha_d, alpha_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(vtot_d, vtot_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	cudaMemcpy(ljA_d, ljA_h, nTypes*(nTypes+1)/2*sizeof(float), cudaMemcpyHostToDevice);	
-	cudaMemcpy(ljB_d, ljB_h, nTypes*(nTypes+1)/2*sizeof(float), cudaMemcpyHostToDevice);	
+	//cudaMemcpy(ljA_d, ljA_h, nTypes*(nTypes+1)/2*sizeof(float), cudaMemcpyHostToDevice);	
+	//cudaMemcpy(ljB_d, ljB_h, nTypes*(nTypes+1)/2*sizeof(float), cudaMemcpyHostToDevice);	
+	cudaMemcpy(lj_d, lj_h, nTypes*(nTypes+1)/2*sizeof(float2), cudaMemcpyHostToDevice);	
 	cudaMemcpy(mass_d, mass_h, nAtomBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(charges_d, charges_h, nAtomBytes, cudaMemcpyHostToDevice);	
 }
@@ -274,8 +286,7 @@ void atom::free_arrays() {
 	free(x0_h); 
 	free(alpha_h); 
 	free(vtot_h); 
-	free(ljA_h); 
-	free(ljB_h); 
+	free(lj_h); 
 	fclose(forceXyzFile);
 	fclose(xyzFile);
 	fclose(vFile);
@@ -293,8 +304,7 @@ void atom::free_arrays_gpu() {
 	cudaFree(x0_d); 
 	cudaFree(alpha_d); 
 	cudaFree(vtot_d); 
-	cudaFree(ljA_d); 
-	cudaFree(ljB_d); 
+	cudaFree(lj_d); 
 	cudaFree(charges_d); 
 	cudaFree(numNN_d);
 	cudaFree(NN_d);

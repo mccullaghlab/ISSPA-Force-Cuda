@@ -12,12 +12,9 @@
 void bond::allocate()
 {
 	//
-	//bondAtoms_h= (int *)malloc(2*nBonds*sizeof(int));
 	cudaMallocHost((int**) &bondAtoms_h, 2*nBonds*sizeof(int));
 	cudaMallocHost((float**) &bondKs_h, nBonds*sizeof(float));
 	cudaMallocHost((float**) &bondX0s_h, nBonds*sizeof(float));
-	//bondKs_h= (float *)malloc(nBonds*sizeof(float));
-	//bondX0s_h= (float *)malloc(nBonds*sizeof(float));
 	bondKUnique = (float *)malloc(nTypes*sizeof(float));
 	bondX0Unique = (float *)malloc(nTypes*sizeof(float));
 }
@@ -32,6 +29,8 @@ void bond::initialize_gpu()
 	cudaMemcpy(bondAtoms_d, bondAtoms_h, nBonds*2*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(bondKs_d, bondKs_h, nBonds*sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(bondX0s_d, bondX0s_h, nBonds*sizeof(float), cudaMemcpyHostToDevice);
+	cudaEventCreate(&bondStart);
+	cudaEventCreate(&bondStop);
 
 }
 

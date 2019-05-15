@@ -1,3 +1,4 @@
+#include <cuda_runtime.h>
 #include "atom_class.h"
 #include "bond_class.h"
 #include "angle_class.h"
@@ -267,7 +268,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (dihCount < dihs.nTypes && lineCount < 5) {
-							dihs.dihNs_h[dihCount] = atof(strncpy(token,line+lineCount*16,16));
+							dihs.dihParams_h[dihCount].x = atof(strncpy(token,line+lineCount*16,16));
 							dihCount++;
 							lineCount++;
 						}
@@ -283,7 +284,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (dihCount < dihs.nTypes && lineCount < 5) {
-							dihs.dihKs_h[dihCount] = atof(strncpy(token,line+lineCount*16,16))*2.0; // multiply by 2 to avoid doing so every time in the force calculation
+							dihs.dihParams_h[dihCount].y = atof(strncpy(token,line+lineCount*16,16))*2.0; // multiply by 2 to avoid doing so every time in the force calculation
 							dihCount++;
 							lineCount++;
 						}
@@ -299,7 +300,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (dihCount < dihs.nTypes && lineCount < 5) {
-							dihs.dihPs_h[dihCount] = atof(strncpy(token,line+lineCount*16,16));
+							dihs.dihParams_h[dihCount].z = atof(strncpy(token,line+lineCount*16,16));
 							dihCount++;
 							lineCount++;
 						}
@@ -347,7 +348,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (typeCount < nTypes2 && lineCount < 5) {
-							atoms.ljA_h[typeCount] = atof(strncpy(token,line+lineCount*16,16));
+							atoms.lj_h[typeCount].x = atof(strncpy(token,line+lineCount*16,16));
 							typeCount++;
 							lineCount++;
 						}
@@ -363,7 +364,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (typeCount < nTypes2 && lineCount < 5) {
-							atoms.ljB_h[typeCount] = atof(strncpy(token,line+lineCount*16,16));
+							atoms.lj_h[typeCount].y = atof(strncpy(token,line+lineCount*16,16));
 							typeCount++;
 							lineCount++;
 						}
@@ -492,14 +493,11 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					// parse to dih arrays
 					for (i=0;i<dihs.nDihHs;i++) {
-						dihs.dihAtoms_h[i*5] = tempDihArray[i*5];
-						dihs.dihAtoms_h[i*5+1] = tempDihArray[i*5+1];
-						dihs.dihAtoms_h[i*5+2] = tempDihArray[i*5+2];
-						dihs.dihAtoms_h[i*5+3] = tempDihArray[i*5+3];
-						dihs.dihAtoms_h[i*5+4] = tempDihArray[i*5+4]-1;
-//						dihs.dihKs_h[i] = dihs.dihKUnique[tempDihArray[i*5+4]-1]*2.0;
-//						dihs.dihPs_h[i] = dihs.dihPUnique[tempDihArray[i*5+4]-1];
-//						dihs.dihNs_h[i] = dihs.dihNUnique[tempDihArray[i*5+4]-1];
+						dihs.dihAtoms_h[i].x = tempDihArray[i*5];
+						dihs.dihAtoms_h[i].y = tempDihArray[i*5+1];
+						dihs.dihAtoms_h[i].z = tempDihArray[i*5+2];
+						dihs.dihAtoms_h[i].w = tempDihArray[i*5+3];
+						dihs.dihTypes_h[i] = tempDihArray[i*5+4]-1;
 					}
 					free(tempDihArray);
 				} else if (strcmp(flag,dihnHFlag) == 0) { 
@@ -521,14 +519,11 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					// parse to dih arrays
 					for (i=0;i<dihs.nDihnHs;i++) {
-						dihs.dihAtoms_h[(i+dihs.nDihHs)*5] = tempDihArray[i*5];
-						dihs.dihAtoms_h[(i+dihs.nDihHs)*5+1] = tempDihArray[i*5+1];
-						dihs.dihAtoms_h[(i+dihs.nDihHs)*5+2] = tempDihArray[i*5+2];
-						dihs.dihAtoms_h[(i+dihs.nDihHs)*5+3] = tempDihArray[i*5+3];
-						dihs.dihAtoms_h[(i+dihs.nDihHs)*5+4] = tempDihArray[i*5+4]-1;
-//						dihs.dihKs_h[(i+dihs.nDihHs)] = dihs.dihKUnique[tempDihArray[i*5+4]-1]*2.0;
-//						dihs.dihPs_h[(i+dihs.nDihHs)] = dihs.dihPUnique[tempDihArray[i*5+4]-1];
-//						dihs.dihNs_h[(i+dihs.nDihHs)] = dihs.dihNUnique[tempDihArray[i*5+4]-1];
+						dihs.dihAtoms_h[(i+dihs.nDihHs)].x = tempDihArray[i*5];
+						dihs.dihAtoms_h[(i+dihs.nDihHs)].y = tempDihArray[i*5+1];
+						dihs.dihAtoms_h[(i+dihs.nDihHs)].z = tempDihArray[i*5+2];
+						dihs.dihAtoms_h[(i+dihs.nDihHs)].w = tempDihArray[i*5+3];
+						dihs.dihTypes_h[(i+dihs.nDihHs)] = tempDihArray[i*5+4]-1;
 					}
 					free(tempDihArray);
 				} else if (strcmp(flag,excludedAtomsListFlag) == 0) {
