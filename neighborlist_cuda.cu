@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
+#include "cuda_vector_routines.h"
 #include "atom_class.h"
 #include "neighborlist_cuda.h"
 
@@ -9,13 +10,14 @@
 
 // CUDA Kernels
 
-__global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2, int nAtoms, int numNNmax, float lbox, int *nExcludedAtoms, int *excludedAtomsList, int excludedAtomsListLength) {
+__global__ void neighborlist_kernel(float4 *xyz, int *NN, int *numNN, float rNN2, int nAtoms, int numNNmax, float lbox, int *nExcludedAtoms, int *excludedAtomsList, int excludedAtomsListLength) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x ;
 	extern __shared__ int excludedAtomsList_s[];
 	int atom1;
 	int atom2;
-	float temp, dist2;	
+	float4 temp;
+	float dist2;	
 	int i, k;
 	int count;
 	int start;
@@ -82,17 +84,8 @@ __global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2,
 			}
 			if (atom2 != atom1 && exPass == 0) {
 				// compute distance
-				dist2 = 0.0f;
-				for (k=0;k<nDim;k++) {
-					temp = __ldg(xyz+atom1*nDim+k) - __ldg(xyz+atom2*nDim+k);
-					//temp = xyz_s[atom1*nDim+k] - xyz_s[atom2*nDim+k];
-					if (temp > hbox) {
-						temp -= lbox;
-					} else if (temp < -hbox) {
-						temp += lbox;
-					}
-					dist2 += temp*temp;
-				}
+				temp = min_image(__ldg(xyz+atom1) - __ldg(xyz+atom2),lbox,hbox);
+				dist2 = temp.x*temp.x + temp.y*temp.y + temp.z*temp.z;
 				if (dist2 < rNN2) {
 					NN[start+count] = atom2;
 					count ++;
@@ -105,7 +98,6 @@ __global__ void neighborlist_kernel(float *xyz, int *NN, int *numNN, float rNN2,
 
 /* C wrappers for kernels */
 
-//extern "C" float neighborlist_cuda(float *xyz_d, int *NN_d, int *numNN_d, float rNN2, int nAtoms, int numNNmax, float lbox, int *nExcludedAtoms_d, int *excludedAtomsList_d, int excludedAtomsListLength) {
 float neighborlist_cuda(atom& atoms, float rNN2, float lbox)
 {
 	float milliseconds;
@@ -113,7 +105,7 @@ float neighborlist_cuda(atom& atoms, float rNN2, float lbox)
 	// initialize cuda timing events
 	cudaEventRecord(atoms.neighborListStart);
 	// run nonbond cuda kernel
-	neighborlist_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.xyz_d, atoms.NN_d, atoms.numNN_d, rNN2, atoms.nAtoms, atoms.numNNmax, lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.excludedAtomsListLength);
+	neighborlist_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.NN_d, atoms.numNN_d, rNN2, atoms.nAtoms, atoms.numNNmax, lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.excludedAtomsListLength);
 	// record kernel timing
 	cudaEventRecord(atoms.neighborListStop);
     	cudaEventSynchronize(atoms.neighborListStop);

@@ -14,8 +14,8 @@ class dih
 		int nDihnHs;
 		int nTypes;
 		int4 *dihAtoms_h;
-		int *dihTypes_h;
 		int4 *dihAtoms_d;
+		int *dihTypes_h;
 		int *dihTypes_d;
 		float4 *dihParams_h;
 		float4 *dihParams_d;

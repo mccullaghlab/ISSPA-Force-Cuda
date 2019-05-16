@@ -13,14 +13,10 @@ class angle
 		int nAngleHs;
 		int nAnglenHs;
 		int nTypes;
-		float *angleKUnique;
-		float *angleX0Unique;
-		int *angleAtoms_h;
-		float *angleKs_h;
-		float *angleX0s_h;
-		int *angleAtoms_d;
-		float *angleKs_d;
-		float *angleX0s_d;
+		int4 *angleAtoms_h;  // host array of atoms in a given angle with fourth entry being angle type
+		int4 *angleAtoms_d;  // device array of atoms in a given angle with fourth entry being angle type
+		float2 *angleParams_h; // host array of K and theta 0 parameters for each angle type
+		float2 *angleParams_d; // device array of K and theta 0 parameters for each angle type
 		// gpu kernel call size stuff
 		int gridSize;
 		int blockSize;

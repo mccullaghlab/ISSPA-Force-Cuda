@@ -2,58 +2,38 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
+#include "cuda_vector_routines.h"
 #include "angle_class.h"
 #include "angle_force_cuda.h"
 #include "constants.h"
 
 // CUDA Kernels
 
-__global__ void angle_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int *angleAtoms, float *angleKs, float *angleX0s, int nAngles) {
+__global__ void angle_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox, int4 *angleAtoms, float2 *angleParams, int nAngles) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
-	unsigned int t = threadIdx.x;
-//	extern __shared__ float xyz_s[];
-//	extern __shared__ int angleAtoms_s[];
-	int atom1;
-	int atom2;
-	int atom3;
-	int k;
-	float r1[nDim];
-	float r2[nDim];
+	int4 atoms;
+	float4 r1;
+	float4 r2;
 	float c11, c22, c12;
 	float b;
 	float theta;
 	float fang;
 	float hbox;
+	float2 params;
 	
 
 	if (index < nAngles)
 	{
 		hbox = lbox/2.0;
-		// determine two atoms to work  - these will be unique to each index
-		atom1 = __ldg(angleAtoms+index*3);
-		atom2 = __ldg(angleAtoms+index*3+1);
-		atom3 = __ldg(angleAtoms+index*3+2);
-		c11 = 0.0f;
-		c22 = 0.0f;
-		c12 = 0.0f;
-		for (k=0;k<nDim;k++) {
-			r1[k] = __ldg(xyz+atom1+k) - __ldg(xyz+atom2+k);
-			r2[k] = __ldg(xyz+atom2+k) - __ldg(xyz+atom3+k);
-			// assuming no more than one box away
-			if (r1[k] > hbox) {
-				r1[k] -= lbox;
-			} else if (r1[k] < -hbox) {
-				r1[k] += lbox;
-			}
-			if (r2[k] > hbox) {
-				r2[k] -= lbox;
-			} else if (r2[k] < -hbox) {
-				r2[k] += lbox;
-			}
-			c11 += r1[k]*r1[k];
-			c22 += r2[k]*r2[k];
-			c12 += r1[k]*r2[k];
-		}
+		// determine atoms to work on
+		atoms = __ldg(angleAtoms+index);
+		// get distance vectors separating the atoms
+		r1 = min_image(__ldg(xyz+atoms.x) - __ldg(xyz+atoms.y),lbox,hbox);
+		r2 = min_image(__ldg(xyz+atoms.y) - __ldg(xyz+atoms.z),lbox,hbox);
+		// compute dot products
+		c11 = r1.x*r1.x + r1.y*r1.y + r1.z*r1.z;
+		c22 = r2.x*r2.x + r2.y*r2.y + r2.z*r2.z;
+		c12 = r1.x*r2.x + r1.y*r2.y + r1.z*r2.z;
 		b = -c12/sqrtf(c11*c22);
 		// make sure b is in the domain of the arccos
 		if (b>=1.0f) {
@@ -66,30 +46,41 @@ __global__ void angle_force_kernel(float *xyz, float *f, int nAtoms, float lbox,
 			// b is in domain so take arccos
 			theta = acos(b);
 		}
-		fang = angleKs[index]*(theta - angleX0s[index])/sqrtf(c11*c22-c12*c12);
-		for (k=0;k<3;k++) {
-			atomicAdd(&f[atom1+k], fang*(c12/c11*r1[k]-r2[k]));
-			atomicAdd(&f[atom2+k], fang*((1.0f+c12/c22)*r2[k]-(1.0f+c12/c11)*r1[k]));
-			atomicAdd(&f[atom3+k], fang*(r1[k]-c12/c22*r2[k]));
-		}
+		// grab parameters for angle atoms type - stored as fourth integer in angleAtoms
+		params = __ldg(angleParams+atoms.w);
+		// compute force component
+		fang = params.x*(theta - params.y)/sqrtf(c11*c22-c12*c12);
+		// atomicAdd forces to each atom
+		atomicAdd(&(f[atoms.x].x), fang*(c12/c11*r1.x-r2.x));
+		atomicAdd(&(f[atoms.y].x), fang*((1.0f+c12/c22)*r2.x-(1.0f+c12/c11)*r1.x));
+		atomicAdd(&(f[atoms.z].x), fang*(r1.x-c12/c22*r2.x));
+		atomicAdd(&(f[atoms.x].y), fang*(c12/c11*r1.y-r2.y));
+		atomicAdd(&(f[atoms.y].y), fang*((1.0f+c12/c22)*r2.y-(1.0f+c12/c11)*r1.y));
+		atomicAdd(&(f[atoms.z].y), fang*(r1.y-c12/c22*r2.y));
+		atomicAdd(&(f[atoms.x].z), fang*(c12/c11*r1.z-r2.z));
+		atomicAdd(&(f[atoms.y].z), fang*((1.0f+c12/c22)*r2.z-(1.0f+c12/c11)*r1.z));
+		atomicAdd(&(f[atoms.z].z), fang*(r1.z-c12/c22*r2.z));
 
 	}
 }
 
 /* C wrappers for kernels */
 
-float angle_force_cuda(float *xyz_d, float *f_d, int nAtoms, float lbox, angle& angles) 
+float angle_force_cuda(float4 *xyz_d, float4 *f_d, int nAtoms, float lbox, angle& angles) 
 {
 	float milliseconds;
 	// initialize timing stuff
 	cudaEventRecord(angles.angleStart);
+	
+	// run angle cuda kernel
+	angle_force_kernel<<<angles.gridSize, angles.blockSize>>>(xyz_d, f_d, nAtoms, lbox, angles.angleAtoms_d, angles.angleParams_d, angles.nAngles);
 
-	// run nonangle cuda kernel
-	angle_force_kernel<<<angles.gridSize, angles.blockSize>>>(xyz_d, f_d, nAtoms, lbox, angles.angleAtoms_d, angles.angleKs_d, angles.angleX0s_d, angles.nAngles);
 	// finalize timing
 	cudaEventRecord(angles.angleStop);
 	cudaEventSynchronize(angles.angleStop);
 	cudaEventElapsedTime(&milliseconds, angles.angleStart, angles.angleStop);
+
+	// return time
 	return milliseconds;
 
 }

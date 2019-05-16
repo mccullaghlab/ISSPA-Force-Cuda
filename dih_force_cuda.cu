@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
+#include "cuda_vector_routines.h"
 #include "atom_class.h"
 #include "dih_class.h"
 #include "dih_force_cuda.h"
@@ -9,21 +10,21 @@
 
 // CUDA Kernels
 
-//__global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int *dihAtoms, float *dihKs, float *dihNs, float *dihPs, int nDihs, float *scee, float *scnb, float *charge, float *ljA, float *ljB, int *atomType, int *nbparm, int nAtomTypes) {
-__global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, int4 *dihAtoms, int *dihTypes, float4 *dihParams, int nDihs, int nTypes, float *scee, float *scnb, float *charge, float2 *lj, int *atomType, int *nbparm, int nAtomTypes) {
+__global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox, int4 *dihAtoms, int *dihTypes, float4 *dihParams, int nDihs, int nTypes, float *scee, float *scnb, float *charge, float2 *lj, int *atomType, int *nbparm, int nAtomTypes) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	//unsigned int t = threadIdx.x;
 	//extern __shared__ float4 dihParams_s[];
 	int4 atoms;
 	int dihType;
-	int  k;
-	float r1[nDim];
-	float r2[nDim];
-	float r3[nDim];
+	float4 p1, p2, p3, p4;
+	float4 r14;
+	float4 r12;
+	float4 r23;
+	float4 r34;
 	float c11, c22, c33, c12, c13, c23;
 	float t1, t2, t3, t4, t5, t6;
 	float a, b;
-	float f1, f4;
+	float4 f1, f4;
 	float phi;
 	float fdih;
 	float hbox;
@@ -47,72 +48,48 @@ __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, i
 	{
 		hbox = lbox/2.0;
 		// determine four atoms involved in dihderal
-		//atom1 = __ldg(dihAtoms+index*5);
-		//atom2 = __ldg(dihAtoms+index*5+1);
-		//atom3 = __ldg(dihAtoms+index*5+2);
-		//atom4 = __ldg(dihAtoms+index*5+3);
 		atoms = __ldg(dihAtoms+index);
+		p1 = __ldg(xyz+atoms.x);   // position of atom 1
+		p2 = __ldg(xyz+atoms.y);   // position of atom 2
+		p3 = __ldg(xyz+abs(atoms.z));   // position of atom 3
+		p4 = __ldg(xyz+abs(atoms.w));   // position of atom 4
 		// determine dihedral type
 		dihType = __ldg(dihTypes+index);
 		// Check to see if we want to compute the scaled 1-4 interaction
 		if (atoms.z > 0 && atoms.w > 0) {
 			//Scaled non-bonded interaction for 1-4
 			rMag = 0.0f;
-			for (k=0;k<nDim;k++) {
-				r1[k] = __ldg(xyz+atoms.x+k)-__ldg(xyz+atoms.z+k);
-				rMag += r1[k] * r1[k];
-			}
-			r6 = rMag*rMag*rMag;
-			r6 = 1.0/r6;
-			it = __ldg(atomType+atoms.x/3);
-			jt = __ldg(atomType+atoms.w/3);
+			r14 = min_image(p1-p4,lbox,hbox);
+			rMag = r14.x*r14.x+r14.y*r14.y+r14.z*r14.z;
+			r6 = powf(rMag,-3.0);
+			it = __ldg(atomType+atoms.x);
+			jt = __ldg(atomType+atoms.w);
 			nlj = nAtomTypes * (it-1) + jt - 1;
 			nlj = __ldg(nbparm+nlj);
-			f14e = __ldg(charge+atoms.x/3)*__ldg(charge+atoms.w/3)/rMag/sqrtf(rMag)/__ldg(scee+dihType);
+			f14e = __ldg(charge+atoms.x)*__ldg(charge+atoms.w)/rMag/sqrtf(rMag)/__ldg(scee+dihType);
 			ljAB = __ldg(lj+nlj);
 			f14v = r6*(12.0f*ljAB.x*r6-6.0f*ljAB.y)/__ldg(scnb+dihType)/rMag;
-			f14v = 0.0f;
-			for (k=0;k<nDim;k++) {
-				atomicAdd(&f[atoms.x+k], (f14e+f14v)*r1[k]);
-				atomicAdd(&f[atoms.w+k], -(f14e+f14v)*r1[k]);
-			}
+			atomicAdd(&(f[atoms.x].x), (f14e+f14v)*r14.x);
+			atomicAdd(&(f[atoms.w].x), -(f14e+f14v)*r14.x);
+			atomicAdd(&(f[atoms.x].y), (f14e+f14v)*r14.y);
+			atomicAdd(&(f[atoms.w].y), -(f14e+f14v)*r14.y);
+			atomicAdd(&(f[atoms.x].z), (f14e+f14v)*r14.z);
+			atomicAdd(&(f[atoms.w].z), -(f14e+f14v)*r14.z);
 		}
 		if (atoms.w < 0) { atoms.w = -atoms.w;} // atom4 is negative if the torsion is improper
 		if (atoms.z < 0) { atoms.z = -atoms.z;} // atom3 is negative if we don't want to compute the scaled 1-4 for this torsion
 
-		c11 = 0.0f;
-		c22 = 0.0f;
-		c33 = 0.0f;
-		c12 = 0.0f;
-		c13 = 0.0f;
-		c23 = 0.0f;
-		for (k=0;k<nDim;k++) {
-			r1[k] = __ldg(xyz+atoms.x+k) - __ldg(xyz+atoms.y+k);
-			r2[k] = __ldg(xyz+atoms.y+k) - __ldg(xyz+atoms.z+k);
-			r3[k] = __ldg(xyz+atoms.z+k) - __ldg(xyz+atoms.w+k);
-			// assuming no more than one box away
-			if (r1[k] > hbox) {
-				r1[k] -= lbox;
-			} else if (r1[k] < -hbox) {
-				r1[k] += lbox;
-			}
-			if (r2[k] > hbox) {
-				r2[k] -= lbox;
-			} else if (r2[k] < -hbox) {
-				r2[k] += lbox;
-			}	
-			if (r3[k] > hbox) {
-				r3[k] -= lbox;
-			} else if (r3[k] < -hbox) {
-				r3[k] += lbox;
-			}	
-			c11 += r1[k]*r1[k];
-			c22 += r2[k]*r2[k];
-			c12 += r1[k]*r2[k];
-			c33 += r3[k]*r3[k];
-			c23 += r2[k]*r3[k];
-			c13 += r1[k]*r3[k];
-		}
+		r12 = min_image(p1-p2,lbox,hbox);
+		r23 = min_image(p2-p3,lbox,hbox);
+		r34 = min_image(p3-p4,lbox,hbox);
+		// dot products
+		c11 = r12.x*r12.x + r12.y*r12.y + r12.z*r12.z;
+		c22 = r23.x*r23.x + r23.y*r23.y + r23.z*r23.z;
+		c12 = r12.x*r23.x + r12.y*r23.y + r12.z*r23.z;
+		c33 = r34.x*r34.x + r34.y*r34.y + r34.z*r34.z;
+		c23 = r23.x*r34.x + r23.y*r34.y + r23.z*r34.z;
+		c13 = r12.x*r34.x + r12.y*r34.y + r12.z*r34.z;
+		// cross
 		t1 = c13*c22-c12*c23;
 		t2 = c11*c23-c12*c13;
 		t3 = c12*c12-c11*c22;
@@ -130,18 +107,24 @@ __global__ void dih_force_kernel(float *xyz, float *f, int nAtoms, float lbox, i
 		} else {
 			phi = acos(a);
 			params = __ldg(dihParams+dihType);
-			//fdih = dihParams_s[dihType].x * dihParams_s[dihType].y * sinf(dihParams_s[dihType].x*phi-dihParams_s[dihType].z)/sinf(phi)*c22/b;
 			fdih = params.x * params.y * sinf(params.x*phi-params.z)/sinf(phi)*c22/b;
-			//fdih = __ldg(dihNs+dihType) * __ldg(dihKs+dihType) * sinf(__ldg(dihNs+dihType)*phi-__ldg(dihPs+dihType))/sinf(phi)*c22/b;
 		}
-		for (k=0;k<3;k++) {
-			f1=fdih*(t1*r1[k]+t2*r2[k]+t3*r3[k])/t3;
-			f4=-fdih*(t4*r1[k]+t5*r2[k]+t6*r3[k])/t4;
-			atomicAdd(&f[atoms.x+k], f1);
-			atomicAdd(&f[atoms.y+k], -(1.0f+c12/c22)*f1+c23/c22*f4);
-			atomicAdd(&f[atoms.z+k], c12/c22*f1-(1.0f+c23/c22)*f4);
-			atomicAdd(&f[atoms.w+k], f4);
-		}
+		// force components
+		f1=fdih*(t1*r12+t2*r23+t3*r34)/t3;
+		f4=-fdih*(t4*r12+t5*r23+t6*r34)/t4;
+		// add forces to atoms
+		atomicAdd(&(f[atoms.x].x), f1.x);
+		atomicAdd(&(f[atoms.y].x), -(1.0f+c12/c22)*f1.x+c23/c22*f4.x);
+		atomicAdd(&(f[atoms.z].x), c12/c22*f1.x-(1.0f+c23/c22)*f4.x);
+		atomicAdd(&(f[atoms.w].x), f4.x);
+		atomicAdd(&(f[atoms.x].y), f1.y);
+		atomicAdd(&(f[atoms.y].y), -(1.0f+c12/c22)*f1.y+c23/c22*f4.y);
+		atomicAdd(&(f[atoms.z].y), c12/c22*f1.y-(1.0f+c23/c22)*f4.y);
+		atomicAdd(&(f[atoms.w].y), f4.y);
+		atomicAdd(&(f[atoms.x].z), f1.z);
+		atomicAdd(&(f[atoms.y].z), -(1.0f+c12/c22)*f1.z+c23/c22*f4.z);
+		atomicAdd(&(f[atoms.z].z), c12/c22*f1.z-(1.0f+c23/c22)*f4.z);
+		atomicAdd(&(f[atoms.w].z), f4.z);
 
 	}
 }
@@ -156,9 +139,7 @@ float dih_force_cuda(atom& atoms, dih& dihs, float lbox)
 	cudaEventRecord(dihs.dihStart);
 
 	// run dih cuda kernel
-	//dih_force_kernel<<<dihs.gridSize, dihs.blockSize>>>(atoms.xyz_d, atoms.f_d, atoms.nAtoms, lbox, dihs.dihAtoms_d, dihs.dihKs_d, dihs.dihNs_d, dihs.dihPs_d, dihs.nDihs, dihs.sceeScaleFactor_d, dihs.scnbScaleFactor_d, atoms.charges_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes);
-	//dih_force_kernel<<<dihs.gridSize, dihs.blockSize, dihs.nTypes*sizeof(float4)>>>(atoms.xyz_d, atoms.f_d, atoms.nAtoms, lbox, dihs.dihAtoms_d, dihs.dihParams_d, dihs.nDihs, dihs.nTypes, dihs.sceeScaleFactor_d, dihs.scnbScaleFactor_d, atoms.charges_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes);
-	dih_force_kernel<<<dihs.gridSize, dihs.blockSize>>>(atoms.xyz_d, atoms.f_d, atoms.nAtoms, lbox, dihs.dihAtoms_d, dihs.dihTypes_d, dihs.dihParams_d, dihs.nDihs, dihs.nTypes, dihs.sceeScaleFactor_d, dihs.scnbScaleFactor_d, atoms.charges_d, atoms.lj_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes);
+	dih_force_kernel<<<dihs.gridSize, dihs.blockSize>>>(atoms.pos_d, atoms.for_d, atoms.nAtoms, lbox, dihs.dihAtoms_d, dihs.dihTypes_d, dihs.dihParams_d, dihs.nDihs, dihs.nTypes, dihs.sceeScaleFactor_d, dihs.scnbScaleFactor_d, atoms.charges_d, atoms.lj_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes); 
 
 	// finalize timing
 	cudaEventRecord(dihs.dihStop);

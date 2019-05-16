@@ -221,7 +221,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						lineCount = 0;
 						while (bondCount < bonds.nTypes && lineCount < 5) {
 							//bonds.bondKUnique[bondCount] = atof(strncpy(token,line+lineCount*16,16));
-							bonds.bondParams_h[bondCount].x = atof(strncpy(token,line+lineCount*16,16));
+							bonds.bondParams_h[bondCount].x = atof(strncpy(token,line+lineCount*16,16))*2.0; // multiply by two for efficiency in force routine
 							bondCount++;
 							lineCount++;
 						}
@@ -237,7 +237,8 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (angleCount < angles.nTypes && lineCount < 5) {
-							angles.angleX0Unique[angleCount] = atof(strncpy(token,line+lineCount*16,16));
+							//angles.angleX0Unique[angleCount] = atof(strncpy(token,line+lineCount*16,16));
+							angles.angleParams_h[angleCount].y = atof(strncpy(token,line+lineCount*16,16));
 							angleCount++;
 							lineCount++;
 						}
@@ -253,7 +254,8 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (angleCount < angles.nTypes && lineCount < 5) {
-							angles.angleKUnique[angleCount] = atof(strncpy(token,line+lineCount*16,16));
+							//angles.angleKUnique[angleCount] = atof(strncpy(token,line+lineCount*16,16));
+							angles.angleParams_h[angleCount].x = atof(strncpy(token,line+lineCount*16,16))*2; // multiply by two for efficiency in force routine
 							angleCount++;
 							lineCount++;
 						}
@@ -286,7 +288,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (dihCount < dihs.nTypes && lineCount < 5) {
-							dihs.dihParams_h[dihCount].y = atof(strncpy(token,line+lineCount*16,16))*2.0; // multiply by 2 to avoid doing so every time in the force calculation
+							dihs.dihParams_h[dihCount].y = atof(strncpy(token,line+lineCount*16,16));
 							dihCount++;
 							lineCount++;
 						}
@@ -444,11 +446,12 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					// parse to angle arrays
 					for (i=0;i<angles.nAngleHs;i++) {
-						angles.angleAtoms_h[i*3] = tempAngleArray[i*4];
-						angles.angleAtoms_h[i*3+1] = tempAngleArray[i*4+1];
-						angles.angleAtoms_h[i*3+2] = tempAngleArray[i*4+2];
-						angles.angleKs_h[i] = angles.angleKUnique[tempAngleArray[i*4+3]-1]*2.0;
-						angles.angleX0s_h[i] = angles.angleX0Unique[tempAngleArray[i*4+3]-1];
+						angles.angleAtoms_h[i].x = tempAngleArray[i*4]/3;
+						angles.angleAtoms_h[i].y = tempAngleArray[i*4+1]/3;
+						angles.angleAtoms_h[i].z = tempAngleArray[i*4+2]/3;
+						angles.angleAtoms_h[i].w = tempAngleArray[i*4+3]-1;
+						//angles.angleKs_h[i] = angles.angleKUnique[tempAngleArray[i*4+3]-1]*2.0;
+						//angles.angleX0s_h[i] = angles.angleX0Unique[tempAngleArray[i*4+3]-1];
 					}
 					free(tempAngleArray);
 				} else if (strcmp(flag,anglenHFlag) == 0) { 
@@ -470,11 +473,12 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					// parse to angle arrays
 					for (i=0;i<angles.nAnglenHs;i++) {
-						angles.angleAtoms_h[(i+angles.nAngleHs)*3] = tempAngleArray[i*4];
-						angles.angleAtoms_h[(i+angles.nAngleHs)*3+1] = tempAngleArray[i*4+1];
-						angles.angleAtoms_h[(i+angles.nAngleHs)*3+2] = tempAngleArray[i*4+2];
-						angles.angleKs_h[(i+angles.nAngleHs)] = angles.angleKUnique[tempAngleArray[i*4+3]-1]*2.0;
-						angles.angleX0s_h[(i+angles.nAngleHs)] = angles.angleX0Unique[tempAngleArray[i*4+3]-1];
+						angles.angleAtoms_h[(i+angles.nAngleHs)].x = tempAngleArray[i*4]/3;
+						angles.angleAtoms_h[(i+angles.nAngleHs)].y = tempAngleArray[i*4+1]/3;
+						angles.angleAtoms_h[(i+angles.nAngleHs)].z = tempAngleArray[i*4+2]/3;
+						angles.angleAtoms_h[(i+angles.nAngleHs)].w = tempAngleArray[i*4+3]-1;
+						//angles.angleKs_h[(i+angles.nAngleHs)] = angles.angleKUnique[tempAngleArray[i*4+3]-1]*2.0;
+						//angles.angleX0s_h[(i+angles.nAngleHs)] = angles.angleX0Unique[tempAngleArray[i*4+3]-1];
 					}
 					free(tempAngleArray);
 				// Dihedral atoms
@@ -497,10 +501,10 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					// parse to dih arrays
 					for (i=0;i<dihs.nDihHs;i++) {
-						dihs.dihAtoms_h[i].x = tempDihArray[i*5];
-						dihs.dihAtoms_h[i].y = tempDihArray[i*5+1];
-						dihs.dihAtoms_h[i].z = tempDihArray[i*5+2];
-						dihs.dihAtoms_h[i].w = tempDihArray[i*5+3];
+						dihs.dihAtoms_h[i].x = tempDihArray[i*5]/3;
+						dihs.dihAtoms_h[i].y = tempDihArray[i*5+1]/3;
+						dihs.dihAtoms_h[i].z = tempDihArray[i*5+2]/3;
+						dihs.dihAtoms_h[i].w = tempDihArray[i*5+3]/3;
 						dihs.dihTypes_h[i] = tempDihArray[i*5+4]-1;
 					}
 					free(tempDihArray);
@@ -523,10 +527,10 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					}
 					// parse to dih arrays
 					for (i=0;i<dihs.nDihnHs;i++) {
-						dihs.dihAtoms_h[(i+dihs.nDihHs)].x = tempDihArray[i*5];
-						dihs.dihAtoms_h[(i+dihs.nDihHs)].y = tempDihArray[i*5+1];
-						dihs.dihAtoms_h[(i+dihs.nDihHs)].z = tempDihArray[i*5+2];
-						dihs.dihAtoms_h[(i+dihs.nDihHs)].w = tempDihArray[i*5+3];
+						dihs.dihAtoms_h[(i+dihs.nDihHs)].x = tempDihArray[i*5]/3;
+						dihs.dihAtoms_h[(i+dihs.nDihHs)].y = tempDihArray[i*5+1]/3;
+						dihs.dihAtoms_h[(i+dihs.nDihHs)].z = tempDihArray[i*5+2]/3;
+						dihs.dihAtoms_h[(i+dihs.nDihHs)].w = tempDihArray[i*5+3]/3;
 						dihs.dihTypes_h[(i+dihs.nDihHs)] = tempDihArray[i*5+4]-1;
 					}
 					free(tempDihArray);

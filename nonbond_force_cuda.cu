@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <cuda.h>
 #include <vector_functions.h>
-#include "helper_math.h"
+#include "cuda_vector_routines.h"
 #include "atom_class.h"
 #include "nonbond_force_cuda.h"
 
@@ -51,19 +51,7 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float *charges, flo
 			atom2 = __ldg(NN+start+i);
 			if (atom2 != atom1) {
 				//dist2 = 0.0f;
-				r = __ldg(xyz+atom1) - __ldg(xyz+atom2);
-//				for (k=0;k<nDim;k++) {
-					//r[k] = __ldg(xyz+atom1*nDim+k) - __ldg(xyz+atom2*nDim+k);
-//					r[k] = xyz_s[atom1*nDim+k] - xyz_s[atom2*nDim+k];
-//					if (r[k] > hbox) {
-//						r[k] -= (int)(temp/lbox+0.5) * lbox;
-//						r[k] -= lbox;
-//					} else if (r[k] < -hbox) {
-//						r[k] += (int)(-temp/lbox+0.5) * lbox;
-//						r[k] += lbox;
-//					}
-//					dist2 += r[k]*r[k];
-//				}
+				r = min_image(xyz_s[atom1] - xyz_s[atom2],lbox,hbox);
 				dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 				if (dist2 < rCut2) {
 					// get interaction type
@@ -88,7 +76,6 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float *charges, flo
 
 /* C wrappers for kernels */
 
-//extern "C" void nonbond_cuda(float *xyz_d, float *f_d, float *charges_d, float *lj_A_d, float *lj_B_d, int *ityp_d, int nAtoms, float rCut2, float lbox, int *NN_d, int *numNN_d, int numNNmax, int *nbparm_d, int nTypes) {
 float nonbond_force_cuda(atom &atoms, float rCut2, float lbox) 
 {
 	float milliseconds;

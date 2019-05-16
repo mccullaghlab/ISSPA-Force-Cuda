@@ -4,27 +4,20 @@
 // Allocate angle arrays on host (cpu)
 void angle::allocate()
 {
-	//
 	//angleAtoms_h= (int *)malloc(3*nAngles*sizeof(int));
-	cudaMallocHost((int **) &angleAtoms_h, 3*nAngles*sizeof(int));
-	cudaMallocHost((int **) &angleKs_h, nAngles*sizeof(float));
-	cudaMallocHost((int **) &angleX0s_h, nAngles*sizeof(float));
-	//angleKs_h= (float *)malloc(nAngles*sizeof(float));
-	//angleX0s_h= (float *)malloc(nAngles*sizeof(float));
-	angleKUnique = (float *)malloc(nTypes*sizeof(float));
-	angleX0Unique = (float *)malloc(nTypes*sizeof(float));
+	cudaMallocHost((int **) &angleAtoms_h, nAngles*sizeof(int4));
+	cudaMallocHost((int **) &angleParams_h, nTypes*sizeof(float2));
 }
 // Allocate angle arrays on device (gpu) and send data
 void angle::initialize_gpu()
 {
+	int i;
 	//
-	cudaMalloc((void **) &angleX0s_d, nAngles*sizeof(float));
-	cudaMalloc((void **) &angleKs_d, nAngles*sizeof(float));
-	cudaMalloc((void **) &angleAtoms_d, nAngles*3*sizeof(int));
+	cudaMalloc((void **) &angleAtoms_d, nAngles*sizeof(int4));
+	cudaMalloc((void **) &angleParams_d, nTypes*sizeof(float2));
 	// copy data to device
-	cudaMemcpy(angleAtoms_d, angleAtoms_h, nAngles*3*sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(angleKs_d, angleKs_h, nAngles*sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(angleX0s_d, angleX0s_h, nAngles*sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(angleAtoms_d, angleAtoms_h, nAngles*sizeof(int4), cudaMemcpyHostToDevice);
+	cudaMemcpy(angleParams_d, angleParams_h, nTypes*sizeof(float2), cudaMemcpyHostToDevice);
 	cudaEventCreate(&angleStart);
 	cudaEventCreate(&angleStop);
 
@@ -34,15 +27,11 @@ void angle::initialize_gpu()
 void angle::free_arrays() {
 	// free host variables
 	cudaFree(angleAtoms_h);
-	cudaFree(angleKs_h);
-	cudaFree(angleX0s_h);
-	free(angleKUnique);
-	free(angleX0Unique);
+	cudaFree(angleParams_h);
 }
 
 void angle::free_arrays_gpu() {
 	// free device variables
-	cudaFree(angleX0s_d);
-	cudaFree(angleKs_d);
+	cudaFree(angleParams_d);
 	cudaFree(angleAtoms_d);
 }
