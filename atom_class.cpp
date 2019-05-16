@@ -14,7 +14,7 @@ using namespace std;
 void atom::allocate()
 {
 	// atoms and types
-	numNNmax = 500;
+	numNNmax = 600;
 	// size of pos arrays
 	nAtomBytes = nAtoms*sizeof(float);
 	nTypeBytes = nTypes*sizeof(float);
@@ -23,7 +23,6 @@ void atom::allocate()
 	// allocate atom velocity arrays
 	cudaMallocHost((float4 **) &vel_h, nAtoms*sizeof(float4));
 	// allocate atom force arrays
-//	f_h = (float *)malloc(nAtomBytes*nDim);
 	cudaMallocHost((float4 **) &for_h, nAtoms*sizeof(float4));
 	// alocate mass array
 	//cudaMallocHost((float **) &mass_h, nAtomBytes);
@@ -45,8 +44,6 @@ void atom::allocate()
 	w_h = (float *)malloc(nTypeBytes);
 	alpha_h = (float *)malloc(nTypeBytes);
 	vtot_h = (float *)malloc(nTypeBytes);
-	//ljA_h = (float *)malloc(nTypes*(nTypes+1)/2*sizeof(float));
-	//ljB_h = (float *)malloc(nTypes*(nTypes+1)/2*sizeof(float));
 	lj_h = (float2 *)malloc(nTypes*(nTypes+1)/2*sizeof(float2));
 	// debug
 	NN_h = (int *)malloc(nAtoms*numNNmax*sizeof(int));
@@ -165,8 +162,8 @@ void atom::initialize_gpu(int seed)
 	// allocate charges array
 	cudaMalloc((void **) &charges_d, nAtomBytes);
 	// allocate neighborlist stuff
-//	cudaMalloc((void **) &numNN_d, nAtoms*sizeof(int));
-//	cudaMalloc((void **) &NN_d, nAtoms*numNNmax*sizeof(int));
+	cudaMalloc((void **) &numNN_d, nAtoms*sizeof(int));
+	cudaMalloc((void **) &NN_d, nAtoms*numNNmax*sizeof(int));
 	// allocate atom type arrays
 	cudaMalloc((void **) &ityp_d, nAtoms*sizeof(int));
 	cudaMalloc((void **) &nonBondedParmIndex_d, nTypes*nTypes*sizeof(int));
@@ -180,8 +177,6 @@ void atom::initialize_gpu(int seed)
 	cudaMalloc((void **) &w_d, nTypeBytes);
 	cudaMalloc((void **) &alpha_d, nTypeBytes);
 	cudaMalloc((void **) &vtot_d, nTypeBytes);
-//	cudaMalloc((void **) &ljA_d, nTypes*(nTypes+1)/2*sizeof(float));
-//	cudaMalloc((void **) &ljB_d, nTypes*(nTypes+1)/2*sizeof(float));
 	cudaMalloc((void **) &lj_d, nTypes*(nTypes+1)/2*sizeof(float2));
 	// random number states
 	cudaMalloc((void**) &randStates_d, nAtoms*sizeof(curandState));

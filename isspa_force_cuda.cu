@@ -5,11 +5,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 #include "isspa_force_cuda.h"
-
-#define nDim 3
-#define MC 10
-//Fast integer multiplication
-#define MUL(a, b) __umul24(a, b)
+#include "constants.h"
 
 //__global__ void init_rand(unsigned int long seed, curandState_t* states){
 //	curand_init(seed,blockIdx.x,0,&states);

@@ -28,13 +28,12 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float *charges, flo
 	float flj;
 	float hbox;
 	float2 ljAB;
+	float4 p1, p2;
 	int nlj;
-	int chunk;
 
 
 	// copy positions from global memory to shared memory for each block
-	chunk = (int) ( (nAtoms+blockDim.x-1)/blockDim.x);
-	for (i=t*chunk;i<(t+1)*chunk;i++) {
+	for (i=t;i<nAtoms;i+=blockDim.x) {
 		xyz_s[i] = __ldg(xyz+i);
 	}
 	__syncthreads();
@@ -50,8 +49,10 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float *charges, flo
 		for (i=0;i<N;i++) {
 			atom2 = __ldg(NN+start+i);
 			if (atom2 != atom1) {
-				//dist2 = 0.0f;
-				r = min_image(xyz_s[atom1] - xyz_s[atom2],lbox,hbox);
+				p1 = xyz_s[atom1];
+				p2 = xyz_s[atom2];
+				r = min_image(p1-p2,lbox,hbox);
+				//r = min_image(__ldg(xyz+atom1) - __ldg(xyz+atom2),lbox,hbox);
 				dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 				if (dist2 < rCut2) {
 					// get interaction type
@@ -63,7 +64,8 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float *charges, flo
 					// LJ force
 					r6 = powf(dist2,-3.0);
 					flj = r6 * (12.0 * ljAB.x * r6 - 6.0 * ljAB.y) / dist2;
-					fc = __ldg(charges+atom1)*__ldg(charges+atom2)/dist2/sqrtf(dist2);
+					//fc = __ldg(charges+atom1)*__ldg(charges+atom2)/dist2/sqrtf(dist2);
+					fc = p1.w*p2.w/dist2/sqrtf(dist2);
 					f[atom1].x += (flj+fc)*r.x;
 					f[atom1].y += (flj+fc)*r.y;
 					f[atom1].z += (flj+fc)*r.z;

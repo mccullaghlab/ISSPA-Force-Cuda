@@ -26,12 +26,12 @@ __global__ void neighborlist_kernel(float4 *xyz, int *NN, int *numNN, float rNN2
 	int exPass;
 	int exAtom;
 	int chunk;
+	int endShared;
 	float hbox;
 
 	// copy excluded atoms list to shared memory
-	chunk = (int) ( (excludedAtomsListLength+blockDim.x-1)/blockDim.x);
-	for (i=t*chunk;i<(t+1)*chunk;i++) {
-		excludedAtomsList_s[i] = excludedAtomsList[i];
+	for (i=t;i<excludedAtomsListLength;i+=blockDim.x) {
+		excludedAtomsList_s[i] = __ldg(excludedAtomsList+i);
 	}
 	__syncthreads();
 	// move on
@@ -54,12 +54,12 @@ __global__ void neighborlist_kernel(float4 *xyz, int *NN, int *numNN, float rNN2
 				}
 				exStop = __ldg(nExcludedAtoms+atom1);
 				for (exAtom=exStart;exAtom<exStop;exAtom++) {
-					if (excludedAtomsList_s[exAtom]-1 == atom2) {
+					if (excludedAtomsList_s[exAtom] == atom2) {
 						exPass = 1;
 						break;
 					}
 					// the following only applies if exluded atom list is in strictly ascending order
-					if (excludedAtomsList_s[exAtom]-1 > atom2) {
+					if (excludedAtomsList_s[exAtom] > atom2) {
 						break;
 					}
 				}
@@ -72,16 +72,17 @@ __global__ void neighborlist_kernel(float4 *xyz, int *NN, int *numNN, float rNN2
 				}
 				exStop = __ldg(nExcludedAtoms+atom2);
 				for (exAtom=exStart;exAtom<exStop;exAtom++) {
-					if (excludedAtomsList_s[exAtom]-1 == atom1) {
+					if (excludedAtomsList_s[exAtom] == atom1) {
 						exPass = 1;
 						break;
 					}
 					// the following only applies if exluded atom list is in strictly ascending order
-					if (excludedAtomsList_s[exAtom]-1 > atom1) {
+					if (excludedAtomsList_s[exAtom] > atom1) {
 						break;
 					}
 				}
 			}
+			// finish exclusion check
 			if (atom2 != atom1 && exPass == 0) {
 				// compute distance
 				temp = min_image(__ldg(xyz+atom1) - __ldg(xyz+atom2),lbox,hbox);
@@ -101,11 +102,13 @@ __global__ void neighborlist_kernel(float4 *xyz, int *NN, int *numNN, float rNN2
 float neighborlist_cuda(atom& atoms, float rNN2, float lbox)
 {
 	float milliseconds;
-
+	int chunk;
 	// initialize cuda timing events
 	cudaEventRecord(atoms.neighborListStart);
+	
 	// run nonbond cuda kernel
 	neighborlist_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.NN_d, atoms.numNN_d, rNN2, atoms.nAtoms, atoms.numNNmax, lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.excludedAtomsListLength);
+	
 	// record kernel timing
 	cudaEventRecord(atoms.neighborListStop);
     	cudaEventSynchronize(atoms.neighborListStop);

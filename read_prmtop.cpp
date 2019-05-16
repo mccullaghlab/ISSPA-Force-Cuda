@@ -119,6 +119,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						lineCount = 0;
 						while (atomCount < atoms.nAtoms && lineCount < 5) {
 							atoms.charges_h[atomCount] = atof(strncpy(token,line+lineCount*16,16));
+							atoms.pos_h[atomCount].w = atoms.charges_h[atomCount];
 							atomCount++;
 							lineCount++;
 						}
@@ -545,7 +546,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (atomCount < atoms.excludedAtomsListLength && lineCount < 10) {
-							atoms.excludedAtomsList_h[atomCount] = atoi(strncpy(token,line+lineCount*8,8));
+							atoms.excludedAtomsList_h[atomCount] = atoi(strncpy(token,line+lineCount*8,8))-1;
 							atomCount++;
 							lineCount++;
 						}
