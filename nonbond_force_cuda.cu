@@ -63,9 +63,9 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int nAt
 				atomicAdd(&(f[atoms.x].y),(flj+fc)*r.y);
 				atomicAdd(&(f[atoms.x].z),(flj+fc)*r.z);
 				// add forces to atom2
-				atomicAdd(&(f[atoms.y].x),-(flj+fc)*r.x);
-				atomicAdd(&(f[atoms.y].y),-(flj+fc)*r.y);
-				atomicAdd(&(f[atoms.y].z),-(flj+fc)*r.z);
+				//atomicAdd(&(f[atoms.y].x),-(flj+fc)*r.x);
+				//atomicAdd(&(f[atoms.y].y),-(flj+fc)*r.y);
+				//atomicAdd(&(f[atoms.y].z),-(flj+fc)*r.z);
 
 			}
 		}

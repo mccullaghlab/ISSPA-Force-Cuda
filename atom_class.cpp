@@ -15,7 +15,7 @@ void atom::allocate()
 {
 	int count, i, j;
 	// atoms and types
-	numNNmax = 512;
+	numNNmax = 576;
 	// size of pos arrays
 	nAtomBytes = nAtoms*sizeof(float);
 	nTypeBytes = nTypes*sizeof(float);

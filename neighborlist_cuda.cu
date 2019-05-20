@@ -39,9 +39,9 @@ __global__ void neighborlist_kernel(float4 *xyz, int4 *neighborList, int *neighb
 		hbox = lbox/2.0;
 		atom1 = (int) (index/nAtoms);
 		atom2 = index % nAtoms;
+		// check exclusions
+		exPass = 0;
 		if (atom1 < atom2) {
-			// check exclusions
-			exPass = 0;
 			if (atom1==0) {
 				exStart = 0;
 			} else {
@@ -59,23 +59,40 @@ __global__ void neighborlist_kernel(float4 *xyz, int4 *neighborList, int *neighb
 					break;
 				}
 			}
-			// finish exclusion check
-			if (exPass == 0) {
-				// compute distance
-				temp = min_image(__ldg(xyz+atom1) - __ldg(xyz+atom2),lbox,hbox);
-				dist2 = temp.x*temp.x + temp.y*temp.y + temp.z*temp.z;
-				if (dist2 < rNN2) {
-					start = maxNeighborsPerAtom*atom1;
-					count = atomicAdd(&neighborCount[atom1],1);
-					it = __ldg(ityp+atom1);
-					jt = __ldg(ityp+atom2);
-					nlj = nTypes*(it)+jt;
-					nlj = __ldg(nbparm+nlj);
-					// set neighborlist in global memory
-					neighborList[start + count].x = atom1;
-					neighborList[start + count].y = atom2;
-					neighborList[start + count].z = nlj;
+		} else if (atom2 < atom1) {
+			if (atom2==0) {
+				exStart = 0;
+			} else {
+				exStart = __ldg(nExcludedAtoms+atom2-1);
+			}
+			exStop = __ldg(nExcludedAtoms+atom2);
+			for (exAtom=exStart;exAtom<exStop;exAtom++) {
+				if (excludedAtomsList_s[exAtom] == atom1) {
+					exPass = 1;
+					break;
 				}
+				// the following only applies if exluded atom list is in strictly ascending order
+				if (excludedAtomsList_s[exAtom] > atom1) {
+					break;
+				}
+			}
+		}
+		// finish exclusion check
+		if (atom1 != atom2 && exPass == 0) {
+			// compute distance
+			temp = min_image(__ldg(xyz+atom1) - __ldg(xyz+atom2),lbox,hbox);
+			dist2 = temp.x*temp.x + temp.y*temp.y + temp.z*temp.z;
+			if (dist2 < rNN2) {
+				start = maxNeighborsPerAtom*atom1;
+				count = atomicAdd(&neighborCount[atom1],1);
+				it = __ldg(ityp+atom1);
+				jt = __ldg(ityp+atom2);
+				nlj = nTypes*(it)+jt;
+				nlj = __ldg(nbparm+nlj);
+				// set neighborlist in global memory
+				neighborList[start + count].x = atom1;
+				neighborList[start + count].y = atom2;
+				neighborList[start + count].z = nlj;
 			}
 		}
 /*		} else if (atom2 < atom1) {
