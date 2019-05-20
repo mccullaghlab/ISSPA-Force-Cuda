@@ -59,6 +59,7 @@ class atom
 		int4 *neighborList_d;
 		int *neighborCount_h;  // number of neighbors in list on host
 		int *neighborCount_d;  // number of neighbors in list on device
+		int totalNeighbors;    // size of neighborlist
 		// nAtoms kernel grid/block configurations
 		int gridSize;
 		int blockSize;

@@ -15,7 +15,7 @@ void atom::allocate()
 {
 	int count, i, j;
 	// atoms and types
-	numNNmax = 200;
+	numNNmax = 512;
 	// size of pos arrays
 	nAtomBytes = nAtoms*sizeof(float);
 	nTypeBytes = nTypes*sizeof(float);
@@ -32,7 +32,7 @@ void atom::allocate()
 	excludedAtomsList_h = (int *)malloc(excludedAtomsListLength*sizeof(int));
 	// allocate atom type arrays
 	nonBondedParmIndex_h = (int *)malloc(nTypes*nTypes*sizeof(int));
-	neighborCount_h = (int *)malloc(sizeof(int));
+	neighborCount_h = (int *)malloc(nAtoms*sizeof(int));
 	// allocate atom based parameter arrays
 	x0_h = (float *)malloc(nTypeBytes);
 	g0_h = (float *)malloc(nTypeBytes);
@@ -158,7 +158,7 @@ void atom::initialize_gpu(int seed)
 	//cudaMalloc((void **) &numNN_d, nAtoms*sizeof(int));
 	//cudaMalloc((void **) &NN_d, nAtoms*numNNmax*sizeof(int2));
 	cudaMalloc((void **) &neighborList_d, nAtoms*numNNmax*sizeof(int4));
-	cudaMalloc((void **) &neighborCount_d, sizeof(int));
+	cudaMalloc((void **) &neighborCount_d, nAtoms*sizeof(int));
 	// allocate atom type arrays
 	cudaMalloc((void **) &ityp_d, nAtoms*sizeof(int));
 	cudaMalloc((void **) &nonBondedParmIndex_d, nTypes*nTypes*sizeof(int));

@@ -11,7 +11,7 @@
 
 // CUDA Kernels
 
-__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int nAtoms, float rCut2, float lbox, int4 *neighborList, int *neighborCount, int nTypes) {
+__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int nAtoms, float rCut2, float lbox, int4 *neighborList, int *neighborCount, int nTypes, int maxNeighbors) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float2 lj_s[];
@@ -20,6 +20,8 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int nAt
 	int i, k;
 	int N;
 	int start;
+	int count;
+	int atom;
 	int typePairs = nTypes*(nTypes+1)/2;
 	float4 r;
 	float r6;
@@ -37,31 +39,35 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int nAt
 	}
 	__syncthreads();
 	// move on
-	if (index < neighborCount[0])
+	if (index < maxNeighbors*nAtoms)
 	{
-		hbox = lbox/2.0;
-		atoms = __ldg(neighborList+index);
-		p1 = __ldg(xyz + atoms.x);
-		p2 = __ldg(xyz + atoms.y);
-		r = min_image(p1-p2,lbox,hbox);
-		dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-		if (dist2 < rCut2) {
-			// LJ force
-			r6 = powf(dist2,-3.0);
-			flj = r6 * (12.0 * lj_s[atoms.z].x * r6 - 6.0 * lj_s[atoms.z].y) / dist2;
-			//ljAB = __ldg(lj+atoms.z);
-			//flj = r6 * (12.0 * ljAB.x * r6 - 6.0 * ljAB.y) / dist2;
-			// coulomb force
-			fc = p1.w*p2.w/dist2/sqrtf(dist2);
-			// add forces to atom1
-			atomicAdd(&(f[atoms.x].x),(flj+fc)*r.x);
-			atomicAdd(&(f[atoms.x].y),(flj+fc)*r.y);
-			atomicAdd(&(f[atoms.x].z),(flj+fc)*r.z);
-			// add forces to atom2
-			atomicAdd(&(f[atoms.y].x),-(flj+fc)*r.x);
-			atomicAdd(&(f[atoms.y].y),-(flj+fc)*r.y);
-			atomicAdd(&(f[atoms.y].z),-(flj+fc)*r.z);
+		count = index % maxNeighbors;
+		atom = (int) ( index / maxNeighbors );
+		if (count < __ldg(neighborCount + atom)) {
+			hbox = lbox/2.0;
+			atoms = __ldg(neighborList+index);
+			p1 = __ldg(xyz + atoms.x);
+			p2 = __ldg(xyz + atoms.y);
+			r = min_image(p1-p2,lbox,hbox);
+			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
+			if (dist2 < rCut2) {
+				// LJ force
+				r6 = powf(dist2,-3.0);
+				flj = r6 * (12.0 * lj_s[atoms.z].x * r6 - 6.0 * lj_s[atoms.z].y) / dist2;
+				//ljAB = __ldg(lj+atoms.z);
+				//flj = r6 * (12.0 * ljAB.x * r6 - 6.0 * ljAB.y) / dist2;
+				// coulomb force
+				fc = p1.w*p2.w/dist2/sqrtf(dist2);
+				// add forces to atom1
+				atomicAdd(&(f[atoms.x].x),(flj+fc)*r.x);
+				atomicAdd(&(f[atoms.x].y),(flj+fc)*r.y);
+				atomicAdd(&(f[atoms.x].z),(flj+fc)*r.z);
+				// add forces to atom2
+				atomicAdd(&(f[atoms.y].x),-(flj+fc)*r.x);
+				atomicAdd(&(f[atoms.y].y),-(flj+fc)*r.y);
+				atomicAdd(&(f[atoms.y].z),-(flj+fc)*r.z);
 
+			}
 		}
 
 	}
@@ -78,13 +84,13 @@ float nonbond_force_cuda(atom &atoms, float rCut2, float lbox)
 
 	// timing
 	cudaEventRecord(atoms.nonbondStart);
-
+	
 	// determine gridSize and blockSize
-	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, nonbond_force_kernel, 0, atoms.neighborCount_h[0]); 
+	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, nonbond_force_kernel, 0, atoms.nAtoms*atoms.numNNmax); 
     	// Round up according to array size 
-    	gridSize = (atoms.neighborCount_h[0] + blockSize - 1) / blockSize; 
+    	gridSize = (atoms.nAtoms*atoms.numNNmax + blockSize - 1) / blockSize; 
 	// run nonbond cuda kernel
-	nonbond_force_kernel<<<gridSize, blockSize, atoms.nTypes*(atoms.nTypes+1)/2*sizeof(float2)>>>(atoms.pos_d, atoms.for_d, atoms.lj_d, atoms.nAtoms, rCut2, lbox, atoms.neighborList_d, atoms.neighborCount_d, atoms.nTypes);
+	nonbond_force_kernel<<<gridSize, blockSize, atoms.nTypes*(atoms.nTypes+1)/2*sizeof(float2)>>>(atoms.pos_d, atoms.for_d, atoms.lj_d, atoms.nAtoms, rCut2, lbox, atoms.neighborList_d, atoms.neighborCount_d, atoms.nTypes, atoms.numNNmax);
 
 	// finish timing
 	cudaEventRecord(atoms.nonbondStop);
