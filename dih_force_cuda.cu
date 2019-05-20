@@ -10,7 +10,7 @@
 
 // CUDA Kernels
 
-__global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox, int4 *dihAtoms, int *dihTypes, float4 *dihParams, int nDihs, int nTypes, float *scee, float *scnb, float *charge, float2 *lj, int *atomType, int *nbparm, int nAtomTypes) {
+__global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox, int4 *dihAtoms, int *dihTypes, float4 *dihParams, int nDihs, int nTypes, float *scee, float *scnb, float2 *lj, int *atomType, int *nbparm, int nAtomTypes) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	//unsigned int t = threadIdx.x;
 	//extern __shared__ float4 dihParams_s[];
@@ -64,9 +64,9 @@ __global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox,
 			r6 = powf(rMag,-3.0);
 			it = __ldg(atomType+atoms.x);
 			jt = __ldg(atomType+atoms.w);
-			nlj = nAtomTypes * (it-1) + jt - 1;
+			nlj = nAtomTypes * it + jt;
 			nlj = __ldg(nbparm+nlj);
-			f14e = __ldg(charge+atoms.x)*__ldg(charge+atoms.w)/rMag/sqrtf(rMag)/__ldg(scee+dihType);
+			f14e = p1.w*p4.w/rMag/sqrtf(rMag)/__ldg(scee+dihType);
 			ljAB = __ldg(lj+nlj);
 			f14v = r6*(12.0f*ljAB.x*r6-6.0f*ljAB.y)/__ldg(scnb+dihType)/rMag;
 			atomicAdd(&(f[atoms.x].x), (f14e+f14v)*r14.x);
@@ -139,7 +139,7 @@ float dih_force_cuda(atom& atoms, dih& dihs, float lbox)
 	cudaEventRecord(dihs.dihStart);
 
 	// run dih cuda kernel
-	dih_force_kernel<<<dihs.gridSize, dihs.blockSize>>>(atoms.pos_d, atoms.for_d, atoms.nAtoms, lbox, dihs.dihAtoms_d, dihs.dihTypes_d, dihs.dihParams_d, dihs.nDihs, dihs.nTypes, dihs.sceeScaleFactor_d, dihs.scnbScaleFactor_d, atoms.charges_d, atoms.lj_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes); 
+	dih_force_kernel<<<dihs.gridSize, dihs.blockSize>>>(atoms.pos_d, atoms.for_d, atoms.nAtoms, lbox, dihs.dihAtoms_d, dihs.dihTypes_d, dihs.dihParams_d, dihs.nDihs, dihs.nTypes, dihs.sceeScaleFactor_d, dihs.scnbScaleFactor_d, atoms.lj_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes); 
 
 	// finalize timing
 	cudaEventRecord(dihs.dihStop);

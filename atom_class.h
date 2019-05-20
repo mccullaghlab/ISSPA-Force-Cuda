@@ -19,6 +19,7 @@ class atom
 		float rand_gauss();
 	public:
 		int nAtoms;
+		int nPairs;
 		int nTypes;
 		int excludedAtomsListLength;
 		int nAtomBytes;
@@ -32,8 +33,6 @@ class atom
 		float4 *for_d;      // force array - device data
 		float4 *vel_h;      // velocity array - host data
 		float4 *vel_d;      // velocity array - device data
-//		float *mass_h;      // mass array - host data
-//		float *mass_d;      // mass array - device data
 		int *ityp_h;     // atom type array - host data
 		int *ityp_d;     // atom type array - device data
 		int *nExcludedAtoms_h;     // number of excluded atoms per atom array - host data
@@ -54,20 +53,12 @@ class atom
 		float *alpha_d;  // alpha parameter for g - device data
 		float *vtot_h;  // Monte Carlo normalization factor - host data
 		float *vtot_d;  // Monte Carlo normalization factor - device data
-		float *charges_h;    // coordinate array - host data
-		float *charges_d;    // coordinate array - device data
-//		float *ljA_h;   // Lennard-Jones A parameter - host data
-//		float *ljA_d;   // Lennard-Jones A parameter - device data
-//		float *ljB_h;   // Lennard-Jones B parameter - host data
-//		float *ljB_d;   // Lennard-Jones B parameter - device data
 		float2 *lj_h;
 		float2 *lj_d;
 		int numNNmax;
-		int *numNN_d;   // list of neighors per atom
-		int *numNN_h;   // list of neighors per atom
-		int *NN_d;       // neighbor list - will be size nAtoms*nNNmax
-		int *NN_h;       // neighbor list - will be size nAtoms*nNNmax
-		int   *key;      // array to determine current position of atoms (after shuffle)
+		int4 *neighborList_d;
+		int *neighborCount_h;  // number of neighbors in list on host
+		int *neighborCount_d;  // number of neighbors in list on device
 		// nAtoms kernel grid/block configurations
 		int gridSize;
 		int blockSize;

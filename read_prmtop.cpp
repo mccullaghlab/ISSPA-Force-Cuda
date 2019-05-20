@@ -118,8 +118,8 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (atomCount < atoms.nAtoms && lineCount < 5) {
-							atoms.charges_h[atomCount] = atof(strncpy(token,line+lineCount*16,16));
-							atoms.pos_h[atomCount].w = atoms.charges_h[atomCount];
+							// charge will be fourth element in position float4 array
+							atoms.pos_h[atomCount].w = atof(strncpy(token,line+lineCount*16,16));
 							atomCount++;
 							lineCount++;
 						}
@@ -151,7 +151,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (atomCount < atoms.nAtoms && lineCount < 10) {
-							atoms.ityp_h[atomCount] = atoi(strncpy(token,line+lineCount*8,8));
+							atoms.ityp_h[atomCount] = atoi(strncpy(token,line+lineCount*8,8))-1;// minus one for C zero indexing
 							atomCount++;
 							lineCount++;
 						}
@@ -188,7 +188,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (parmCount < nTypes2 && lineCount < 10) {
-							atoms.nonBondedParmIndex_h[parmCount] = atoi(strncpy(token,line+lineCount*8,8));
+							atoms.nonBondedParmIndex_h[parmCount] = atoi(strncpy(token,line+lineCount*8,8))-1; // subtract one here since C is zero indexed
 							parmCount++;
 							lineCount++;
 						}

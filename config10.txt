@@ -10,7 +10,7 @@ FILE!=thisFile
 prmtop=PDI10.prmtop
 inputCoord = PDI10.inpcrd
 nMC = 10
-nSteps = 10000
-deltaWrite = 100
+nSteps = 100
+deltaWrite = 10
 
 

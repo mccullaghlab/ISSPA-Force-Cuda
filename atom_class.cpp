@@ -13,8 +13,9 @@ using namespace std;
 
 void atom::allocate()
 {
+	int count, i, j;
 	// atoms and types
-	numNNmax = 600;
+	numNNmax = 200;
 	// size of pos arrays
 	nAtomBytes = nAtoms*sizeof(float);
 	nTypeBytes = nTypes*sizeof(float);
@@ -24,12 +25,6 @@ void atom::allocate()
 	cudaMallocHost((float4 **) &vel_h, nAtoms*sizeof(float4));
 	// allocate atom force arrays
 	cudaMallocHost((float4 **) &for_h, nAtoms*sizeof(float4));
-	// alocate mass array
-	//cudaMallocHost((float **) &mass_h, nAtomBytes);
-	// alocate charge array
-	cudaMallocHost((float **) &charges_h, nAtomBytes);
-	// allocate key array - atom number
-	key = (int *)malloc(nAtoms*sizeof(int));
 	// allocate atom type arrays
 	ityp_h = (int *)malloc(nAtoms*sizeof(int));
 	// allocate atom type arrays
@@ -37,6 +32,7 @@ void atom::allocate()
 	excludedAtomsList_h = (int *)malloc(excludedAtomsListLength*sizeof(int));
 	// allocate atom type arrays
 	nonBondedParmIndex_h = (int *)malloc(nTypes*nTypes*sizeof(int));
+	neighborCount_h = (int *)malloc(sizeof(int));
 	// allocate atom based parameter arrays
 	x0_h = (float *)malloc(nTypeBytes);
 	g0_h = (float *)malloc(nTypeBytes);
@@ -46,8 +42,7 @@ void atom::allocate()
 	vtot_h = (float *)malloc(nTypeBytes);
 	lj_h = (float2 *)malloc(nTypes*(nTypes+1)/2*sizeof(float2));
 	// debug
-	NN_h = (int *)malloc(nAtoms*numNNmax*sizeof(int));
-	numNN_h = (int *)malloc(nAtoms*sizeof(int));
+	nPairs = nAtoms*nAtoms;
 }
 
 void atom::allocate_molecule_arrays()
@@ -159,11 +154,11 @@ void atom::initialize_gpu(int seed)
 	cudaMalloc((void **) &for_d, nAtoms*sizeof(float4));
 	// allocate mass array
 	//cudaMalloc((void **) &mass_d, nAtomBytes);
-	// allocate charges array
-	cudaMalloc((void **) &charges_d, nAtomBytes);
 	// allocate neighborlist stuff
-	cudaMalloc((void **) &numNN_d, nAtoms*sizeof(int));
-	cudaMalloc((void **) &NN_d, nAtoms*numNNmax*sizeof(int));
+	//cudaMalloc((void **) &numNN_d, nAtoms*sizeof(int));
+	//cudaMalloc((void **) &NN_d, nAtoms*numNNmax*sizeof(int2));
+	cudaMalloc((void **) &neighborList_d, nAtoms*numNNmax*sizeof(int4));
+	cudaMalloc((void **) &neighborCount_d, sizeof(int));
 	// allocate atom type arrays
 	cudaMalloc((void **) &ityp_d, nAtoms*sizeof(int));
 	cudaMalloc((void **) &nonBondedParmIndex_d, nTypes*nTypes*sizeof(int));
@@ -206,11 +201,7 @@ void atom::copy_params_to_gpu() {
 	cudaMemcpy(gr2_d, gr2_h, 2*nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(alpha_d, alpha_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(vtot_d, vtot_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	//cudaMemcpy(ljA_d, ljA_h, nTypes*(nTypes+1)/2*sizeof(float), cudaMemcpyHostToDevice);	
-	//cudaMemcpy(ljB_d, ljB_h, nTypes*(nTypes+1)/2*sizeof(float), cudaMemcpyHostToDevice);	
 	cudaMemcpy(lj_d, lj_h, nTypes*(nTypes+1)/2*sizeof(float2), cudaMemcpyHostToDevice);	
-	//cudaMemcpy(mass_d, mass_h, nAtomBytes, cudaMemcpyHostToDevice);	
-	cudaMemcpy(charges_d, charges_h, nAtomBytes, cudaMemcpyHostToDevice);	
 }
 // copy position, force and velocity arrays to GPU
 void atom::copy_pos_vel_to_gpu() {
@@ -240,7 +231,6 @@ void atom::print_for() {
 	fprintf(forFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
-		ip = key[i];
 		fprintf(forFile,"C %10.6f %10.6f %10.6f\n", for_h[i].x,for_h[i].y,for_h[i].z);
 	}
 	fflush(forFile);
@@ -252,7 +242,6 @@ void atom::print_pos() {
 	fprintf(posFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
-		ip = key[i];
 		fprintf(posFile,"C %10.6f %10.6f %10.6f\n", pos_h[i].x, pos_h[i].y, pos_h[i].z);
 	}
 	fflush(posFile);
@@ -264,7 +253,6 @@ void atom::print_vel() {
 	fprintf(velFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
-		ip = key[i];
 		fprintf(velFile,"C %10.6f %10.6f %10.6f %10.6f\n", vel_h[i].x, vel_h[i].y, vel_h[i].z, vel_h[i].w);
 	}
 	fflush(velFile);
@@ -273,12 +261,9 @@ void atom::print_vel() {
 	
 void atom::free_arrays() {
 	// free host variables
-	free(key);
 	cudaFree(pos_h);
 	cudaFree(vel_h);
 	cudaFree(for_h); 
-	cudaFree(charges_h); 
-//	cudaFree(mass_h); 
 	free(ityp_h); 
 	free(w_h); 
 	free(g0_h); 
@@ -286,6 +271,7 @@ void atom::free_arrays() {
 	free(x0_h); 
 	free(alpha_h); 
 	free(vtot_h); 
+	free(neighborCount_h);
 	free(lj_h); 
 	fclose(forFile);
 	fclose(posFile);
@@ -306,7 +292,6 @@ void atom::free_arrays_gpu() {
 	cudaFree(alpha_d); 
 	cudaFree(vtot_d); 
 	cudaFree(lj_d); 
-	cudaFree(charges_d); 
-	cudaFree(numNN_d);
-	cudaFree(NN_d);
+	cudaFree(neighborList_d);
+	cudaFree(neighborCount_d);
 }
