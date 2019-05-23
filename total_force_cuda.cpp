@@ -8,6 +8,7 @@
 #include "bond_class.h"
 #include "angle_class.h"
 #include "dih_class.h"
+#include "isspa_class.h"
 #include "config_class.h"
 #include "isspa_force_cuda.h"
 #include "nonbond_force_cuda.h"
@@ -30,6 +31,7 @@ int main(int argc, char* argv[])
 	angle angles;
 	dih dihs;
 	config configs;
+	isspa isspas;
 	int i, j;
 	int step;
 	int device;
@@ -40,9 +42,11 @@ int main(int argc, char* argv[])
 	cudaGetDeviceProperties(&prop,device);
 	printf("GPU Device name: %s\n",prop.name);
 	printf("Device global memory: %zu\n",prop.totalGlobalMem);
+	printf("Shared memory per block: %zu\n", prop.sharedMemPerBlock);
 	printf("Warp size: %d\n",prop.warpSize);
 	printf("Max threads per block: %d\n", prop.maxThreadsPerBlock);
 	printf("Max grid size: (%d,%d,%d)\n",prop.maxGridSize[0],prop.maxGridSize[1],prop.maxGridSize[2]);
+	printf("Multiprocessor count: %d\n", prop.multiProcessorCount);
 
 	// read config file
 	configs.initialize(argv[1]);
@@ -63,6 +67,10 @@ int main(int argc, char* argv[])
 	// initialize dihs on gpu
 	dihs.initialize_gpu();
 	dih_force_cuda_grid_block(dihs.nDihs, &dihs.gridSize, &dihs.blockSize, &dihs.minGridSize);
+	// initialize isspa
+	isspas.allocate(atoms.nAtoms);
+	isspas.initialize_gpu(atoms.nAtoms, configs.seed);
+	isspa_grid_block(atoms.nAtoms, atoms.nPairs, isspas);
 	
 	// initialize timing
 	times.initialize();
@@ -71,10 +79,10 @@ int main(int argc, char* argv[])
 	atoms.copy_pos_vel_to_gpu();
 
 	for (step=0;step<configs.nSteps;step++) {
-		if (step%configs.deltaNN==0) {
+		//if (step%configs.deltaNN==0) {
 			// compute the neighborlist
-			times.neighborListTime += neighborlist_cuda(atoms, configs.rNN2, configs.lbox);
-		}
+		//	times.neighborListTime += neighborlist_cuda(atoms, configs.rNN2, configs.lbox);
+		//}
 		// zero force array on gpu
 		cudaMemset(atoms.for_d, 0.0f,  atoms.nAtoms*sizeof(float4));
 		// compute bond forces on device
@@ -86,9 +94,8 @@ int main(int argc, char* argv[])
 		// compute dihedral forces on device
 		times.dihTime += dih_force_cuda(atoms, dihs, configs.lbox);
 
-		// run isspa force cuda kernal
-//		isspa_force_cuda(atoms.pos_d, atoms.for_d, atoms.w_d, atoms.x0_d, atoms.g0_d, atoms.gr2_d, atoms.alpha_d, atoms.vtot_d, atoms.ljA_d, atoms.ljB_d, atoms.ityp_d, atoms.nAtoms, configs.nMC, configs.lbox, atoms.NN_d, atoms.numNN_d, atoms.numNNmax, isspa_seed);
-//		isspa_seed += 1;
+		// run isspa force cuda kernel
+		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas, atoms.nAtoms, atoms.nPairs, configs.lbox);
 
 		// run nonbond cuda kernel
 		times.nonbondTime += nonbond_force_cuda(atoms, configs.rCut2, configs.lbox);
@@ -122,5 +129,7 @@ int main(int argc, char* argv[])
 	angles.free_arrays_gpu();
 	dihs.free_arrays();
 	dihs.free_arrays_gpu();
+	isspas.free_arrays();
+	isspas.free_arrays_gpu();
 
 }

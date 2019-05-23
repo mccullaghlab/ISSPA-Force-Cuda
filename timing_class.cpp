@@ -18,6 +18,7 @@ void timing::initialize()
 	neighborListTime = 0.0f;
 	writeTime = 0.0f;
 	leapFrogTime = 0.0f;
+	isspaTime = 0.0f;
 
 }
 
@@ -50,6 +51,7 @@ void timing::print_final(float elapsedns)
 	printf("Dihedral force calculation time = %10.2f ms (%5.1f %%)\n", dihTime, dihTime/milliseconds*100);
 	printf("Nonbond force calculation time = %10.2f ms (%5.1f %%)\n", nonbondTime, nonbondTime/milliseconds*100);
 	printf("Neighbor list calculation time = %10.2f ms (%5.1f %%)\n", neighborListTime, neighborListTime/milliseconds*100);
+	printf("IS-SPA time = %10.2f ms (%5.1f %%)\n", isspaTime, isspaTime/milliseconds*100);
 	printf("Leap-frog propogation time = %10.2f ms (%5.1f %%)\n", leapFrogTime, leapFrogTime/milliseconds*100);
 	printf("Write trajectory file time = %10.2f ms (%5.1f %%)\n", writeTime, writeTime/milliseconds*100);
 

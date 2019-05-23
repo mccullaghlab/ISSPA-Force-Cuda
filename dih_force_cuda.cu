@@ -10,10 +10,12 @@
 
 // CUDA Kernels
 
-__global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox, int4 *dihAtoms, int *dihTypes, float4 *dihParams, int nDihs, int nTypes, float *scee, float *scnb, float2 *lj, int *atomType, int *nbparm, int nAtomTypes) {
+__global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox, int4 *dihAtoms, int *dihTypes, float4 *dihParams, int nDihs, int nTypes, float2 *scaled14Factors, float2 *lj, int *atomType, int *nbparm, int nAtomTypes) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
-	//unsigned int t = threadIdx.x;
+	unsigned int t = threadIdx.x;
 	//extern __shared__ float4 dihParams_s[];
+	//extern __shared__ float2 scaled14_s[];
+//	extern __shared__ float scnb_s[];
 	int4 atoms;
 	int dihType;
 	float4 p1, p2, p3, p4;
@@ -33,17 +35,15 @@ __global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox,
 	float f14e,f14v;
 	float4 params;
 	float2 ljAB;
-	//int chunk;
+	float2 sc14;
+	int i;
 
 	// copy dihedral parameters to shared memory per block
-	//chunk = (int) ( (nTypes + blockDim.x - 1)/blockDim.x);	
-	//if ((t+1)*chunk <= nTypes)
-	//{
-	//	for (i=t*chunk;i<(t+1)*chunk;i++) {
-	//		dihParams_s[i] = __ldg(dihParams+i);
-	//	}
-	//}
-	//__syncthreads();
+//	for (i=t;i<nTypes;i+=blockDim.x) {
+//		dihParams_s[i] = __ldg(dihParams+i);
+//		scaled14_s[i] = __ldg(scaled14Factors+i);
+//	}
+//	__syncthreads();
 	if (index < nDihs)
 	{
 		hbox = lbox/2.0;
@@ -58,17 +58,22 @@ __global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox,
 		// Check to see if we want to compute the scaled 1-4 interaction
 		if (atoms.z > 0 && atoms.w > 0) {
 			//Scaled non-bonded interaction for 1-4
-			rMag = 0.0f;
 			r14 = min_image(p1-p4,lbox,hbox);
 			rMag = r14.x*r14.x+r14.y*r14.y+r14.z*r14.z;
 			r6 = powf(rMag,-3.0);
-			it = __ldg(atomType+atoms.x);
-			jt = __ldg(atomType+atoms.w);
-			nlj = nAtomTypes * it + jt;
-			nlj = __ldg(nbparm+nlj);
-			f14e = p1.w*p4.w/rMag/sqrtf(rMag)/__ldg(scee+dihType);
+			//it = __ldg(atomType+atoms.x);
+			//jt = __ldg(atomType+atoms.w);
+			//nlj = nAtomTypes * it + jt;
+			//nlj = __ldg(nbparm+nlj);
+			nlj = __ldg(nbparm + nAtomTypes*__ldg(atomType+atoms.x) + __ldg(atomType+atoms.w));
+			sc14 = __ldg(scaled14Factors + dihType);
+			f14e = p1.w*p4.w/rMag/sqrtf(rMag)/sc14.x;
+			//f14e = p1.w*p4.w/rMag/sqrtf(rMag)/scaled14_s[dihType].x;
+			//f14e = p1.w*p4.w/rMag/sqrtf(rMag)/scee_s[dihType];
 			ljAB = __ldg(lj+nlj);
-			f14v = r6*(12.0f*ljAB.x*r6-6.0f*ljAB.y)/__ldg(scnb+dihType)/rMag;
+			//f14v = r6*(12.0f*ljAB.x*r6-6.0f*ljAB.y)/scaled14_s[dihType].y/rMag;
+			f14v = r6*(12.0f*ljAB.x*r6-6.0f*ljAB.y)/sc14.y/rMag;
+			//f14v = r6*(12.0f*ljAB.x*r6-6.0f*ljAB.y)/scnb_s[dihType]/rMag;
 			atomicAdd(&(f[atoms.x].x), (f14e+f14v)*r14.x);
 			atomicAdd(&(f[atoms.w].x), -(f14e+f14v)*r14.x);
 			atomicAdd(&(f[atoms.x].y), (f14e+f14v)*r14.y);
@@ -107,6 +112,7 @@ __global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox,
 		} else {
 			phi = acos(a);
 			params = __ldg(dihParams+dihType);
+			//params = dihParams_s[dihType];
 			fdih = params.x * params.y * sinf(params.x*phi-params.z)/sinf(phi)*c22/b;
 		}
 		// force components
@@ -139,7 +145,8 @@ float dih_force_cuda(atom& atoms, dih& dihs, float lbox)
 	cudaEventRecord(dihs.dihStart);
 
 	// run dih cuda kernel
-	dih_force_kernel<<<dihs.gridSize, dihs.blockSize>>>(atoms.pos_d, atoms.for_d, atoms.nAtoms, lbox, dihs.dihAtoms_d, dihs.dihTypes_d, dihs.dihParams_d, dihs.nDihs, dihs.nTypes, dihs.sceeScaleFactor_d, dihs.scnbScaleFactor_d, atoms.lj_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes); 
+	//dih_force_kernel<<<dihs.gridSize, dihs.blockSize, dihs.nTypes*sizeof(float4) >>>(atoms.pos_d, atoms.for_d, atoms.nAtoms, lbox, dihs.dihAtoms_d, dihs.dihTypes_d, dihs.dihParams_d, dihs.nDihs, dihs.nTypes, dihs.scaled14Factors_d, atoms.lj_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes); 
+	dih_force_kernel<<<dihs.gridSize, dihs.blockSize >>>(atoms.pos_d, atoms.for_d, atoms.nAtoms, lbox, dihs.dihAtoms_d, dihs.dihTypes_d, dihs.dihParams_d, dihs.nDihs, dihs.nTypes, dihs.scaled14Factors_d, atoms.lj_d, atoms.ityp_d, atoms.nonBondedParmIndex_d, atoms.nTypes); 
 
 	// finalize timing
 	cudaEventRecord(dihs.dihStop);

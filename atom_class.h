@@ -41,18 +41,6 @@ class atom
 		int *excludedAtomsList_d;     // excluded atoms list - device data
 		int *nonBondedParmIndex_h;     // nonbonded parameter index - host data
 		int *nonBondedParmIndex_d;     // nonbonded parameter index - device data
-		float *x0_h;     // center position of parabola and g - host data 
-		float *x0_d;     // center position of parabola and g - device data
-		float *g0_h;     // height of parabola approximation of g - host data 
-		float *g0_d;     // height of parabola approximation of g - device data
-		float *gr2_h;     // excluded volume distance and end of parabola distance squared - host data 
-		float *gr2_d;     // excluded volume distance and end of parabola distance squared - device data
-		float *w_h;      // width of parabola - host data
-		float *w_d;      // width of parabola - device data
-		float *alpha_h;  // alpha parameter for g - host data
-		float *alpha_d;  // alpha parameter for g - device data
-		float *vtot_h;  // Monte Carlo normalization factor - host data
-		float *vtot_d;  // Monte Carlo normalization factor - device data
 		float2 *lj_h;
 		float2 *lj_d;
 		int numNNmax;

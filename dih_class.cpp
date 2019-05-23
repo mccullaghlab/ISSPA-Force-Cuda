@@ -9,9 +9,8 @@ void dih::allocate()
 	cudaMallocHost((int **) &dihTypes_h, nDihs*sizeof(int));
 	cudaMallocHost((float **) &dihParams_h, nTypes*sizeof(float4));
 	// non-bonded scale factors
-	cudaMallocHost((float **) &sceeScaleFactor_h, nTypes*sizeof(float));
-	cudaMallocHost((float **) &scnbScaleFactor_h, nTypes*sizeof(float));
-	//
+	cudaMallocHost((float **) &scaled14Factors_h, nTypes*sizeof(float2));
+	// timing events
 	cudaEventCreate(&dihStart);
 	cudaEventCreate(&dihStop);
 }
@@ -22,14 +21,12 @@ void dih::initialize_gpu()
 	cudaMalloc((void **) &dihParams_d, nTypes*sizeof(float4));
 	cudaMalloc((void **) &dihAtoms_d, nDihs*sizeof(int4));
 	cudaMalloc((void **) &dihTypes_d, nDihs*sizeof(int));
-	cudaMalloc((void **) &sceeScaleFactor_d, nTypes*sizeof(float));
-	cudaMalloc((void **) &scnbScaleFactor_d, nTypes*sizeof(float));
+	cudaMalloc((void **) &scaled14Factors_d, nTypes*sizeof(float2));
 	// copy data to device
 	cudaMemcpy(dihAtoms_d, dihAtoms_h, nDihs*sizeof(int4), cudaMemcpyHostToDevice);
 	cudaMemcpy(dihTypes_d, dihTypes_h, nDihs*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(dihParams_d, dihParams_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);
-	cudaMemcpy(sceeScaleFactor_d, sceeScaleFactor_h, nTypes*sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(scnbScaleFactor_d, scnbScaleFactor_h, nTypes*sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(scaled14Factors_d, scaled14Factors_h, nTypes*sizeof(float2), cudaMemcpyHostToDevice);
 
 }
 
@@ -39,8 +36,7 @@ void dih::free_arrays() {
 	cudaFree(dihAtoms_h);
 	cudaFree(dihTypes_h);
 	cudaFree(dihParams_h);
-	cudaFree(sceeScaleFactor_h);
-	cudaFree(scnbScaleFactor_h);
+	cudaFree(scaled14Factors_h);
 }
 
 void dih::free_arrays_gpu() {
@@ -48,6 +44,5 @@ void dih::free_arrays_gpu() {
 	cudaFree(dihParams_d);
 	cudaFree(dihAtoms_d);
 	cudaFree(dihTypes_d);
-	cudaFree(sceeScaleFactor_d);
-	cudaFree(scnbScaleFactor_d);
+	cudaFree(scaled14Factors_d);
 }

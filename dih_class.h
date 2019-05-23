@@ -20,10 +20,8 @@ class dih
 		float4 *dihParams_h;
 		float4 *dihParams_d;
 		// scaled NB interactions to be computed in dihedral routine
-		float *sceeScaleFactor_h;
-		float *sceeScaleFactor_d;
-		float *scnbScaleFactor_h;
-		float *scnbScaleFactor_d;
+		float2 *scaled14Factors_h;
+		float2 *scaled14Factors_d;
 		// gpu blocksize info
 		int gridSize;
 		int blockSize;

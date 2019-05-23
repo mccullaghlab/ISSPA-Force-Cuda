@@ -1,4 +1,6 @@
 
-//__global__ void isspa_force_kernel(float *xyz, float *f, float *w, float *x0, float *g0, float *gr2, float *alpha, float *lj_A, float *lj_B, int *ityp, int nAtoms, int nMC);
+// determine gridsize and blocksize for kernels at beginning of run
+void isspa_grid_block(int nAtoms, int nPairs, isspa& isspas);
+// call ISSPA kernels
+float isspa_force_cuda(float4 *xyz, float4 *f, isspa& isspas, int nAtoms, int nPairs, float lbox);
 
-extern "C" void isspa_force_cuda(float *xyz, float *f, float *w, float *x0, float *g0, float *gr2, float *alpha, float *vtot, float *lj_A, float *lj_B, int *ityp, int nAtoms, int nMC, float lbox, int *NN, int *numNN, int numNNmax, long long seed);

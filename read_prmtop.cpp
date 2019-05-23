@@ -91,6 +91,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 					/* line 2: */
 					temp = fgets(line, MAXCHAR, prmFile);
 					atoms.excludedAtomsListLength = atoi(strncpy(token,line,8));
+					printf("Length of excluded atoms list: %d\n", atoms.excludedAtomsListLength);
 					bonds.nTypes = atoi(strncpy(token,line+40,8));
 					printf("Number of unique bond types: %d\n", bonds.nTypes);
 					angles.nTypes = atoi(strncpy(token,line+48,8));
@@ -321,7 +322,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (dihCount < dihs.nTypes && lineCount < 5) {
-							dihs.sceeScaleFactor_h[dihCount] = atof(strncpy(token,line+lineCount*16,16));
+							dihs.scaled14Factors_h[dihCount].x = atof(strncpy(token,line+lineCount*16,16));
 							dihCount++;
 							lineCount++;
 						}
@@ -337,7 +338,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (dihCount < dihs.nTypes && lineCount < 5) {
-							dihs.scnbScaleFactor_h[dihCount] = atof(strncpy(token,line+lineCount*16,16));
+							dihs.scaled14Factors_h[dihCount].y = atof(strncpy(token,line+lineCount*16,16));
 							dihCount++;
 							lineCount++;
 						}

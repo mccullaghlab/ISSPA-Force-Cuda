@@ -32,14 +32,8 @@ void atom::allocate()
 	excludedAtomsList_h = (int *)malloc(excludedAtomsListLength*sizeof(int));
 	// allocate atom type arrays
 	nonBondedParmIndex_h = (int *)malloc(nTypes*nTypes*sizeof(int));
-	neighborCount_h = (int *)malloc(nAtoms*sizeof(int));
+	//neighborCount_h = (int *)malloc(nAtoms*sizeof(int));
 	// allocate atom based parameter arrays
-	x0_h = (float *)malloc(nTypeBytes);
-	g0_h = (float *)malloc(nTypeBytes);
-	gr2_h = (float *)malloc(nTypeBytes*2);
-	w_h = (float *)malloc(nTypeBytes);
-	alpha_h = (float *)malloc(nTypeBytes);
-	vtot_h = (float *)malloc(nTypeBytes);
 	lj_h = (float2 *)malloc(nTypes*(nTypes+1)/2*sizeof(float2));
 	// debug
 	nPairs = nAtoms*nAtoms;
@@ -54,18 +48,6 @@ void atom::allocate_molecule_arrays()
 	
 void atom::initialize(float T, float lbox, int nMC)
 {
-	float dist2, temp;
-	float sigma2;
-	// populate host arrays
-	gr2_h[0] = 11.002;
-	gr2_h[1] = 21.478;
-	w_h[0] = 0.801;
-	g0_h[0] = 1.714; // height of parabola
-	x0_h[0] = 4.118;
-	alpha_h[0] = 2.674; 
-	vtot_h[0] = 16.0/3.0*3.1415926535*w_h[0]*g0_h[0]/((float) nMC)*0.0334*1E-2;
-	//sigma = pow(ljA_h[0]/ljB_h[0],(1.0/6.0));
-
 	// initialize velocities
 	for (i=0;i<nAtoms;i++) {
 		// reweight hydrogens
@@ -157,8 +139,8 @@ void atom::initialize_gpu(int seed)
 	// allocate neighborlist stuff
 	//cudaMalloc((void **) &numNN_d, nAtoms*sizeof(int));
 	//cudaMalloc((void **) &NN_d, nAtoms*numNNmax*sizeof(int2));
-	cudaMalloc((void **) &neighborList_d, nAtoms*numNNmax*sizeof(int4));
-	cudaMalloc((void **) &neighborCount_d, nAtoms*sizeof(int));
+	//cudaMalloc((void **) &neighborList_d, nAtoms*numNNmax*sizeof(int4));
+	//cudaMalloc((void **) &neighborCount_d, nAtoms*sizeof(int));
 	// allocate atom type arrays
 	cudaMalloc((void **) &ityp_d, nAtoms*sizeof(int));
 	cudaMalloc((void **) &nonBondedParmIndex_d, nTypes*nTypes*sizeof(int));
@@ -166,12 +148,6 @@ void atom::initialize_gpu(int seed)
 	cudaMalloc((void **) &nExcludedAtoms_d, nAtoms*sizeof(int));
 	cudaMalloc((void **) &excludedAtomsList_d, excludedAtomsListLength*sizeof(int));
 	// allocate atom based parameter arrays
-	cudaMalloc((void **) &x0_d, nTypeBytes);
-	cudaMalloc((void **) &g0_d, nTypeBytes);
-	cudaMalloc((void **) &gr2_d, nTypeBytes*2);
-	cudaMalloc((void **) &w_d, nTypeBytes);
-	cudaMalloc((void **) &alpha_d, nTypeBytes);
-	cudaMalloc((void **) &vtot_d, nTypeBytes);
 	cudaMalloc((void **) &lj_d, nTypes*(nTypes+1)/2*sizeof(float2));
 	// random number states
 	cudaMalloc((void**) &randStates_d, nAtoms*sizeof(curandState));
@@ -195,12 +171,6 @@ void atom::copy_params_to_gpu() {
 	cudaMemcpy(nonBondedParmIndex_d, nonBondedParmIndex_h, nTypes*nTypes*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(nExcludedAtoms_d, nExcludedAtoms_h, nAtoms*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(excludedAtomsList_d, excludedAtomsList_h, excludedAtomsListLength*sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(w_d, w_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	cudaMemcpy(x0_d, x0_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	cudaMemcpy(g0_d, g0_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	cudaMemcpy(gr2_d, gr2_h, 2*nTypeBytes, cudaMemcpyHostToDevice);	
-	cudaMemcpy(alpha_d, alpha_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	cudaMemcpy(vtot_d, vtot_h, nTypeBytes, cudaMemcpyHostToDevice);	
 	cudaMemcpy(lj_d, lj_h, nTypes*(nTypes+1)/2*sizeof(float2), cudaMemcpyHostToDevice);	
 }
 // copy position, force and velocity arrays to GPU
@@ -265,13 +235,9 @@ void atom::free_arrays() {
 	cudaFree(vel_h);
 	cudaFree(for_h); 
 	free(ityp_h); 
-	free(w_h); 
-	free(g0_h); 
-	free(gr2_h); 
-	free(x0_h); 
-	free(alpha_h); 
-	free(vtot_h); 
-	free(neighborCount_h);
+	free(nExcludedAtoms_h);
+	free(excludedAtomsList_h);
+	free(nonBondedParmIndex_h);
 	free(lj_h); 
 	fclose(forFile);
 	fclose(posFile);
@@ -285,13 +251,9 @@ void atom::free_arrays_gpu() {
 	cudaFree(for_d); 
 	cudaFree(ityp_d); 
 	cudaFree(nonBondedParmIndex_d); 
-	cudaFree(w_d); 
-	cudaFree(g0_d); 
-	cudaFree(gr2_d); 
-	cudaFree(x0_d); 
-	cudaFree(alpha_d); 
-	cudaFree(vtot_d); 
+	cudaFree(nExcludedAtoms_d);
+	cudaFree(excludedAtomsList_d);
 	cudaFree(lj_d); 
-	cudaFree(neighborList_d);
-	cudaFree(neighborCount_d);
+	//cudaFree(neighborList_d);
+	//cudaFree(neighborCount_d);
 }
