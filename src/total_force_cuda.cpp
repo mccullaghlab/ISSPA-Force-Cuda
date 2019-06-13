@@ -20,6 +20,7 @@
 #include "timing_class.h"
 #include "read_prmtop.h"
 #include "constants.h"
+//#include "constants_cuda.cuh"
 
 using namespace std;
 
@@ -37,6 +38,7 @@ int main(int argc, char* argv[])
 	int device;
 	cudaDeviceProp prop;
 	cudaGetDevice(&device);
+	device = 1;
 	cudaSetDevice(device);
 	printf("Currently using device:%d\n",device);
 	cudaGetDeviceProperties(&prop,device);
@@ -68,7 +70,8 @@ int main(int argc, char* argv[])
 	dihs.initialize_gpu();
 	dih_force_cuda_grid_block(dihs.nDihs, &dihs.gridSize, &dihs.blockSize, &dihs.minGridSize);
 	// initialize isspa
-	isspas.allocate(atoms.nAtoms);
+	printf("Launching routine to read ISSPA prmtop file\n");
+	isspas.read_isspa_prmtop(configs.isspaPrmtopFileName, configs.nMC);
 	isspas.initialize_gpu(atoms.nAtoms, configs.seed);
 	isspa_grid_block(atoms.nAtoms, atoms.nPairs, isspas);
 	

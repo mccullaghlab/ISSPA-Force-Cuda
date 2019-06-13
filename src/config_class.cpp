@@ -30,6 +30,10 @@ void config::initialize(char *cfgFileName)
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				strcpy(prmtopFileName,trim(temp));
 				printf("prmtop file name: %s\n",prmtopFileName);
+			} else if (strncmp(token,"isspaPrmtop",11)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				strcpy(isspaPrmtopFileName,trim(temp));
+				printf("ISSPA prmtop file name: %s\n",isspaPrmtopFileName);
 			} else if (strncmp(token,"inputCoord",10)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				strcpy(inputCoordFileName,trim(temp));

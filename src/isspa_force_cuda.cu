@@ -127,21 +127,23 @@ __global__ void isspa_density_kernel(float4 *xyz, float4 *mcpos, float *x0, floa
 	}
 }
 
-__global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcpos, float4 *lj_vtot, int *isspaTypes, int nMC, int nTypes, int nAtoms, float lbox) {
+__global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcpos, float *vtot, int *isspaTypes, float *forceTable, float2 forceRparams, int nRs, int nMC, int nTypes, int nAtoms, float lbox) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
-	extern __shared__ float4 lj_vtot_s[];
+	extern __shared__ float vtot_s[];
 	int atom;
 	float4 r;
 	float4 tempMC;
-	float r2, r6;
+	float r2, dist;
 	float fs;
+	float f1, f2, fracDist;
 	int it;
+	int bin;
 	int i;
 
 	// copy density parameters to shared memory
 	for (i=t;i<nTypes;i+=blockDim.x) {
-		lj_vtot_s[i] = __ldg(lj_vtot+i);
+		vtot_s[i] = __ldg(vtot+i);
 	}
 	__syncthreads();
 	// move on
@@ -150,18 +152,24 @@ __global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcpos, float4
 		if (tempMC.w > 0.0f) {
 			atom = int(index/(float) nMC);
 			it = __ldg(isspaTypes+atom);
-			//r = min_image(tempMC-xyz[atom],lbox,hbox);
+			// get separation vector
 			r = tempMC - __ldg(xyz+atom);
 			r2 = r.x*r.x + r.y*r.y + r.z*r.z;
-			r6 = powf(r2,-3);
-			fs = tempMC.w * r6 * (lj_vtot_s[it].y - lj_vtot_s[it].x * r6)*lj_vtot_s[it].z;
+			dist = sqrtf(r2);
+			bin = int ( (dist-forceRparams.x)/forceRparams.y + 0.5f);
+			// linearly interpolate between two force bins
+			fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
+			f1 = __ldg(forceTable+it*nRs+bin);
+			f2 = __ldg(forceTable+it*nRs+bin+1);
+			fs = f1*(1.0-fracDist)+f2*fracDist;
+			fs *= tempMC.w * vtot_s[it];
 			atomicAdd(&(f[atom].x), fs*r.x);
 			atomicAdd(&(f[atom].y), fs*r.y);
 			atomicAdd(&(f[atom].z), fs*r.z);
 		}
 	}
 }
-
+/*
 __global__ void isspa_mc_density_force_kernel(float4 *xyz, float4 *f, float *w, float *x0, float *g0, float *gr2, float *alpha, float *vtot, float2 *lj, int *isspaTypes, int nMC, int nTypes, int nAtoms, curandState *state, float lbox) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	int atom, atom2;
@@ -247,7 +255,7 @@ __global__ void isspa_mc_density_force_kernel(float4 *xyz, float4 *f, float *w, 
 
 	}
 }
-
+*/
 /* C wrappers for kernels */
 
 float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms, int nPairs, float lbox) {
@@ -264,7 +272,7 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms, in
 	// compute density at each mc point
 	isspa_density_kernel<<<isspas.gGridSize, isspas.gBlockSize,isspas.nTypes*sizeof(float4)>>>(xyz_d, isspas.mcpos_d, isspas.x0_d, isspas.gr2_g0_alpha_d, isspas.isspaTypes_d, isspas.nMC, isspas.nTypes, nAtoms, nPairs, lbox);
 	// add to forces
-	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float4)>>>(xyz_d, f_d, isspas.mcpos_d, isspas.lj_vtot_d, isspas.isspaTypes_d, isspas.nMC, isspas.nTypes, nAtoms, lbox);
+	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float)>>>(xyz_d, f_d, isspas.mcpos_d, isspas.vtot_d, isspas.isspaTypes_d, isspas.isspaForceTable_d, isspas.forceRparams, isspas.nRs, isspas.nMC, isspas.nTypes, nAtoms, lbox);
 	//isspa_mc_density_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize>>>(xyz_d, f_d, isspas.w_d, isspas.x0_d, isspas.g0_d, isspas.gr2_d, isspas.alpha_d, isspas.vtot_d, isspas.lj_d, isspas.isspaTypes_d, isspas.nMC, isspas.nTypes, nAtoms, isspas.randStates_d, lbox);
 
 

@@ -1,0 +1,9 @@
+
+
+prmtop=PDI6.prmtop
+inputCoord = PDI6.inpcrd
+nMC = 10
+nSteps = 100000
+deltaWrite = 1000
+isspaPrmtop = PDI6.isspa
+

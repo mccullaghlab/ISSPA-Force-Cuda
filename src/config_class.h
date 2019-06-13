@@ -25,6 +25,7 @@ class config
 		float rCut,rCut2;
 		float rNN,rNN2;
 		char prmtopFileName[MAXCHAR];
+		char isspaPrmtopFileName[MAXCHAR];
 		char inputCoordFileName[MAXCHAR];
 		// initialize all variables
 		void initialize(char *);
