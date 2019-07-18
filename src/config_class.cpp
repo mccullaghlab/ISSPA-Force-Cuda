@@ -41,7 +41,7 @@ void config::initialize(char *cfgFileName)
 			} else if (strncmp(token,"nMC",3)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				nMC = atoi(trim(temp));
-				printf("Number of Monte Carlo points: %d\n",nMC);
+				printf("Number of Monte Carlo points per atom: %d\n",nMC);
 			} else if (strncmp(token,"nSteps",6)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				nSteps = atoi(trim(temp));
@@ -50,6 +50,21 @@ void config::initialize(char *cfgFileName)
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				deltaWrite = atoi(trim(temp));
 				printf("Write frequency: %d\n",deltaWrite);
+			} else if (strncmp(token,"boxLength",9)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				lbox = atof(trim(temp));
+				printf("Box Length (Angstroms): %f\n",lbox);
+				printf("Box Volume (Angstroms^3): %f\n",lbox*lbox*lbox);
+			} else if (strncmp(token,"US",2)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				us = atoi(trim(temp));
+				if (us == 1) {
+					printf("Harmonic bias sampling is on.\n");
+				}
+			} else if (strncmp(token,"usCfgFile",9)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				strcpy(usCfgFileName,trim(temp));
+				printf("Harmonic bias file name: %s\n",usCfgFileName);
 			}
 		}
 		fclose( inFile );
@@ -58,7 +73,6 @@ void config::initialize(char *cfgFileName)
 	dt = dtPs*20.455; // convert to amber time units
 	T = 298.0 * 0.00198717; // convert to energy units
 	pnu = 0.001f;
-	lbox = 200.0;
 	deltaNN = 10;
 	rCut = 12.0;
 	rCut2 = rCut*rCut;

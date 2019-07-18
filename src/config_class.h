@@ -21,14 +21,17 @@ class config
 		int deltaNN;
 		int nMC;    // number of Monte Carlo points for solvent
 		int seed;
+		int us;
 		float lbox;
 		float rCut,rCut2;
 		float rNN,rNN2;
 		char prmtopFileName[MAXCHAR];
 		char isspaPrmtopFileName[MAXCHAR];
 		char inputCoordFileName[MAXCHAR];
-		// initialize all variables
+		char usCfgFileName[MAXCHAR];
+		// read config file 
 		void initialize(char *);
+		// cuda stuff
 		void set_cuda_constants();
 		
 };

@@ -18,6 +18,7 @@ class timing
 		float neighborListTime;
 		float leapFrogTime;
 		float isspaTime;
+		float usTime;
 		float writeTime;
 		float milliseconds;
 		float day_per_millisecond;

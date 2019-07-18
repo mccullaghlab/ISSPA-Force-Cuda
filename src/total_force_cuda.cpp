@@ -9,8 +9,10 @@
 #include "angle_class.h"
 #include "dih_class.h"
 #include "isspa_class.h"
+#include "us_class.h"
 #include "config_class.h"
 #include "isspa_force_cuda.h"
+#include "us_force_cuda.h"
 #include "nonbond_force_cuda.h"
 #include "bond_force_cuda.h"
 #include "angle_force_cuda.h"
@@ -33,6 +35,7 @@ int main(int argc, char* argv[])
 	dih dihs;
 	config configs;
 	isspa isspas;
+	us bias;
 	int i, j;
 	int step;
 	int device;
@@ -54,6 +57,14 @@ int main(int argc, char* argv[])
 	configs.initialize(argv[1]);
 	// read atom parameters
 	read_prmtop(configs.prmtopFileName, atoms, bonds, angles, dihs);
+	// read US parameters if defined
+	if (configs.us == 1) {
+		printf("Umbrella sampling is turned on.  Reading US parameter file...\n");
+		bias.initialize(configs.usCfgFileName);	
+		bias.populate_mass(atoms.vel_h,atoms.nAtoms);
+		bias.initialize_gpu();
+		us_grid_block(bias);
+	}
 	// initialize atom positions, velocities and solvent parameters
 	atoms.read_initial_positions(configs.inputCoordFileName);
 	atoms.initialize(configs.T, configs.lbox, configs.nMC);
@@ -103,6 +114,9 @@ int main(int argc, char* argv[])
 		// run nonbond cuda kernel
 		times.nonbondTime += nonbond_force_cuda(atoms, configs.rCut2, configs.lbox);
 
+		// run nonbond cuda kernel
+		times.usTime += us_force_cuda(atoms.pos_d, atoms.for_d, bias, configs.lbox);
+
 		// print stuff every so often
 		if (step%configs.deltaWrite==0) {
 			times.startWriteTimer();
@@ -134,5 +148,7 @@ int main(int argc, char* argv[])
 	dihs.free_arrays_gpu();
 	isspas.free_arrays();
 	isspas.free_arrays_gpu();
+	bias.free_arrays();
+	bias.free_arrays_gpu();
 
 }
