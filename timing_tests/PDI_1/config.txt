@@ -4,8 +4,8 @@
 prmtop=PDI1.prmtop
 inputCoord = PDI1.rst
 nMC = 10
-nSteps = 10000
-deltaWrite = 100
+nSteps = 100
+deltaWrite = 10
 boxLength = 200.0
 US = 1
 usCfgFile = pdi1.us

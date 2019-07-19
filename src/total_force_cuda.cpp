@@ -81,7 +81,6 @@ int main(int argc, char* argv[])
 	dihs.initialize_gpu();
 	dih_force_cuda_grid_block(dihs.nDihs, &dihs.gridSize, &dihs.blockSize, &dihs.minGridSize);
 	// initialize isspa
-	printf("Launching routine to read ISSPA prmtop file\n");
 	isspas.read_isspa_prmtop(configs.isspaPrmtopFileName, configs.nMC);
 	isspas.initialize_gpu(atoms.nAtoms, configs.seed);
 	isspa_grid_block(atoms.nAtoms, atoms.nPairs, isspas);
@@ -115,7 +114,7 @@ int main(int argc, char* argv[])
 		times.nonbondTime += nonbond_force_cuda(atoms, configs.rCut2, configs.lbox);
 
 		// run nonbond cuda kernel
-		times.usTime += us_force_cuda(atoms.pos_d, atoms.for_d, bias, configs.lbox);
+		times.usTime += us_force_cuda(atoms.pos_d, atoms.for_d, bias, configs.lbox, atoms.nAtoms);
 
 		// print stuff every so often
 		if (step%configs.deltaWrite==0) {

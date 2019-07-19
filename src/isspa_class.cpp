@@ -47,7 +47,6 @@ void isspa::construct_parameter_arrays()
 	for (i=0;i<nTypes;i++) {
 		x1 = x0_h[i] - sqrt(g0_h[i]/alpha_h[i]);	 			// lower limit of parabola
 		x2 = x0_h[i] + sqrt((g0_h[i]-1.0)/alpha_h[i]);	 			// upper limit of parabola
-		printf("%8.3f %8.3f\n", x1, x2);
 		gr2_h[i].x = x1*x1;							// square of lower limit of parabola (g(r) = 0)
 		gr2_h[i].y = x2*x2;							// square of upper limit of parabola (g(r) = 1)
 		w_h[i] = x2-x1;	 							// width of parabola
@@ -185,7 +184,6 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 					// store min and bin size
 					forceRparams.x = isspaForceR_h[0];
 					forceRparams.y = isspaForceR_h[1] - isspaForceR_h[0];
-					printf("%8.3f %8.3f\n", forceRparams.x, forceRparams.y);
 				}
 			}
 		}

@@ -13,9 +13,9 @@ void us::initialize(char *cfgFileName)
 {
 	char *token;
 	char *firstToken;
-	char temp[MAXCHAR];
-	char listGroup1[MAXCHAR];
-	char listGroup2[MAXCHAR];
+	char temp[LONGCHAR];
+	char listGroup1[LONGCHAR];
+	char listGroup2[LONGCHAR];
 	char const *search = "=";
 	char const *comment = "#";
 	char const *listSep = ",";
@@ -41,9 +41,9 @@ void us::initialize(char *cfgFileName)
 				printf("US equilibrium position: %f\n",x0);
 			} else if (strncmp(token,"atomSelect1",11)==0) {
 				// store list
-				strncpy(listGroup1,strtok(NULL,search),MAXLEN);
+				strncpy(listGroup1,strtok(NULL,search),LONGCHAR);
 				// count number of atoms in list
-				strncpy(temp,listGroup1,MAXLEN);
+				strncpy(temp,listGroup1,LONGCHAR);
 				token = strtok(temp,listSep);
 				nBiasAtoms1 = 0;
 				while (token != NULL) {
@@ -53,9 +53,9 @@ void us::initialize(char *cfgFileName)
 				printf("Number of atoms in bias group 1: %d\n", nBiasAtoms1);
 			} else if (strncmp(token,"atomSelect2",11)==0) {
 				// store list
-				strncpy(listGroup2,strtok(NULL,search),MAXLEN);
+				strncpy(listGroup2,strtok(NULL,search),LONGCHAR);
 				// count number of atoms in list
-				strncpy(temp,listGroup2,MAXLEN);
+				strncpy(temp,listGroup2,LONGCHAR);
 				token = strtok(temp,listSep);
 				nBiasAtoms2 = 0;
 				while (token != NULL) {
@@ -91,6 +91,7 @@ void us::initialize(char *cfgFileName)
 		token = strtok(NULL,listSep);
 		biasAtom++;
 	}	
+	cudaMallocHost((float4 **) &groupComPos_h, 2*sizeof(float4));
 
 }
 
@@ -111,27 +112,34 @@ void us::populate_mass(float4 *vel, int nAtoms){
 	for (biasAtom=0;biasAtom<totalBiasAtoms;biasAtom++) {
 		mass_h[biasAtom] /= totalMass[atomList_h[biasAtom].y];
 	}
-	kumb[0] = -k;
-	kumb[1] = k;
+	kumb_h[0] = -k;
+	kumb_h[1] = k;
+	printf("Mass of group 1: %f\n", totalMass[0]);
+	printf("Mass of group 2: %f\n", totalMass[1]);
 
 }
 
 void us::initialize_gpu() {
-
+	int i;
 	// allocate arrays on device
 	cudaMalloc((void **) &mass_d, totalBiasAtoms*sizeof(float));
 	cudaMalloc((void **) &atomList_d, totalBiasAtoms*sizeof(int2));
 	cudaMalloc((void **) &groupComPos_d, 2*sizeof(float4));
+	cudaMalloc((void **) &kumb_d, 2*sizeof(float));
 	// copy data to device
 	cudaMemcpy(mass_d, mass_h, totalBiasAtoms*sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(atomList_d, atomList_h, totalBiasAtoms*sizeof(int2), cudaMemcpyHostToDevice);
-
+	cudaMemcpy(kumb_d, kumb_h, 2*sizeof(float), cudaMemcpyHostToDevice);
+	// initialize timing stuff
+	cudaEventCreate(&usStart);
+	cudaEventCreate(&usStop);
 
 }
 
 void us::free_arrays() {
 	cudaFree(atomList_h);
 	cudaFree(mass_h);
+	cudaFree(groupComPos_h);
 }
 void us::free_arrays_gpu() {
 	cudaFree(atomList_d);

@@ -1,0 +1,13 @@
+
+
+
+prmtop=PDI.2.vacuum.prmtop
+isspaPrmtop = PDI.2.isspa
+inputCoord = PDI.2.vacuum.inpcrd
+nMC = 10
+nSteps = 100
+deltaWrite = 10
+boxLength = 200.0
+US = 1
+usCfgFile = pdi2.us
+

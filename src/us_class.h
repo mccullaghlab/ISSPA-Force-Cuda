@@ -15,8 +15,10 @@ class us
 		float *mass_h;
 		float *mass_d;
 		float4 *groupComPos_d;
+		float4 *groupComPos_h;
 		int totalBiasAtoms;
-		float kumb[2];
+		float kumb_h[2];
+		float *kumb_d;
 		float x0;
 		float k;
 		float2 groupMass;
