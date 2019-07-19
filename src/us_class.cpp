@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <string.h>
@@ -16,6 +17,7 @@ void us::initialize(char *cfgFileName)
 	char temp[LONGCHAR];
 	char listGroup1[LONGCHAR];
 	char listGroup2[LONGCHAR];
+	char cvFileName[MAXCHAR];
 	char const *search = "=";
 	char const *comment = "#";
 	char const *listSep = ",";
@@ -39,6 +41,10 @@ void us::initialize(char *cfgFileName)
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				x0 = atof(trim(temp));
 				printf("US equilibrium position: %f\n",x0);
+			} else if (strncmp(token,"cvFile",6)==0) {
+				strncpy(temp,strtok(NULL,search),MAXCHAR);
+				strcpy(cvFileName,trim(temp));
+				printf("Writing CV values to file: %s\n",cvFileName);
 			} else if (strncmp(token,"atomSelect1",11)==0) {
 				// store list
 				strncpy(listGroup1,strtok(NULL,search),LONGCHAR);
@@ -93,6 +99,38 @@ void us::initialize(char *cfgFileName)
 	}	
 	cudaMallocHost((float4 **) &groupComPos_h, 2*sizeof(float4));
 
+	//open cv file
+	cvFile = fopen(cvFileName,"w");
+
+}
+
+void us::print_cv(int step, float lbox) {
+	int i;
+	float cvVal;
+	float x, y, z;
+	float hbox = lbox/2.0;
+	cudaMemcpy(groupComPos_h, groupComPos_d, 2*sizeof(float4), cudaMemcpyDeviceToHost);
+	x = groupComPos_h[0].x - groupComPos_h[1].x;
+	if (x > hbox) {
+		x -= lbox;
+	} else if (x < -hbox) {
+		x += lbox;
+	}
+	y = groupComPos_h[0].y - groupComPos_h[1].y;
+	if (y > hbox) {
+		y -= lbox;
+	} else if (y < -hbox) {
+		y += lbox;
+	}
+	z = groupComPos_h[0].z - groupComPos_h[1].z;
+	if (z > hbox) {
+		z -= lbox;
+	} else if (z < -hbox) {
+		z += lbox;
+	}
+	cvVal = sqrt(x*x + y*y + z*z);
+	fprintf(cvFile,"%8d  %8.3f\n", step, cvVal);
+	fflush(cvFile);
 }
 
 void us::populate_mass(float4 *vel, int nAtoms){
@@ -140,6 +178,7 @@ void us::free_arrays() {
 	cudaFree(atomList_h);
 	cudaFree(mass_h);
 	cudaFree(groupComPos_h);
+	fclose(cvFile);
 }
 void us::free_arrays_gpu() {
 	cudaFree(atomList_d);

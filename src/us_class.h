@@ -9,6 +9,8 @@
 
 class us
 {
+	private:
+		FILE *cvFile;
 	public:
 		int2 *atomList_h;
 		int2 *atomList_d;
@@ -32,6 +34,8 @@ class us
 		void populate_mass(float4 *, int);
 		// initialize all arrays on GPU memory
 		void initialize_gpu();
+		// print CV value
+		void print_cv(int , float );
 		// clear arrays
 		void free_arrays();
 		void free_arrays_gpu();

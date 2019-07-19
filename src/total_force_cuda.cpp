@@ -127,6 +127,9 @@ int main(int argc, char* argv[])
 			atoms.print_pos();
 			// print v file
 			atoms.print_vel();
+			// write CV
+			bias.print_cv(step, configs.lbox);
+			// stop timer
 			times.stopWriteTimer();
 		}
 
