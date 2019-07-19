@@ -23,12 +23,16 @@ class config
 		int seed;
 		int us;
 		float lbox;
+		float eps;
 		float rCut,rCut2;
 		float rNN,rNN2;
 		char prmtopFileName[MAXCHAR];
 		char isspaPrmtopFileName[MAXCHAR];
 		char inputCoordFileName[MAXCHAR];
 		char usCfgFileName[MAXCHAR];
+		char forOutFileName[MAXCHAR];
+		char posOutFileName[MAXCHAR];
+		char velOutFileName[MAXCHAR];
 		// read config file 
 		void initialize(char *);
 		// cuda stuff

@@ -1,9 +1,22 @@
 
-
+# INPUT FILES:
 prmtop=PDI6.prmtop
 inputCoord = PDI6.inpcrd
+isspaPrmtop = PDI6.isspa
+# OUTPUT FILES:
+forFile = PDI.6.forces.xyz
+posFile = PDI.6.positions.xyz
+velFile = PDI.6.velocities.xyz
+# PARAMETERS:
 nMC = 10
 nSteps = 100000
 deltaWrite = 1000
-isspaPrmtop = PDI6.isspa
+temperature = 298.00
+cutoff = 12.0
+dielectric = 4.0
+boxLength = 200.0
+# Umbrella Sampling
+US = 0  
+#usCfgFile = pdi2.us
+
 

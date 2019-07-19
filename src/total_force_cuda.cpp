@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
 	// read config file
 	configs.initialize(argv[1]);
 	// read atom parameters
-	read_prmtop(configs.prmtopFileName, atoms, bonds, angles, dihs);
+	read_prmtop(configs.prmtopFileName, atoms, bonds, angles, dihs, configs.eps);
 	// read US parameters if defined
 	if (configs.us == 1) {
 		printf("Umbrella sampling is turned on.  Reading US parameter file...\n");
@@ -67,7 +67,7 @@ int main(int argc, char* argv[])
 	}
 	// initialize atom positions, velocities and solvent parameters
 	atoms.read_initial_positions(configs.inputCoordFileName);
-	atoms.initialize(configs.T, configs.lbox, configs.nMC);
+	atoms.initialize(configs.T, configs.lbox, configs.nMC, configs.forOutFileName, configs.posOutFileName, configs.velOutFileName);
 	atoms.initialize_gpu(configs.seed);
 	//leapfrog_cuda_grid_block(atoms.nAtoms, &atoms.gridSize, &atoms.blockSize, &atoms.minGridSize);
 	nonbond_force_cuda_grid_block(atoms.nAtoms, &atoms.gridSize, &atoms.blockSize, &atoms.minGridSize);
@@ -113,9 +113,10 @@ int main(int argc, char* argv[])
 		// run nonbond cuda kernel
 		times.nonbondTime += nonbond_force_cuda(atoms, configs.rCut2, configs.lbox);
 
-		// run nonbond cuda kernel
-		times.usTime += us_force_cuda(atoms.pos_d, atoms.for_d, bias, configs.lbox, atoms.nAtoms);
-
+		if (configs.us == 1) {
+			// run US CUDA kernel
+			times.usTime += us_force_cuda(atoms.pos_d, atoms.for_d, bias, configs.lbox, atoms.nAtoms);
+		}
 		// print stuff every so often
 		if (step%configs.deltaWrite==0) {
 			times.startWriteTimer();
@@ -127,8 +128,10 @@ int main(int argc, char* argv[])
 			atoms.print_pos();
 			// print v file
 			atoms.print_vel();
-			// write CV
-			bias.print_cv(step, configs.lbox);
+			if (configs.us == 1) {
+				// write CV
+				bias.print_cv(step, configs.lbox);
+			}
 			// stop timer
 			times.stopWriteTimer();
 		}
@@ -150,7 +153,9 @@ int main(int argc, char* argv[])
 	dihs.free_arrays_gpu();
 	isspas.free_arrays();
 	isspas.free_arrays_gpu();
-	bias.free_arrays();
-	bias.free_arrays_gpu();
+	if (configs.us == 1) {
+		bias.free_arrays();
+		bias.free_arrays_gpu();
+	}
 
 }

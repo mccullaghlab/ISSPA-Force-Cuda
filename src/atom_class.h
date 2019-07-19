@@ -65,7 +65,7 @@ class atom
 		// read initial coordinates from rst file
 		void read_initial_positions(char *);
 		// initialize all atom velocities and solvent parameters
-		void initialize(float T, float lbox, int nMC);
+		void initialize(float T, float lbox, int nMC, char *forOutFileName, char *posOutFileName, char *velOutFileName);
 		// initialize all arrays on GPU memory
 		void initialize_gpu(int);
 		// copy parameter arrays to GPU

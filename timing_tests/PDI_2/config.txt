@@ -4,6 +4,12 @@
 prmtop=PDI.2.vacuum.prmtop
 isspaPrmtop = PDI.2.isspa
 inputCoord = PDI.2.vacuum.inpcrd
+forFile = PDI.2.forces.xyz
+posFile = PDI.2.positions.xyz
+velFile = PDI.2.velocities.xyz
+temperature = 298.00
+cutoff = 12.0
+dielectric = 4.0
 nMC = 10
 nSteps = 10000
 deltaWrite = 100

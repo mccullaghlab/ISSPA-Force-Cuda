@@ -46,7 +46,7 @@ void atom::allocate_molecule_arrays()
 
 }
 	
-void atom::initialize(float T, float lbox, int nMC)
+void atom::initialize(float T, float lbox, int nMC, char *forOutFileName, char *posOutFileName, char *velOutFileName)
 {
 	// initialize velocities
 	for (i=0;i<nAtoms;i++) {
@@ -61,9 +61,9 @@ void atom::initialize(float T, float lbox, int nMC)
 	}
 
 	// open files for printing later
-	forFile = fopen("forces.xyz","w");
-	posFile = fopen("positions.xyz","w");
-	velFile = fopen("velocities.xyz","w");
+	forFile = fopen(forOutFileName,"w");
+	posFile = fopen(posOutFileName,"w");
+	velFile = fopen(velOutFileName,"w");
 
 }
 

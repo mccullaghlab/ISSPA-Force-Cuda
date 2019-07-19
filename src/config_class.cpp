@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
+#include <math.h>
 #include <cuda_runtime.h>
 #include <string.h>
 #include "stringlib.h"
@@ -34,6 +35,18 @@ void config::initialize(char *cfgFileName)
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				strcpy(isspaPrmtopFileName,trim(temp));
 				printf("ISSPA prmtop file name: %s\n",isspaPrmtopFileName);
+			} else if (strncmp(token,"posFile",7)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				strcpy(posOutFileName,trim(temp));
+				printf("Position trajectory written to file: %s\n",posOutFileName);
+			} else if (strncmp(token,"velFile",7)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				strcpy(velOutFileName,trim(temp));
+				printf("Velocity trajectory written to file: %s\n",velOutFileName);
+			} else if (strncmp(token,"forFile",7)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				strcpy(forOutFileName,trim(temp));
+				printf("Force trajectory written to file: %s\n",forOutFileName);
 			} else if (strncmp(token,"inputCoord",10)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				strcpy(inputCoordFileName,trim(temp));
@@ -42,6 +55,18 @@ void config::initialize(char *cfgFileName)
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				nMC = atoi(trim(temp));
 				printf("Number of Monte Carlo points per atom: %d\n",nMC);
+			} else if (strncmp(token,"temperature",11)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				T = atof(trim(temp));
+				printf("Temperature (K): %f\n",T);
+			} else if (strncmp(token,"cutoff",6)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				rCut = atof(trim(temp));
+				printf("Cutoff distance (Angstroms): %f\n",rCut);
+			} else if (strncmp(token,"dielectric",10)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				eps = atof(trim(temp));
+				printf("Dielectric: %f\n",eps);
 			} else if (strncmp(token,"nSteps",6)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				nSteps = atoi(trim(temp));
@@ -71,10 +96,9 @@ void config::initialize(char *cfgFileName)
 	}
 	dtPs = 0.002;
 	dt = dtPs*20.455; // convert to amber time units
-	T = 298.0 * 0.00198717; // convert to energy units
+	T *= 0.00198717; // convert to energy units
 	pnu = 0.001f;
 	deltaNN = 10;
-	rCut = 12.0;
 	rCut2 = rCut*rCut;
 	rNN = 15.0;
 	rNN2 = rNN*rNN;

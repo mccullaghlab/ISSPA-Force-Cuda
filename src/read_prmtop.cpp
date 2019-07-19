@@ -1,4 +1,5 @@
 #include <cuda_runtime.h>
+#include <math.h>
 #include "atom_class.h"
 #include "bond_class.h"
 #include "angle_class.h"
@@ -6,7 +7,7 @@
 #include "read_prmtop.h"
 #include "constants.h"
 
-void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, dih& dihs) {
+void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, dih& dihs, float eps) {
 
 	char line[MAXCHAR];
 	char const *FlagSearch = "\%FLAG";
@@ -53,6 +54,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 	int *tempBondArray;
 	int *tempAngleArray;
 	int *tempDihArray;
+	float sqrtEps = sqrt(eps);
 	FILE *prmFile = fopen(prmtopFileName, "r");
 
 	if ( prmFile != NULL) {
@@ -120,7 +122,7 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						lineCount = 0;
 						while (atomCount < atoms.nAtoms && lineCount < 5) {
 							// charge will be fourth element in position float4 array
-							atoms.pos_h[atomCount].w = atof(strncpy(token,line+lineCount*16,16));
+							atoms.pos_h[atomCount].w = atof(strncpy(token,line+lineCount*16,16))/sqrtEps;
 							atomCount++;
 							lineCount++;
 						}
