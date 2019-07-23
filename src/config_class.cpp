@@ -112,15 +112,15 @@ void config::initialize(char *cfgFileName)
 		}
 		fclose( inFile );
 	}
-	dtPs = 0.002;
+	dtPs = 0.002;  // currently the time step is hard coded
 	dt = dtPs*20.455; // convert to amber time units
 	T *= 0.00198717; // convert to energy units
-	pnu = 0.001f;
-	deltaNN = 10;
-	rCut2 = rCut*rCut;
-	rNN = 15.0;
-	rNN2 = rNN*rNN;
-	seed = 12345;
+	rCut2 = rCut*rCut; // cutoff distance squared
+	pnu = 0.001f;  // Anderson thermostat frequency
+	deltaNN = 10;  // neighborlist step frequency - currently not used
+	rNN = 15.0;    // neighborlist distance - currently not used
+	rNN2 = rNN*rNN; // neighbor list distance squared - currently not used
+	seed = 12345;  // random number seed currently hard coded to be changed later
 	set_cuda_constants();
 
 }

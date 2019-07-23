@@ -38,24 +38,34 @@ void timing::stopWriteTimer()
 void timing::print_final(float elapsedns)
 {
 
+	char *unit;
+	float divider;
+
 	// get GPU time
 	cudaEventRecord(totalStop);
     	cudaEventSynchronize(totalStop);
 	cudaEventElapsedTime(&milliseconds, totalStart, totalStop);
-	printf("Elapsed CPU/GPU time = %10.2f ms\n", milliseconds);
+	// get smart unit of time
+	divider = 1.0;
+	unit = "ms";
+	if (milliseconds > 1.0E3) {
+		unit = "s";
+		divider  = 1.0E3;
+	}
+	printf("Elapsed CPU/GPU time = %10.2f %s\n", milliseconds/divider, unit);
 	printf("Simulation time = %10.2f ns\n", elapsedns);
 	day_per_millisecond = 1e-3 /60.0/60.0/24.0;
 	printf("Average ns/day = %10.2f\n", elapsedns/(milliseconds*day_per_millisecond) );
 	
-	printf("Bond force calculation time = %10.2f ms (%5.1f %%)\n", bondTime, bondTime/milliseconds*100);
-	printf("Angle force calculation time = %10.2f ms (%5.1f %%)\n", angleTime, angleTime/milliseconds*100);
-	printf("Dihedral force calculation time = %10.2f ms (%5.1f %%)\n", dihTime, dihTime/milliseconds*100);
-	printf("Nonbond force calculation time = %10.2f ms (%5.1f %%)\n", nonbondTime, nonbondTime/milliseconds*100);
-	printf("Neighbor list calculation time = %10.2f ms (%5.1f %%)\n", neighborListTime, neighborListTime/milliseconds*100);
-	printf("US bias force calculation time = %10.2f ms (%5.1f %%)\n", usTime, usTime/milliseconds*100);
-	printf("IS-SPA time = %10.2f ms (%5.1f %%)\n", isspaTime, isspaTime/milliseconds*100);
-	printf("Leap-frog propogation time = %10.2f ms (%5.1f %%)\n", leapFrogTime, leapFrogTime/milliseconds*100);
-	printf("Write trajectory file time = %10.2f ms (%5.1f %%)\n", writeTime, writeTime/milliseconds*100);
+	printf("Bond force calculation time = %10.2f %s (%5.1f %%)\n", bondTime/divider, unit, bondTime/milliseconds*100);
+	printf("Angle force calculation time = %10.2f %s (%5.1f %%)\n", angleTime/divider, unit, angleTime/milliseconds*100);
+	printf("Dihedral force calculation time = %10.2f %s (%5.1f %%)\n", dihTime/divider, unit, dihTime/milliseconds*100);
+	printf("Nonbond force calculation time = %10.2f %s (%5.1f %%)\n", nonbondTime/divider, unit, nonbondTime/milliseconds*100);
+	printf("Neighbor list calculation time = %10.2f %s (%5.1f %%)\n", neighborListTime/divider, unit, neighborListTime/milliseconds*100);
+	printf("US bias force calculation time = %10.2f %s (%5.1f %%)\n", usTime/divider, unit, usTime/milliseconds*100);
+	printf("IS-SPA force calculation time = %10.2f %s (%5.1f %%)\n", isspaTime/divider, unit, isspaTime/milliseconds*100);
+	printf("Leap-frog propogation time = %10.2f %s (%5.1f %%)\n", leapFrogTime/divider, unit, leapFrogTime/milliseconds*100);
+	printf("Write trajectory file time = %10.2f %s (%5.1f %%)\n", writeTime/divider, unit, writeTime/milliseconds*100);
 
 
 }
