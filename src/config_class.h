@@ -22,6 +22,7 @@ class config
 		int nMC;    // number of Monte Carlo points for solvent
 		int seed;
 		int us;
+		int velRst;
 		float lbox;
 		float eps;
 		float rCut,rCut2;
@@ -29,10 +30,13 @@ class config
 		char prmtopFileName[MAXCHAR];
 		char isspaPrmtopFileName[MAXCHAR];
 		char inputCoordFileName[MAXCHAR];
+		char inputVelFileName[MAXCHAR];
 		char usCfgFileName[MAXCHAR];
 		char forOutFileName[MAXCHAR];
 		char posOutFileName[MAXCHAR];
 		char velOutFileName[MAXCHAR];
+		char posRstFileName[MAXCHAR];
+		char velRstFileName[MAXCHAR];
 		// read config file 
 		void initialize(char *);
 		// cuda stuff

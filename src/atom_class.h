@@ -64,8 +64,12 @@ class atom
 		void allocate_molecule_arrays();
 		// read initial coordinates from rst file
 		void read_initial_positions(char *);
-		// initialize all atom velocities and solvent parameters
-		void initialize(float T, float lbox, int nMC, char *forOutFileName, char *posOutFileName, char *velOutFileName);
+		// read initial velocities from rst file
+		void read_initial_velocities(char *);
+		// initialize all atom velocities based on MB dist at temperature T
+		void initialize_velocities(float T);
+		// open trajectory files
+		void open_traj_files(char *forOutFileName, char *posOutFileName, char *velOutFileName);
 		// initialize all arrays on GPU memory
 		void initialize_gpu(int);
 		// copy parameter arrays to GPU
@@ -76,12 +80,14 @@ class atom
 		void get_pos_vel_for_from_gpu();
 		// copy position, and velocity arrays from GPU
 		void get_pos_vel_from_gpu();
-		// print positions
+		// print position trajectory
 		void print_pos();
-		// print velocities
+		// print velocity trajectory
 		void print_vel();
-		// print forces
+		// print force trajectory
 		void print_for();
+		// write position and velocity restart files
+		void write_rst_files(char *posRstFileName, char *velRstFileName, float lbox);
 		// reorder
 		void reorder();
 		// free all arrays on CPU memory

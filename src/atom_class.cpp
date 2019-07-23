@@ -46,7 +46,7 @@ void atom::allocate_molecule_arrays()
 
 }
 	
-void atom::initialize(float T, float lbox, int nMC, char *forOutFileName, char *posOutFileName, char *velOutFileName)
+void atom::initialize_velocities(float T)
 {
 	// initialize velocities
 	for (i=0;i<nAtoms;i++) {
@@ -60,6 +60,11 @@ void atom::initialize(float T, float lbox, int nMC, char *forOutFileName, char *
 		vel_h[i].z = rand_gauss()*sqrt(T/vel_h[i].w);
 	}
 
+
+}
+
+void atom::open_traj_files(char *forOutFileName, char *posOutFileName, char *velOutFileName) 
+{
 	// open files for printing later
 	forFile = fopen(forOutFileName,"w");
 	posFile = fopen(posOutFileName,"w");
@@ -108,6 +113,46 @@ void atom::read_initial_positions(char *inputFileName) {
 
 }
 
+void atom::read_initial_velocities(char *inputFileName) {
+
+	char line[MAXCHAR];
+	char temp[13];
+	char *bunk;
+	FILE *velFile = fopen(inputFileName, "r");
+	int nLines, i, j;
+	float tempVel[nAtoms*3];
+
+	if ( velFile != NULL) {
+		/* skip first two line */
+		bunk = fgets(line, MAXCHAR, velFile);
+		bunk = fgets(line, MAXCHAR, velFile);
+		/* loop over atom position lines */
+		nLines = (int) ( nAtoms / 2 ); 
+		for (i=0;i<nLines;i++) {
+			bunk = fgets(line, MAXCHAR, velFile);
+			for (j=0;j<6;j++) {
+				tempVel[i*6+j] = atof(strncpy(temp,line+j*12,12));
+			}
+		}
+		if (nAtoms%2 != 0) {
+			bunk = fgets(line, MAXCHAR, velFile);
+			for (j=0;j<3;j++) {
+				tempVel[nLines*6+j] = atof(strncpy(temp,line+j*12,12));
+			}
+
+		}
+		// now populate pos_h float4 array
+		for (i=0;i<nAtoms;i++) {
+			vel_h[i].x = tempVel[i*3];
+			vel_h[i].y = tempVel[i*3+1];
+			vel_h[i].z = tempVel[i*3+2];
+		}
+	} else {
+		printf("Could not find velocity file\n");
+		exit(2);
+	}
+
+}
 
 float atom::rand_gauss() 
 {
@@ -223,11 +268,48 @@ void atom::print_vel() {
 	fprintf(velFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
-		fprintf(velFile,"C %10.6f %10.6f %10.6f %10.6f\n", vel_h[i].x, vel_h[i].y, vel_h[i].z, vel_h[i].w);
+		fprintf(velFile,"C %10.6f %10.6f %10.6f\n", vel_h[i].x, vel_h[i].y, vel_h[i].z);
 	}
 	fflush(velFile);
 }
 
+void atom::write_rst_files(char *posRstFileName, char *velRstFileName, float lbox) {
+	int ip;
+	FILE *posRstFile;
+	FILE *velRstFile;
+	// make sure position and velocities are up-to-date
+	get_pos_vel_from_gpu();
+	// open position restart file and write
+	posRstFile = fopen(posRstFileName, "w");
+	fprintf(posRstFile,"Restart Positions from ISSPA CUDA Code\n");
+	fprintf(posRstFile,"%d\n", nAtoms);
+	for (i=0;i<nAtoms; i+=2) 
+	{
+		fprintf(posRstFile,"%12.7f%12.7f%12.7f", pos_h[i].x, pos_h[i].y, pos_h[i].z);
+		if(i+1<nAtoms) {
+			fprintf(posRstFile,"%12.7f%12.7f%12.7f\n", pos_h[i+1].x, pos_h[i+1].y, pos_h[i+1].z);
+		} else { 
+			fprintf(posRstFile, "\n");
+		}
+	}
+	fprintf(posRstFile,"%12.7f%12.7f%12.7f%12.7f%12.7f%12.7f\n",lbox,lbox,lbox,90.0,90.0,90.0);
+	fclose(posRstFile);
+	// open velocity restart file and write
+	velRstFile = fopen(velRstFileName, "w");
+	fprintf(velRstFile,"Restart Velocities from ISSPA CUDA Code\n");
+	fprintf(velRstFile,"%d\n", nAtoms);
+	for (i=0;i<nAtoms; i+=2) 
+	{
+		fprintf(velRstFile,"%12.7f%12.7f%12.7f", vel_h[i].x, vel_h[i].y, vel_h[i].z);
+		if(i+1<nAtoms) {
+			fprintf(velRstFile,"%12.7f%12.7f%12.7f\n", vel_h[i+1].x, vel_h[i+1].y, vel_h[i+1].z);
+		} else { 
+			fprintf(velRstFile, "\n");
+		}
+	}
+	fprintf(velRstFile,"%12.7f%12.7f%12.7f%12.7f%12.7f%12.7f\n",lbox,lbox,lbox,90.0,90.0,90.0);
+	fclose(velRstFile);
+}
 	
 void atom::free_arrays() {
 	// free host variables

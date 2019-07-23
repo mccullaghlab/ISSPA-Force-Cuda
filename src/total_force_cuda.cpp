@@ -67,7 +67,12 @@ int main(int argc, char* argv[])
 	}
 	// initialize atom positions, velocities and solvent parameters
 	atoms.read_initial_positions(configs.inputCoordFileName);
-	atoms.initialize(configs.T, configs.lbox, configs.nMC, configs.forOutFileName, configs.posOutFileName, configs.velOutFileName);
+	if (configs.velRst == 1) {
+		atoms.read_initial_velocities(configs.inputVelFileName);
+	} else {
+		atoms.initialize_velocities(configs.T);
+	}
+	atoms.open_traj_files(configs.forOutFileName, configs.posOutFileName, configs.velOutFileName);
 	atoms.initialize_gpu(configs.seed);
 	//leapfrog_cuda_grid_block(atoms.nAtoms, &atoms.gridSize, &atoms.blockSize, &atoms.minGridSize);
 	nonbond_force_cuda_grid_block(atoms.nAtoms, &atoms.gridSize, &atoms.blockSize, &atoms.minGridSize);
@@ -139,6 +144,9 @@ int main(int argc, char* argv[])
 		// Move atoms and velocities
 		times.leapFrogTime += leapfrog_cuda(atoms, configs);
 	}
+
+	// write rst files
+	atoms.write_rst_files(configs.posRstFileName, configs.velRstFileName, configs.lbox);
 
 	// print timing info
 	times.print_final(configs.nSteps*configs.dtPs*1.0e-3);

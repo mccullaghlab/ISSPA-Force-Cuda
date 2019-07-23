@@ -39,10 +39,18 @@ void config::initialize(char *cfgFileName)
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				strcpy(posOutFileName,trim(temp));
 				printf("Position trajectory written to file: %s\n",posOutFileName);
+			} else if (strncmp(token,"posRstFile",10)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				strcpy(posRstFileName,trim(temp));
+				printf("Position restart written to file: %s\n",posRstFileName);
 			} else if (strncmp(token,"velFile",7)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				strcpy(velOutFileName,trim(temp));
 				printf("Velocity trajectory written to file: %s\n",velOutFileName);
+			} else if (strncmp(token,"velRstFile",10)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				strcpy(velRstFileName,trim(temp));
+				printf("Velocity restart written to file: %s\n",velRstFileName);
 			} else if (strncmp(token,"forFile",7)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				strcpy(forOutFileName,trim(temp));
@@ -80,6 +88,16 @@ void config::initialize(char *cfgFileName)
 				lbox = atof(trim(temp));
 				printf("Box Length (Angstroms): %f\n",lbox);
 				printf("Box Volume (Angstroms^3): %f\n",lbox*lbox*lbox);
+			} else if (strncmp(token,"velRst",6)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				velRst = atoi(trim(temp));
+				if (velRst == 1) {
+					printf("Restarting from velocities read from file.\n");
+				}
+			} else if (strncmp(token,"inputVel",8)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				strcpy(inputVelFileName,trim(temp));
+				printf("Input velocity file name: %s\n",inputVelFileName);
 			} else if (strncmp(token,"US",2)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				us = atoi(trim(temp));
