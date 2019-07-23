@@ -9,6 +9,17 @@
 #include "isspa_force_cuda.h"
 #include "constants.h"
 
+// constants
+__constant__ int nTypes;
+__constant__ int nMC;
+__constant__ int nAtoms;
+__constant__ int nPairs;
+__constant__ float lbox;
+__constant__ int nRs;
+__constant__ float2 forceRparams;
+
+// device functions
+
 __device__ float atomicMul(float* address, float val) 
 { 
 	unsigned int* address_as_u = (unsigned int*)address; 
@@ -22,7 +33,7 @@ __device__ float atomicMul(float* address, float val)
 
 // CUDA Kernels
 
-__global__ void isspa_mc_kernel(float4 *xyz, float4 *mcpos, float2 *x0_w, int *isspaTypes, int nMC, int nTypes, int nAtoms, curandState *state) {
+__global__ void isspa_mc_kernel(float4 *xyz, float4 *mcpos, float2 *x0_w, int *isspaTypes, curandState *state) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float2 params_s[];
@@ -88,7 +99,7 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcpos, float2 *x0_w, int *i
 }
 
 
-__global__ void isspa_density_kernel(float4 *xyz, float4 *mcpos, float *x0, float4 *gr2_g0_alpha, int *isspaTypes, int nMC, int nTypes, int nAtoms, int nPairs, float lbox) {
+__global__ void isspa_density_kernel(float4 *xyz, float4 *mcpos, float *x0, float4 *gr2_g0_alpha, int *isspaTypes) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float4 gr2_g0_alpha_s[];
@@ -127,7 +138,7 @@ __global__ void isspa_density_kernel(float4 *xyz, float4 *mcpos, float *x0, floa
 	}
 }
 
-__global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcpos, float *vtot, int *isspaTypes, float *forceTable, float2 forceRparams, int nRs, int nMC, int nTypes, int nAtoms, float lbox) {
+__global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcpos, float *vtot, int *isspaTypes, float *forceTable) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float vtot_s[];
@@ -258,7 +269,7 @@ __global__ void isspa_mc_density_force_kernel(float4 *xyz, float4 *f, float *w, 
 */
 /* C wrappers for kernels */
 
-float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms, int nPairs, float lbox) {
+float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas) {
 
 	float milliseconds;
 
@@ -267,13 +278,12 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms, in
 	
 
 	// generate MC points
-	isspa_mc_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float2)>>>(xyz_d, isspas.mcpos_d, isspas.x0_w_d, isspas.isspaTypes_d, isspas.nMC, isspas.nTypes, nAtoms, isspas.randStates_d);
+	isspa_mc_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float2)>>>(xyz_d, isspas.mcpos_d, isspas.x0_w_d, isspas.isspaTypes_d, isspas.randStates_d);
 	//printf("MC points generated\n");
 	// compute density at each mc point
-	isspa_density_kernel<<<isspas.gGridSize, isspas.gBlockSize,isspas.nTypes*sizeof(float4)>>>(xyz_d, isspas.mcpos_d, isspas.x0_d, isspas.gr2_g0_alpha_d, isspas.isspaTypes_d, isspas.nMC, isspas.nTypes, nAtoms, nPairs, lbox);
+	isspa_density_kernel<<<isspas.gGridSize, isspas.gBlockSize,isspas.nTypes*sizeof(float4)>>>(xyz_d, isspas.mcpos_d, isspas.x0_d, isspas.gr2_g0_alpha_d, isspas.isspaTypes_d);
 	// add to forces
-	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float)>>>(xyz_d, f_d, isspas.mcpos_d, isspas.vtot_d, isspas.isspaTypes_d, isspas.isspaForceTable_d, isspas.forceRparams, isspas.nRs, isspas.nMC, isspas.nTypes, nAtoms, lbox);
-	//isspa_mc_density_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize>>>(xyz_d, f_d, isspas.w_d, isspas.x0_d, isspas.g0_d, isspas.gr2_d, isspas.alpha_d, isspas.vtot_d, isspas.lj_d, isspas.isspaTypes_d, isspas.nMC, isspas.nTypes, nAtoms, isspas.randStates_d, lbox);
+	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float)>>>(xyz_d, f_d, isspas.mcpos_d, isspas.vtot_d, isspas.isspaTypes_d, isspas.isspaForceTable_d);
 
 
 	// finish timing
@@ -284,18 +294,28 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms, in
 
 }
 
-void isspa_grid_block(int nAtoms, int nPairs, isspa& isspas) {
+void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
 
 	int minGridSize;
 
 	// determine gridSize and blockSize
-	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &isspas.mcBlockSize, isspa_mc_kernel, 0, nAtoms*isspas.nMC);
+	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &isspas.mcBlockSize, isspa_mc_kernel, 0, nAtoms_h*isspas.nMC);
     	// Round up according to array size
-    	isspas.mcGridSize = (nAtoms*isspas.nMC + isspas.mcBlockSize - 1) / isspas.mcBlockSize;
+    	isspas.mcGridSize = (nAtoms_h*isspas.nMC + isspas.mcBlockSize - 1) / isspas.mcBlockSize;
 
 	// determine gridSize and blockSize
-	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &isspas.gBlockSize, isspa_density_kernel, 0, nPairs*isspas.nMC);
+	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &isspas.gBlockSize, isspa_density_kernel, 0, nPairs_h*isspas.nMC);
     	// Round up according to array size
-    	isspas.gGridSize = (nPairs*isspas.nMC + isspas.gBlockSize - 1) / isspas.gBlockSize;
+    	isspas.gGridSize = (nPairs_h*isspas.nMC + isspas.gBlockSize - 1) / isspas.gBlockSize;
+
+	// set constant memory
+	cudaMemcpyToSymbol(nMC, &isspas.nMC, sizeof(int));
+	cudaMemcpyToSymbol(nTypes, &isspas.nTypes, sizeof(int));
+	cudaMemcpyToSymbol(nRs, &isspas.nRs, sizeof(int));
+	cudaMemcpyToSymbol(nAtoms, &nAtoms_h, sizeof(int));
+	cudaMemcpyToSymbol(nPairs, &nPairs_h, sizeof(int));
+	cudaMemcpyToSymbol(lbox, &lbox_h, sizeof(float));
+	cudaMemcpyToSymbol(forceRparams, &isspas.forceRparams, sizeof(float2));
+
 
 }
