@@ -1,4 +1,6 @@
 
+# 1 for rst from file 0 for intialize velocities
+velRst = 0
 # INPUT FILES:
 prmtop=PDI6.prmtop
 inputCoord = PDI6.inpcrd
@@ -7,6 +9,9 @@ isspaPrmtop = PDI6.isspa
 forFile = PDI.6.forces.xyz
 posFile = PDI.6.positions.xyz
 velFile = PDI.6.velocities.xyz
+# RESTART FILES:
+posRstFile = PDI.1.positions.rst
+velRstFile = PDI.1.velocities.rst
 # PARAMETERS:
 nMC = 10
 nSteps = 100000
