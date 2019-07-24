@@ -123,7 +123,7 @@ int main(int argc, char* argv[])
 			times.usTime += us_force_cuda(atoms.pos_d, atoms.for_d, bias, configs.lbox, atoms.nAtoms);
 		}
 		// print stuff every so often
-		if (step%configs.deltaWrite==0) {
+		if (step > 0 && step%configs.deltaWrite==0) {
 			times.startWriteTimer();
 			// get positions, velocities, and forces from gpu
 			atoms.get_pos_vel_for_from_gpu();
