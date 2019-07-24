@@ -15,8 +15,10 @@ __constant__ int nMC;
 __constant__ int nAtoms;
 __constant__ int nPairs;
 __constant__ float lbox;
-__constant__ int nRs;
+__constant__ int nForceRs;
 __constant__ float2 forceRparams;
+__constant__ int nGRs;
+__constant__ float2 gRparams;
 
 // device functions
 
@@ -33,23 +35,23 @@ __device__ float atomicMul(float* address, float val)
 
 // CUDA Kernels
 
-__global__ void isspa_mc_kernel(float4 *xyz, float4 *mcpos, float2 *x0_w, int *isspaTypes, curandState *state) {
+__global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcDist, int *isspaTypes, float *gTable, curandState *state) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
-	extern __shared__ float2 params_s[];
+	extern __shared__ float4 mcDist_s[];
 	int atom;
 	float rnow;
-        float prob;
-       	float attempt;
 	float x1, x2, r2;
 	float4 pos;
 	int it;
 	int i;
+	int bin;
+	int g1, g2, gnow, fracDist;
 	curandState_t threadState;
 
-	// copy density parameters to shared memory
+	// copy MC distribution parameters to shared memory
 	for (i=t;i<nTypes;i+=blockDim.x) {
-		params_s[i] = __ldg(x0_w+i);
+		mcDist_s[i] = __ldg(mcDist+i);
 	}
 	__syncthreads();
 	// move on
@@ -63,17 +65,8 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcpos, float2 *x0_w, int *i
 		pos = __ldg(xyz+atom);
 		// isspa type
 		it = __ldg(isspaTypes+atom);
-		// select one point from 1D parabolic distribution
-		rnow = 1.0f - 2.0f * curand_uniform(&threadState);
-		prob = rnow*rnow;
-		attempt = curand_uniform(&threadState);
-		while (attempt < prob)
-		{
-			rnow = 1.0f - 2.0f * curand_uniform(&threadState);
-			prob = rnow*rnow;
-			attempt = curand_uniform(&threadState);
-		}
-		rnow = params_s[it].y * rnow + params_s[it].x;
+		// select uniform number between rmin and rmax of MC dist
+		rnow = mcDist_s[it].x + mcDist_s[it].z * curand_uniform(&threadState);
 		// select two points on surface of sphere
 		x1 = 1.0f - 2.0f * curand_uniform(&threadState);
 		x2 = 1.0f - 2.0f * curand_uniform(&threadState);
@@ -85,12 +78,18 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcpos, float2 *x0_w, int *i
 			r2 = x1*x1 + x2*x2;
 		}
 		// generate 3D MC pos based on position on surface of sphere and parabolic distribution in depth
-		mcpos[index].x = pos.x + rnow*(1.0f - 2.0f*r2);
+		mcPos[index].x = pos.x + rnow*(1.0f - 2.0f*r2);
 		r2 = 2.0f * sqrtf(1.0f - r2);
-		mcpos[index].y = pos.y + rnow*x1*r2;
-		mcpos[index].z = pos.z + rnow*x2*r2;
-		// initialize density to 1.0
-		mcpos[index].w = 1.0;
+		mcPos[index].y = pos.y + rnow*x1*r2;
+		mcPos[index].z = pos.z + rnow*x2*r2;
+		bin = int ( (rnow-gRparams.x)/gRparams.y + 0.5f);
+		// linearly interpolate between two density bins
+		fracDist = (rnow - (gRparams.x+bin*gRparams.y)) / gRparams.y;
+		g1 = __ldg(gTable+it*nGRs+bin);
+		g2 = __ldg(gTable+it*nGRs+bin+1);
+		gnow = g1*(1.0-fracDist)+g2*fracDist;
+		// initialize density to N*g_atom(r)*1/P(r) = 4*pi*(r2-r1)*r^2
+		mcPos[index].w = mcDist_s[it].w*gnow*rnow*rnow/float(nMC);
 
 		// random state in global
 		state[index] = threadState;
@@ -99,24 +98,25 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcpos, float2 *x0_w, int *i
 }
 
 
-__global__ void isspa_density_kernel(float4 *xyz, float4 *mcpos, float *x0, float4 *gr2_g0_alpha, int *isspaTypes) {
+__global__ void isspa_density_kernel(float4 *xyz, float4 *mcPos, int *isspaTypes,  float *gTable) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
-	unsigned int t = threadIdx.x;
-	extern __shared__ float4 gr2_g0_alpha_s[];
+	//unsigned int t = threadIdx.x;
 	float4 r;
-	int i;
 	int atomMC;
 	int atom2;
 	int jt;    // atom type of other atom
+	int bin;
+	float fracDist;
 	float gnow;
-	float temp, dist2;
+	float dist, dist2;
 	float hbox;
+	float g1, g2;
 
 	// copy density parameters to shared memory
-	for (i=t;i<nTypes;i+=blockDim.x) {
-		gr2_g0_alpha_s[i] = __ldg(gr2_g0_alpha+i);
-	}
-	__syncthreads();
+	//for (i=t;i<nTypes;i+=blockDim.x) {
+	//	gr2_g0_alpha_s[i] = __ldg(gr2_g0_alpha+i);
+	//}
+	//__syncthreads();
 	// move on
 	if (index < nPairs*nMC)
 	{
@@ -125,23 +125,28 @@ __global__ void isspa_density_kernel(float4 *xyz, float4 *mcpos, float *x0, floa
 		atomMC = int(index/(float) nAtoms);
 		atom2 = index % (nAtoms);
 		jt = __ldg(isspaTypes + atom2);
-		r = min_image(__ldg(mcpos+atomMC) - __ldg(xyz+atom2),lbox,hbox);
+		r = min_image(__ldg(mcPos+atomMC) - __ldg(xyz+atom2),lbox,hbox);
 		dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-		if (dist2 < gr2_g0_alpha_s[jt].x) {
-			atomicMul(&(mcpos[atomMC].w),0.0f);
-		} else if (dist2 < gr2_g0_alpha_s[jt].y) {
-			temp = sqrtf(dist2)-__ldg(x0+jt);
-			gnow = (-gr2_g0_alpha_s[jt].w * temp*temp + gr2_g0_alpha_s[jt].z);
-			atomicMul(&(mcpos[atomMC].w),gnow);
+		dist = sqrtf(dist2);
+		bin = int ( (dist-gRparams.x)/gRparams.y + 0.5f);
+		if (bin >= nGRs) {
+			gnow = 1.0;
+		} else {
+			// linearly interpolate between two density bins
+			fracDist = (dist - (gRparams.x+bin*gRparams.y)) / gRparams.y;
+			g1 = __ldg(gTable+jt*nGRs+bin);
+			g2 = __ldg(gTable+jt*nGRs+bin+1);
+			gnow = g1*(1.0-fracDist)+g2*fracDist;
+			atomicMul(&(mcPos[atomMC].w),gnow);
 		}
 
 	}
 }
 
-__global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcpos, float *vtot, int *isspaTypes, float *forceTable) {
+__global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcPos, int *isspaTypes, float *forceTable) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
-	unsigned int t = threadIdx.x;
-	extern __shared__ float vtot_s[];
+	//unsigned int t = threadIdx.x;
+	//extern __shared__ float vtot_s[];
 	int atom;
 	float4 r;
 	float4 tempMC;
@@ -150,16 +155,15 @@ __global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcpos, float 
 	float f1, f2, fracDist;
 	int it;
 	int bin;
-	int i;
 
 	// copy density parameters to shared memory
-	for (i=t;i<nTypes;i+=blockDim.x) {
-		vtot_s[i] = __ldg(vtot+i);
-	}
-	__syncthreads();
+	//for (i=t;i<nTypes;i+=blockDim.x) {
+	//	vtot_s[i] = __ldg(vtot+i);
+	//}
+	//__syncthreads();
 	// move on
 	if (index < nAtoms*nMC) {
-		tempMC = __ldg(mcpos+index);
+		tempMC = __ldg(mcPos+index);
 		if (tempMC.w > 0.0f) {
 			atom = int(index/(float) nMC);
 			it = __ldg(isspaTypes+atom);
@@ -168,12 +172,16 @@ __global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcpos, float 
 			r2 = r.x*r.x + r.y*r.y + r.z*r.z;
 			dist = sqrtf(r2);
 			bin = int ( (dist-forceRparams.x)/forceRparams.y + 0.5f);
-			// linearly interpolate between two force bins
-			fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
-			f1 = __ldg(forceTable+it*nRs+bin);
-			f2 = __ldg(forceTable+it*nRs+bin+1);
-			fs = f1*(1.0-fracDist)+f2*fracDist;
-			fs *= tempMC.w * vtot_s[it];
+			if (bin >= nForceRs) {
+				fs = 0.0;
+			} else {
+				// linearly interpolate between two force bins
+				fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
+				f1 = __ldg(forceTable+it*nForceRs+bin);
+				f2 = __ldg(forceTable+it*nForceRs+bin+1);
+				fs = f1*(1.0-fracDist)+f2*fracDist;
+				fs *= tempMC.w;
+			}
 			atomicAdd(&(f[atom].x), fs*r.x);
 			atomicAdd(&(f[atom].y), fs*r.y);
 			atomicAdd(&(f[atom].z), fs*r.z);
@@ -187,7 +195,7 @@ __global__ void isspa_mc_density_force_kernel(float4 *xyz, float4 *f, float *w, 
 	float rnow;
         float prob;
        	float attempt;
-	float4 mcpos;
+	float4 mcPos;
 	float4 r;
 	float x1, x2, r2;
 	int it, jt;
@@ -230,25 +238,25 @@ __global__ void isspa_mc_density_force_kernel(float4 *xyz, float4 *f, float *w, 
 			r2 = x1*x1 + x2*x2;
 		}
 		// generate 3D MC pos based on position on surface of sphere and parabolic distribution in depth
-		mcpos.x = xyz[atom].x + rnow*(1.0f - 2.0f*r2);
+		mcPos.x = xyz[atom].x + rnow*(1.0f - 2.0f*r2);
 		r2 = 2.0f * sqrtf(1.0f - r2);
-		mcpos.y = xyz[atom].y + rnow*x1*r2;
-		mcpos.z = xyz[atom].z + rnow*x2*r2;
+		mcPos.y = xyz[atom].y + rnow*x1*r2;
+		mcPos.z = xyz[atom].z + rnow*x2*r2;
 		// initialize density to 1.0
-		mcpos.w = 1.0;
+		mcPos.w = 1.0;
 
 		ev_flag = 0;
 		for (atom2=0;atom2<nAtoms;atom2++)
 		{
 			jt = isspaTypes[atom2];
-			r = min_image(mcpos - __ldg(xyz+atom2),lbox,hbox);
+			r = min_image(mcPos - __ldg(xyz+atom2),lbox,hbox);
 			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 			if (dist2 < gr2[jt*2]) {
 				ev_flag = 1;
 				break;
 			} else if (dist2 < gr2[jt*2+1]) {
 				temp = sqrtf(dist2)-x0[jt];
-				mcpos.w *= (-alpha[jt] * temp*temp + g0[jt]);
+				mcPos.w *= (-alpha[jt] * temp*temp + g0[jt]);
 			}
 		}
 
@@ -256,7 +264,7 @@ __global__ void isspa_mc_density_force_kernel(float4 *xyz, float4 *f, float *w, 
 			rinv = 1.0f / rnow;
 			r2 = rinv * rinv;
 			r6 = r2 * r2 * r2;
-			fs = mcpos.w * r6 * (lj[it].y - lj[it].x * r6)*vtot[it];
+			fs = mcPos.w * r6 * (lj[it].y - lj[it].x * r6)*vtot[it];
 			atomicAdd(&(f[atom].x), fs*r.x);
 			atomicAdd(&(f[atom].y), fs*r.y);
 			atomicAdd(&(f[atom].z), fs*r.z);
@@ -278,12 +286,11 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas) {
 	
 
 	// generate MC points
-	isspa_mc_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float2)>>>(xyz_d, isspas.mcpos_d, isspas.x0_w_d, isspas.isspaTypes_d, isspas.randStates_d);
-	//printf("MC points generated\n");
+	isspa_mc_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float4)>>>(xyz_d, isspas.mcPos_d, isspas.mcDist_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.randStates_d);
 	// compute density at each mc point
-	isspa_density_kernel<<<isspas.gGridSize, isspas.gBlockSize,isspas.nTypes*sizeof(float4)>>>(xyz_d, isspas.mcpos_d, isspas.x0_d, isspas.gr2_g0_alpha_d, isspas.isspaTypes_d);
+	isspa_density_kernel<<<isspas.gGridSize, isspas.gBlockSize>>>(xyz_d, isspas.mcPos_d, isspas.isspaTypes_d, isspas.isspaGTable_d);
 	// add to forces
-	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float)>>>(xyz_d, f_d, isspas.mcpos_d, isspas.vtot_d, isspas.isspaTypes_d, isspas.isspaForceTable_d);
+	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize>>>(xyz_d, f_d, isspas.mcPos_d, isspas.isspaTypes_d, isspas.isspaForceTable_d);
 
 
 	// finish timing
@@ -311,11 +318,13 @@ void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
 	// set constant memory
 	cudaMemcpyToSymbol(nMC, &isspas.nMC, sizeof(int));
 	cudaMemcpyToSymbol(nTypes, &isspas.nTypes, sizeof(int));
-	cudaMemcpyToSymbol(nRs, &isspas.nRs, sizeof(int));
+	cudaMemcpyToSymbol(nForceRs, &isspas.nForceRs, sizeof(int));
 	cudaMemcpyToSymbol(nAtoms, &nAtoms_h, sizeof(int));
 	cudaMemcpyToSymbol(nPairs, &nPairs_h, sizeof(int));
 	cudaMemcpyToSymbol(lbox, &lbox_h, sizeof(float));
 	cudaMemcpyToSymbol(forceRparams, &isspas.forceRparams, sizeof(float2));
+	cudaMemcpyToSymbol(nGRs, &isspas.nGRs, sizeof(int));
+	cudaMemcpyToSymbol(gRparams, &isspas.gRparams, sizeof(float2));
 
 
 }

@@ -13,25 +13,18 @@ class isspa
 	public:
 		int nTypes;      // number of isspa types
 		int nMC;         // number of MC points
-		int nRs;         // number of distance values in tabulated forces
+		int nForceRs;         // number of distance values in tabulated forces
+		int nGRs;         // number of distance values in tabulated densities
 		int *isspaTypes_h;
 		int *isspaTypes_d;
-		float4 *mcpos_d;
-		//float4 *lj_vtot_h;     // isspa LJ parameter
-		//float4 *lj_vtot_d;     // isspa LJ parameter -- device
-		float2 *x0_w_h;
-		float2 *x0_w_d;
-		float4 *gr2_g0_alpha_h;
-		float4 *gr2_g0_alpha_d;
-		//float2 *lj_h;     // isspa LJ parameter
-		float *x0_h;     // center position of parabola and g - host data 
-		float *x0_d;     // center position of parabola and g - device data 
-		float *g0_h;     // height of parabola approximation of g - host data 
-		float *alpha_h;  // alpha parameter for g - host data
-		float2 *gr2_h;     // excluded volume distance and end of parabola distance squared - host data 
-		float *w_h;      // width of parabola - host data
-		float *vtot_h;  // Monte Carlo normalization factor - host data
-		float *vtot_d;  // Monte Carlo normalization factor - device data
+		float4 *mcPos_d;  // Monte Carlo point positions
+		float4 *mcDist_h; // min, max, delta, and normalization of Monte Carlo distribution - host data
+		float4 *mcDist_d; // min, max delta, and normalization of Monte Carlo distribution - device data
+		float *isspaGTable_h; //
+		float *isspaGTable_d; //
+		float *isspaGR_h; //
+		float *isspaGR_d; //
+		float2 gRparams;
 		float *isspaForceTable_h; //
 		float *isspaForceTable_d; //
 		float *isspaForceR_h; //
