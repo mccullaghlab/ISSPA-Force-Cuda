@@ -10,5 +10,5 @@ isspa: total_force_cuda.cpp isspa_force_cuda.cu isspa_force_cuda.h read_prmtop.h
 	$(CUDA) $(CUDA_FLAGS) -c isspa_force_cuda.cu nonbond_force_cuda.cu leapfrog_cuda.cu neighborlist_cuda.cu bond_force_cuda.cu angle_force_cuda.cu dih_force_cuda.cu us_force_cuda.cu init_rand.cu
 	$(CUDA) $(CUDA_FLAGS) total_force_cuda.o read_prmtop.o atom_class.o timing_class.o config_class.o dih_class.o angle_class.o bond_class.o isspa_class.o us_class.o isspa_force_cuda.o nonbond_force_cuda.o leapfrog_cuda.o neighborlist_cuda.o us_force_cuda.o stringlib.o bond_force_cuda.o angle_force_cuda.o dih_force_cuda.o init_rand.o -o total_force_cuda.x 
 	cp total_force_cuda.x ../bin/
-	#cp total_force_cuda.x ~/bin/
+	cp total_force_cuda.x ~/bin/
 

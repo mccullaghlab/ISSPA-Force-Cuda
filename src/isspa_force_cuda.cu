@@ -35,7 +35,7 @@ __device__ float atomicMul(float* address, float val)
 
 // CUDA Kernels
 
-__global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcDist, int *isspaTypes, float *gTable, curandState *state) {
+__global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcDist, int *isspaTypes, curandState *state) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float4 mcDist_s[];
@@ -45,8 +45,6 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcDist, int 
 	float4 pos;
 	int it;
 	int i;
-	int bin;
-	int g1, g2, gnow, fracDist;
 	curandState_t threadState;
 
 	// copy MC distribution parameters to shared memory
@@ -82,14 +80,8 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcDist, int 
 		r2 = 2.0f * sqrtf(1.0f - r2);
 		mcPos[index].y = pos.y + rnow*x1*r2;
 		mcPos[index].z = pos.z + rnow*x2*r2;
-		bin = int ( (rnow-gRparams.x)/gRparams.y + 0.5f);
-		// linearly interpolate between two density bins
-		fracDist = (rnow - (gRparams.x+bin*gRparams.y)) / gRparams.y;
-		g1 = __ldg(gTable+it*nGRs+bin);
-		g2 = __ldg(gTable+it*nGRs+bin+1);
-		gnow = g1*(1.0-fracDist)+g2*fracDist;
-		// initialize density to N*g_atom(r)*1/P(r) = 4*pi*(r2-r1)*r^2
-		mcPos[index].w = mcDist_s[it].w*gnow*rnow*rnow/float(nMC);
+		// initialize density to N*1/P(r)/nMC = 4*pi*(r2-r1)*r^2/nMC
+		mcPos[index].w = mcDist_s[it].w*rnow*rnow/float(nMC);
 
 		// random state in global
 		state[index] = threadState;
@@ -180,7 +172,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcPos, int *i
 				f1 = __ldg(forceTable+it*nForceRs+bin);
 				f2 = __ldg(forceTable+it*nForceRs+bin+1);
 				fs = f1*(1.0-fracDist)+f2*fracDist;
-				fs *= tempMC.w;
+				fs *= tempMC.w/dist;
 			}
 			atomicAdd(&(f[atom].x), fs*r.x);
 			atomicAdd(&(f[atom].y), fs*r.y);
@@ -286,7 +278,7 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas) {
 	
 
 	// generate MC points
-	isspa_mc_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float4)>>>(xyz_d, isspas.mcPos_d, isspas.mcDist_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.randStates_d);
+	isspa_mc_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float4)>>>(xyz_d, isspas.mcPos_d, isspas.mcDist_d, isspas.isspaTypes_d, isspas.randStates_d);
 	// compute density at each mc point
 	isspa_density_kernel<<<isspas.gGridSize, isspas.gBlockSize>>>(xyz_d, isspas.mcPos_d, isspas.isspaTypes_d, isspas.isspaGTable_d);
 	// add to forces
