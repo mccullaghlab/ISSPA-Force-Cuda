@@ -15,7 +15,7 @@ posRstFile = PDI.1.positions.rst
 velRstFile = PDI.1.velocities.rst
 # PARAMETERS:
 nMC = 10
-nSteps = 10000
+nSteps = 100000
 deltaWrite = 1000
 temperature = 298.00
 cutoff = 12.0
