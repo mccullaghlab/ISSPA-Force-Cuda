@@ -1,6 +1,7 @@
 
 # 1 for rst from file 0 for intialize velocities
 velRst = 0
+inputVel = notread.rst
 # INPUT FILES:
 prmtop=PDI6.prmtop
 inputCoord = PDI6.inpcrd
