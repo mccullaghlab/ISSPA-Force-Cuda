@@ -9,9 +9,17 @@
 
 #define nDim 3
 
+// constants
+__constant__ float rCut2;
+__constant__ float lbox;
+__constant__ int nAtoms;
+__constant__ int nPairs;
+__constant__ int nTypes;
+__constant__ int excludedAtomsListLength;
+
 // CUDA Kernels
 
-__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int nAtoms, float rCut2, float lbox, int *nExcludedAtoms, int *excludedAtomsList, int excludedAtomsListLength, int *nbparm, int *ityp, int nPairs, int nTypes) {
+__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int *nExcludedAtoms, int *excludedAtomsList, int *nbparm, int *ityp) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ int excludedAtomsList_s[];
@@ -118,22 +126,15 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int nAt
 
 /* C wrappers for kernels */
 
-float nonbond_force_cuda(atom &atoms, float rCut2, float lbox) 
+float nonbond_force_cuda(atom &atoms)
 {
-	int gridSize;
-	int blockSize;
-	int minGridSize;
 	float milliseconds;
 
 	// timing
 	cudaEventRecord(atoms.nonbondStart);
 	
-	// determine gridSize and blockSize
-	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, nonbond_force_kernel, 0, atoms.nPairs); 
-    	// Round up according to array size 
-    	gridSize = (atoms.nPairs + blockSize - 1) / blockSize; 
 	// run nonbond cuda kernel
-	nonbond_force_kernel<<<gridSize, blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.lj_d, atoms.nAtoms, rCut2, lbox, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.excludedAtomsListLength, atoms.nonBondedParmIndex_d, atoms.ityp_d, atoms.nPairs, atoms.nTypes);
+	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.lj_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d);
 
 	// finish timing
 	cudaEventRecord(atoms.nonbondStop);
@@ -143,12 +144,22 @@ float nonbond_force_cuda(atom &atoms, float rCut2, float lbox)
 
 }
 
-extern "C" void nonbond_force_cuda_grid_block(int nAtoms, int *gridSize, int *blockSize, int *minGridSize)
+extern "C" void nonbond_force_cuda_grid_block(atom& atoms, float rCut2_h, float lbox_h)
 {
+	int minGridSize;
+
 	// determine gridSize and blockSize
-	cudaOccupancyMaxPotentialBlockSize(minGridSize, blockSize, nonbond_force_kernel, 0, nAtoms); 
+	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &atoms.blockSize, nonbond_force_kernel, 0, atoms.nPairs);
 
     	// Round up according to array size 
-    	*gridSize = (nAtoms + *blockSize - 1) / *blockSize; 
+    	atoms.gridSize = (atoms.nPairs + atoms.blockSize - 1) / atoms.blockSize; 
 
+	// set constants
+	cudaMemcpyToSymbol(nAtoms, &atoms.nAtoms, sizeof(int));
+	cudaMemcpyToSymbol(nPairs, &atoms.nPairs, sizeof(int));
+	cudaMemcpyToSymbol(nTypes, &atoms.nTypes, sizeof(int));
+	cudaMemcpyToSymbol(excludedAtomsListLength, &atoms.excludedAtomsListLength, sizeof(int));
+	cudaMemcpyToSymbol(rCut2, &rCut2_h, sizeof(float));
+	cudaMemcpyToSymbol(lbox, &lbox_h, sizeof(float));
+	
 }

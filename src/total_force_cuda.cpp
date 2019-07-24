@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
 	atoms.open_traj_files(configs.forOutFileName, configs.posOutFileName, configs.velOutFileName);
 	atoms.initialize_gpu(configs.seed);
 	//leapfrog_cuda_grid_block(atoms.nAtoms, &atoms.gridSize, &atoms.blockSize, &atoms.minGridSize);
-	nonbond_force_cuda_grid_block(atoms.nAtoms, &atoms.gridSize, &atoms.blockSize, &atoms.minGridSize);
+	nonbond_force_cuda_grid_block(atoms, configs.rCut2, configs.lbox);
 	// initialize bonds on gpu
 	bonds.initialize_gpu();
 	bond_force_cuda_grid_block(bonds.nBonds, &bonds.gridSize, &bonds.blockSize, &bonds.minGridSize);
@@ -88,7 +88,7 @@ int main(int argc, char* argv[])
 	// initialize isspa
 	isspas.read_isspa_prmtop(configs.isspaPrmtopFileName, configs.nMC);
 	isspas.initialize_gpu(atoms.nAtoms, configs.seed);
-	isspa_grid_block(atoms.nAtoms, atoms.nPairs, isspas);
+	isspa_grid_block(atoms.nAtoms, atoms.nPairs, configs.lbox, isspas);
 	
 	// initialize timing
 	times.initialize();
@@ -113,17 +113,17 @@ int main(int argc, char* argv[])
 		times.dihTime += dih_force_cuda(atoms, dihs, configs.lbox);
 
 		// run isspa force cuda kernel
-		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas, atoms.nAtoms, atoms.nPairs, configs.lbox);
+		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas);
 
 		// run nonbond cuda kernel
-		times.nonbondTime += nonbond_force_cuda(atoms, configs.rCut2, configs.lbox);
+		times.nonbondTime += nonbond_force_cuda(atoms);
 
 		if (configs.us == 1) {
 			// run US CUDA kernel
 			times.usTime += us_force_cuda(atoms.pos_d, atoms.for_d, bias, configs.lbox, atoms.nAtoms);
 		}
 		// print stuff every so often
-		if (step%configs.deltaWrite==0) {
+		if (step > 0 && step%configs.deltaWrite==0) {
 			times.startWriteTimer();
 			// get positions, velocities, and forces from gpu
 			atoms.get_pos_vel_for_from_gpu();
