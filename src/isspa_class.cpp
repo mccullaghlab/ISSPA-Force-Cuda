@@ -17,6 +17,7 @@ using namespace std;
 void isspa::allocate(int nAtoms, int configMC)
 {
 	int i;
+	// DEBUG
 	nMC = configMC;
 	// allocate atom based parameter arrays
 	isspaTypes_h = (int *)malloc(nAtoms*sizeof(int));

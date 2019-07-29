@@ -11,6 +11,9 @@
 class isspa
 {
 	public:
+		//DEBUG
+		FILE *denFile;
+		FILE *forFile;
 		int nTypes;      // number of isspa types
 		int nMC;         // number of MC points
 		int nForceRs;         // number of distance values in tabulated forces
