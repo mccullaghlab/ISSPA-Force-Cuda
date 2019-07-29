@@ -192,6 +192,7 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	cudaMemcpy(mcDist_d, mcDist_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);	
 	// allocate MC position array on device
 	cudaMalloc((void **) &mcPos_d, nAtoms*nMC*sizeof(float4));
+	cudaMalloc((void **) &mcFor_d, nAtoms*nMC*sizeof(float4));
 	// allocate ISSPA types on device and pass data from host
 	cudaMalloc((void **) &isspaTypes_d, nAtoms*sizeof(int));
 	cudaMemcpy(isspaTypes_d, isspaTypes_h, nAtoms*sizeof(int), cudaMemcpyHostToDevice);	
@@ -219,4 +220,5 @@ void isspa::free_arrays_gpu() {
 	cudaFree(randStates_d);
 	cudaFree(isspaTypes_d);
 	cudaFree(mcPos_d);
+	cudaFree(mcFor_d);
 }

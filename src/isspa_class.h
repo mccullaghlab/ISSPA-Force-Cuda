@@ -21,6 +21,7 @@ class isspa
 		int *isspaTypes_h;
 		int *isspaTypes_d;
 		float4 *mcPos_d;  // Monte Carlo point positions
+		float4 *mcFor_d;  // Monte Carlo point forces
 		float4 *mcDist_h; // min, max, delta, and normalization of Monte Carlo distribution - host data
 		float4 *mcDist_d; // min, max delta, and normalization of Monte Carlo distribution - device data
 		float *isspaGTable_h; //
