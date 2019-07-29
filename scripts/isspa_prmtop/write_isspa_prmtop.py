@@ -130,7 +130,8 @@ def read_isspa_tab_density_file(isspaParamFile):
             if (tabPoissonRegress[tabCount,3] <= 0):
                 tabGs[j,i] = 0.0
             else:
-                tabGs[j,i] = np.exp(tabPoissonRegress)
+                tabGs[j,i] = np.exp(tabPoissonRegress[tabCount,1])
+            tabCount += 1
     for j in range(nGRs):
         tabGs[j,0] = tabPoissonRegress[j,0]
     return tabGs
@@ -140,12 +141,25 @@ def read_isspa_tab_force_file(isspaForceFile):
     forces = np.loadtxt(isspaForceFile)
     return forces
 
+def determine_isspa_domain(isspaGs,isspaForces):
+    nForceRs = isspaForces.shape[0]
+    nGRs = isspaGs.shape[0]
+    nRs = min(nForceRs,nGRs)
+    nTypes = isspaForces.shape[1]
+    isspaParams = np.empty((nTypes-1,2),dtype=float)
+    fg = isspaGs[:nRs,:]*np.abs(isspaForces[:nRs,:])
+    thresh = 1E-1
+    for i in range(1,nTypes):
+        isspaParams[i-1,0] = isspaGs[np.amin(np.argwhere(fg[:,i] > thresh)),0]
+        isspaParams[i-1,1] = isspaGs[np.amax(np.argwhere(fg[:,i] > thresh)),0]
+    return isspaParams     
+
 def write_isspa_prmtop(isspaPrmtopFile):
     global isspaTypes, nAtoms, isspaParams, isspaForces, isspaGs
     nIsspaTypes = np.amax(isspaTypes)
     nForceRs = isspaForces.shape[0]
     nGRs = isspaGs.shape[0]
-
+    nRs = min(nForceRs,nGRs)
     f = open(isspaPrmtopFile,'w')
 
     f.write("%VERSION \n")
@@ -157,8 +171,8 @@ def write_isspa_prmtop(isspaPrmtopFile):
     f.write("%FORMAT(10I8)\n")
     f.write("%8d" % (nAtoms))
     f.write("%8d" % (nIsspaTypes))
-    f.write("%8d" % (nGRs))
-    f.write("%8d" % (nForceRs))
+    f.write("%8d" % (nRs))
+    f.write("%8d" % (nRs))
     f.write("\n")
     # isspa type per atom section
     f.write("%FLAG ISSPA_TYPE_INDEX\n")
@@ -174,28 +188,28 @@ def write_isspa_prmtop(isspaPrmtopFile):
     for i in range(nIsspaTypes):
         if i>0 and i%5==0:
             f.write("\n")
-        #f.write("%16.8e" % (isspaParams[i,0]))
-        f.write("%16.8e" % (2.5))
+        f.write("%16.8e" % (isspaParams[i,0]))
+        #f.write("%16.8e" % (2.5))
     f.write("\n")
     f.write("%FLAG ISSPA_MCMAX\n")
     f.write("%FORMAT(5E16.8)\n")
     for i in range(nIsspaTypes):
         if i>0 and i%5==0:
             f.write("\n")
-        #f.write("%16.8e" % (isspaParams[i,1]))
-        f.write("%16.8e" % (8.0))
+        f.write("%16.8e" % (isspaParams[i,1]))
+        #f.write("%16.8e" % (8.0))
     f.write("\n")
     # isspa tab g(r) section
     f.write("%FLAG ISSPA_DENSITIES\n")
     f.write("%%FORMAT(%dE16.8)\n" %(nIsspaTypes+1))
-    for i in range(nGRs):
+    for i in range(nRs):
         for j in range(nIsspaTypes+1):
             f.write("%16.8e" % (isspaGs[i,j]))
         f.write("\n")
     # isspa tab force section
     f.write("%FLAG ISSPA_FORCES\n")
     f.write("%%FORMAT(%dE16.8)\n" %(nIsspaTypes+1))
-    for i in range(nForceRs):
+    for i in range(nRs):
         for j in range(nIsspaTypes+1):
             f.write("%16.8e" % (isspaForces[i,j]))
         f.write("\n")
@@ -219,7 +233,9 @@ read_prmtop(prmtopFile)
 isspaTypes = assign_isspa_type(isspaMol2File,residueName,residuePointer)
 isspaGs = read_isspa_tab_density_file(isspaParamFile)
 isspaForces = read_isspa_tab_force_file(isspaForceFile)
-
+isspaParams = determine_isspa_domain(isspaGs,isspaForces)
+for i in range(isspaParams.shape[0]):
+    print(isspaParams[i,0], isspaParams[i,1])
 # write isspa top file
 write_isspa_prmtop(isspaPrmtopFile)
 

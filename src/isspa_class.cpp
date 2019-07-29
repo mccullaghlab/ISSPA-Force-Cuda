@@ -27,19 +27,18 @@ void isspa::allocate(int nAtoms, int configMC)
 	cudaMallocHost((float **) &isspaGTable_h, nTypes*nGRs*sizeof(float)); // force table
 	cudaMallocHost((float **) &isspaGR_h, nGRs*sizeof(float)); // distance values for force table
 	// MC distribution arrays
-	cudaMallocHost((float4 **) &mcDist_h, nTypes*sizeof(float));
+	cudaMallocHost((float4 **) &mcDist_h, nTypes*sizeof(float4));
 
 }
 
 void isspa::construct_parameter_arrays()
 {
 	int i;
-	float x1;
-	float x2;
 	// finish MC dist parameters
 	for (i=0;i<nTypes;i++) {
 		mcDist_h[i].z = mcDist_h[i].y - mcDist_h[i].x; // domain size
-		mcDist_h[i].w = 4.0 * PI * mcDist_h[i].z;      // normalization factor		
+		mcDist_h[i].w = 4.0 * PI * mcDist_h[i].z/float(nMC)*RHO;      // normalization factor
+		printf("%10.5f%10.5f%10.5f%10.5f\n", mcDist_h[i].x, mcDist_h[i].y, mcDist_h[i].z,mcDist_h[i].w);	
 	}
 
 }
@@ -104,7 +103,7 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 							lineCount++;
 						}
 					}
-				} else if (strncmp(flag,isspaMCMinFlag,8) == 0) {
+				} else if (strncmp(flag,isspaMCMinFlag,11) == 0) {
 					// 
 					nLines = (int) (nTypes + 4) / 5.0 ;
 					/* skip format line */
@@ -120,7 +119,7 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 							lineCount++;
 						}
 					}
-				} else if (strncmp(flag,isspaMCMaxFlag,8) == 0) {
+				} else if (strncmp(flag,isspaMCMaxFlag,11) == 0) {
 					// 
 					nLines = (int) (nTypes + 4) / 5.0 ;
 					/* skip format line */
@@ -198,7 +197,7 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	// random number states
 	cudaMalloc((void**) &randStates_d, nAtoms*nMC*sizeof(curandState));
 	init_rand_states(randStates_d, seed, nMC*nAtoms);
-	// gpu timing
+	// intialize gpu timing events
 	cudaEventCreate(&isspaStart);
 	cudaEventCreate(&isspaStop);
 

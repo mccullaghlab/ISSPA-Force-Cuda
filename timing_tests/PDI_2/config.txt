@@ -15,9 +15,9 @@ temperature = 298.00
 cutoff = 12.0
 dielectric = 4.0
 nMC = 10
-nSteps = 1000
+nSteps = 10000
 deltaWrite = 100
 boxLength = 200.0
-US = 1
+US = 0
 usCfgFile = pdi2.us
 

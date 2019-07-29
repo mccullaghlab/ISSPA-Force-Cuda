@@ -81,7 +81,7 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcDist, int 
 		mcPos[index].y = pos.y + rnow*x1*r2;
 		mcPos[index].z = pos.z + rnow*x2*r2;
 		// initialize density to N*1/P(r)/nMC = 4*pi*(r2-r1)*r^2/nMC
-		mcPos[index].w = mcDist_s[it].w*rnow*rnow/float(nMC);
+		mcPos[index].w = mcDist_s[it].w*rnow*rnow;
 
 		// random state in global
 		state[index] = threadState;
@@ -120,15 +120,18 @@ __global__ void isspa_density_kernel(float4 *xyz, float4 *mcPos, int *isspaTypes
 		r = min_image(__ldg(mcPos+atomMC) - __ldg(xyz+atom2),lbox,hbox);
 		dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 		dist = sqrtf(dist2);
-		bin = int ( (dist-gRparams.x)/gRparams.y + 0.5f);
-		if (bin >= nGRs) {
+		bin = int ( (dist-gRparams.x)/gRparams.y );
+		if (bin >= (nGRs-1)) {
 			gnow = 1.0;
+		} else if (bin < 0) {
+			gnow = 0.0;
 		} else {
 			// linearly interpolate between two density bins
-			fracDist = (dist - (gRparams.x+bin*gRparams.y)) / gRparams.y;
-			g1 = __ldg(gTable+jt*nGRs+bin);
-			g2 = __ldg(gTable+jt*nGRs+bin+1);
-			gnow = g1*(1.0-fracDist)+g2*fracDist;
+			//fracDist = (dist - (gRparams.x+bin*gRparams.y)) / gRparams.y;
+			//g1 = __ldg(gTable+jt*nGRs+bin);
+			//g2 = __ldg(gTable+jt*nGRs+bin+1);
+			//gnow = g1*(1.0-fracDist)+g2*fracDist;
+			gnow = __ldg(gTable + jt*nGRs+bin);
 			atomicMul(&(mcPos[atomMC].w),gnow);
 		}
 
@@ -163,20 +166,23 @@ __global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcPos, int *i
 			r = tempMC - __ldg(xyz+atom);
 			r2 = r.x*r.x + r.y*r.y + r.z*r.z;
 			dist = sqrtf(r2);
-			bin = int ( (dist-forceRparams.x)/forceRparams.y + 0.5f);
-			if (bin >= nForceRs) {
+			bin = int ( (dist-forceRparams.x)/forceRparams.y );
+			if (bin >= (nForceRs-1)) {
+				fs = 0.0;
+			} else if (bin < 0) {
 				fs = 0.0;
 			} else {
 				// linearly interpolate between two force bins
-				fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
-				f1 = __ldg(forceTable+it*nForceRs+bin);
-				f2 = __ldg(forceTable+it*nForceRs+bin+1);
-				fs = f1*(1.0-fracDist)+f2*fracDist;
+				//fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
+				//f1 = __ldg(forceTable+it*nForceRs+bin);
+				//f2 = __ldg(forceTable+it*nForceRs+bin+1);
+				//fs = f1*(1.0-fracDist)+f2*fracDist;
+				fs = __ldg(forceTable+it*nForceRs+bin);
 				fs *= tempMC.w/dist;
+				atomicAdd(&(f[atom].x), fs*r.x);
+				atomicAdd(&(f[atom].y), fs*r.y);
+				atomicAdd(&(f[atom].z), fs*r.z);
 			}
-			atomicAdd(&(f[atom].x), fs*r.x);
-			atomicAdd(&(f[atom].y), fs*r.y);
-			atomicAdd(&(f[atom].z), fs*r.z);
 		}
 	}
 }
@@ -269,9 +275,12 @@ __global__ void isspa_mc_density_force_kernel(float4 *xyz, float4 *f, float *w, 
 */
 /* C wrappers for kernels */
 
-float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas) {
+float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) {
 
 	float milliseconds;
+	//float4 mcPos_h[nAtoms_h*isspas.nMC];
+	//FILE *posFile = fopen("mcPosTemp.xyz", "w");
+	//int i;
 
 	// timing
 	cudaEventRecord(isspas.isspaStart);
@@ -281,6 +290,15 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas) {
 	isspa_mc_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float4)>>>(xyz_d, isspas.mcPos_d, isspas.mcDist_d, isspas.isspaTypes_d, isspas.randStates_d);
 	// compute density at each mc point
 	isspa_density_kernel<<<isspas.gGridSize, isspas.gBlockSize>>>(xyz_d, isspas.mcPos_d, isspas.isspaTypes_d, isspas.isspaGTable_d);
+	// DEBUG
+	//cudaMemcpy(mcPos_h, isspas.mcPos_d, nAtoms_h*isspas.nMC*sizeof(float4), cudaMemcpyDeviceToHost);
+        //fprintf(posFile,"%d\n", nAtoms_h*isspas.nMC);
+        //fprintf(posFile,"%d\n", nAtoms_h*isspas.nMC);
+        //for (i=0;i<nAtoms_h*isspas.nMC; i++)
+        //{
+        	//fprintf(posFile,"C %10.6f %10.6f %10.6f %10.6f\n", mcPos_h[i].x, mcPos_h[i].y, mcPos_h[i].z, mcPos_h[i].w);
+	//}
+	//fclose(posFile);
 	// add to forces
 	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize>>>(xyz_d, f_d, isspas.mcPos_d, isspas.isspaTypes_d, isspas.isspaForceTable_d);
 

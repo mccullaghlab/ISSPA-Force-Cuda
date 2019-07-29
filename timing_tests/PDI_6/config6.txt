@@ -19,7 +19,7 @@ nSteps = 100000
 deltaWrite = 1000
 temperature = 298.00
 cutoff = 12.0
-dielectric = 4.0
+dielectric = 4.8
 boxLength = 200.0
 # Umbrella Sampling
 US = 0  
