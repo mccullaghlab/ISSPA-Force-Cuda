@@ -20,6 +20,7 @@ __constant__ int nForceRs;
 __constant__ float2 forceRparams;
 __constant__ int nGRs;
 __constant__ float2 gRparams;
+__constant__ float maxForce;
 
 // device functions
 
@@ -49,6 +50,7 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcFor, float
 	int i;
 	int bin;
 	float fs;
+	float2 forceRparams_l = forceRparams;
 	int localnForceRs = nForceRs;
 	int localnAtoms = nAtoms;
 	int localnMC = nMC;
@@ -66,7 +68,7 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcFor, float
 		// random number state - store in temporary variable
 		threadState = state[index];
 		// get atom number of interest
-		atom = int(index/(float) nMC);
+		atom = int(index/(float) localnMC);
 		atomPos = __ldg(xyz+atom);
 		// isspa type
 		it = __ldg(isspaTypes+atom);
@@ -82,14 +84,15 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcFor, float
 			x2 = 1.0f - 2.0f * curand_uniform(&threadState);
 			r2 = x1*x1 + x2*x2;
 		}
-		// generate 3D MC pos based on position on surface of sphere and parabolic distribution in depth
+		// generate 3D MC pos based on position 
 		tempMCPos.x =  rnow*(1.0f - 2.0f*r2);
 		r2 = 2.0f * sqrtf(1.0f - r2);
 		tempMCPos.y = rnow*x1*r2;
 		tempMCPos.z = rnow*x2*r2;
-		// save forces
-		bin = int ( (rnow-forceRparams.x)/forceRparams.y );
+		// save force between MC point and atom of interest
+		bin = int ( (rnow-forceRparams_l.x)/forceRparams_l.y );
 		if (bin >= (localnForceRs-1)) {
+			fs = 0.0;
 			mcFor[index] = make_float4(0.0,0.0,0.0,0.0);
 		} else {
 			// linearly interpolate between two force bins
@@ -97,8 +100,9 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcFor, float
 			//f1 = __ldg(forceTable+it*nForceRs+bin);
 			//f2 = __ldg(forceTable+it*nForceRs+bin+1);
 			//fs = f1*(1.0-fracDist)+f2*fracDist;
-			fs = __ldg(forceTable+it*localnForceRs+bin)/rnow;
-			mcFor[index] = fs*tempMCPos;
+			fs = __ldg(forceTable+it*localnForceRs+bin);
+			mcFor[index] = fs*tempMCPos/rnow;
+			mcFor[index].w = fabsf(fs);
 
 		}
 		// add atom position to mc point position
@@ -114,7 +118,6 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcFor, float
 
 __global__ void isspa_density_kernel(float4 *xyz, float4 *mcPos, int *isspaTypes,  float *gTable) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
-	//unsigned int t = threadIdx.x;
 	float4 r;
 	int atomMC;
 	int atom2;
@@ -124,29 +127,30 @@ __global__ void isspa_density_kernel(float4 *xyz, float4 *mcPos, int *isspaTypes
 	float gnow;
 	float dist, dist2;
 	float g1, g2;
-	//float localhbox = hbox;
-	//float locallbox = lbox;
+	float hbox_l = hbox;
+	float lbox_l = lbox;
+	float2 gRparams_l = gRparams;
 	int localnGRs=nGRs;
 	int localnAtoms = nAtoms;
 	int localnMC = nMC;
 	int localnPairs = nPairs;
 
-	// copy density parameters to shared memory
-	//for (i=t;i<nTypes;i+=blockDim.x) {
-	//	gr2_g0_alpha_s[i] = __ldg(gr2_g0_alpha+i);
-	//}
-	//__syncthreads();
-	// move on
+	// thread for each MC-atom pair
 	if (index < localnPairs*localnMC)
 	{
 		// get atom number of interest
 		atom2  = int(index/(float) (localnAtoms*localnMC));
+		// get MC point index of interest
 		atomMC = index % (localnAtoms*localnMC);
+		// get ISSPA atom type of atom of interest
 		jt = __ldg(isspaTypes + atom2);
-		r = min_image(__ldg(mcPos+atomMC) - __ldg(xyz+atom2),lbox,hbox);
+		// determine separation vector between MC point and atom
+		r = min_image(__ldg(mcPos+atomMC) - __ldg(xyz+atom2),lbox_l,hbox_l);
 		dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 		dist = sqrtf(dist2);
-		bin = int ( (dist-gRparams.x)/gRparams.y );
+		// deterrmine density bin of distance
+		bin = int ( (dist-gRparams_l.x)/gRparams_l.y );
+		// make sure bin is in limits of density table
 		if (bin >= (localnGRs-1)) {
 			gnow = 1.0;
 		} else if (bin < 0) {
@@ -159,7 +163,6 @@ __global__ void isspa_density_kernel(float4 *xyz, float4 *mcPos, int *isspaTypes
 			//gnow = g1*(1.0-fracDist)+g2*fracDist;
 			gnow = __ldg(gTable + jt*localnGRs+bin);
 			atomicMul(&(mcPos[atomMC].w),gnow);
-			//atomicAdd(&(mcPos[atomMC].w),1.0);
 		}
 
 	}
@@ -167,117 +170,38 @@ __global__ void isspa_density_kernel(float4 *xyz, float4 *mcPos, int *isspaTypes
 
 __global__ void isspa_force_kernel(float4 *f, float4 *mcPos, float4 *mcFor) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
-	//unsigned int t = threadIdx.x;
-	//extern __shared__ float vtot_s[];
 	int atom;
 	float4 tempMC;
 	float4 tempFor;
+	float maxForce_l = maxForce;
+	int nAtoms_l = nAtoms;
+	int nMC_l = nMC;
 
-	// copy density parameters to shared memory
-	//for (i=t;i<nTypes;i+=blockDim.x) {
-	//	vtot_s[i] = __ldg(vtot+i);
-	//}
-	//__syncthreads();
-	// move on
-	if (index < nAtoms*nMC) {
+	// thread for each MC point
+	if (index < nAtoms_l*nMC_l) {
+		// grab MC position - but really only need density
 		tempMC = __ldg(mcPos+index);
 		if (tempMC.w > 0.0f) {
-			atom = int(index/(float) nMC);
+			// grab force
 			tempFor = __ldg(mcFor + index);
+			// figure out which atom we are working on
+			atom = int(index/(float) nMC_l);
+			// multiply force by density (and normalization factor)
 			tempFor *= tempMC.w;
+			tempFor.w *= tempMC.w;
+			// make sure force is within reasonable threshold
+			//mag = tempFor.x*tempFor.x + tempFor.y*tempFor.y + tempFor.z*tempFor.z;
+	 		if ( tempFor.w > maxForce_l) {		
+				tempFor *= tempFor.w/maxForce_l;
+			}
+			// add force to atom
 			atomicAdd(&(f[atom].x), tempFor.x);
 			atomicAdd(&(f[atom].y), tempFor.y);
 			atomicAdd(&(f[atom].z), tempFor.z);
 		}
 	}
 }
-/*
-__global__ void isspa_mc_density_force_kernel(float4 *xyz, float4 *f, float *w, float *x0, float *g0, float *gr2, float *alpha, float *vtot, float2 *lj, int *isspaTypes, int nMC, int nTypes, int nAtoms, curandState *state, float lbox) {
-	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
-	int atom, atom2;
-	float rnow;
-        float prob;
-       	float attempt;
-	float4 mcPos;
-	float4 r;
-	float x1, x2, r2;
-	int it, jt;
-	float temp;
-	float hbox;
-	float dist2;
-	float rinv;
-	float r6;
-	float fs;
-	int ev_flag;
-	curandState_t threadState;
 
-	if (index < nAtoms*nMC)
-	{
-		// random number state - store in temporary variable
-		threadState = state[index];
-		// get atom number of interest
-		atom = int(index/(float) nMC);
-		// isspa type
-		it = isspaTypes[atom];
-		// select one point from 1D parabolic distribution
-		rnow = 1.0f - 2.0f * curand_uniform(&threadState);
-		prob = rnow*rnow;
-		attempt = curand_uniform(&threadState);
-		while (attempt < prob)
-		{
-			rnow = 1.0f - 2.0f * curand_uniform(&threadState);
-			prob = rnow*rnow;
-			attempt = curand_uniform(&threadState);
-		}
-		rnow = w[it] * rnow + x0[it];
-		// select two points on surface of sphere
-		x1 = 1.0f - 2.0f * curand_uniform(&threadState);
-		x2 = 1.0f - 2.0f * curand_uniform(&threadState);
-		r2 = x1*x1 + x2*x2;
-		while (r2 > 1.0f)
-		{
-			x1 = 1.0f - 2.0f * curand_uniform(&threadState);
-			x2 = 1.0f - 2.0f * curand_uniform(&threadState);
-			r2 = x1*x1 + x2*x2;
-		}
-		// generate 3D MC pos based on position on surface of sphere and parabolic distribution in depth
-		mcPos.x = xyz[atom].x + rnow*(1.0f - 2.0f*r2);
-		r2 = 2.0f * sqrtf(1.0f - r2);
-		mcPos.y = xyz[atom].y + rnow*x1*r2;
-		mcPos.z = xyz[atom].z + rnow*x2*r2;
-		// initialize density to 1.0
-		mcPos.w = 1.0;
-
-		ev_flag = 0;
-		for (atom2=0;atom2<nAtoms;atom2++)
-		{
-			jt = isspaTypes[atom2];
-			r = min_image(mcPos - __ldg(xyz+atom2),lbox,hbox);
-			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-			if (dist2 < gr2[jt*2]) {
-				ev_flag = 1;
-				break;
-			} else if (dist2 < gr2[jt*2+1]) {
-				temp = sqrtf(dist2)-x0[jt];
-				mcPos.w *= (-alpha[jt] * temp*temp + g0[jt]);
-			}
-		}
-
-		if (ev_flag ==0) {
-			rinv = 1.0f / rnow;
-			r2 = rinv * rinv;
-			r6 = r2 * r2 * r2;
-			fs = mcPos.w * r6 * (lj[it].y - lj[it].x * r6)*vtot[it];
-			atomicAdd(&(f[atom].x), fs*r.x);
-			atomicAdd(&(f[atom].y), fs*r.y);
-			atomicAdd(&(f[atom].z), fs*r.z);
-		}
-		// random state in global
-		state[index] = threadState;
-
-	}
-}
-*/
 /* C wrappers for kernels */
 
 float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) {
@@ -328,6 +252,7 @@ void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
 
 	int minGridSize;
 	float hbox_h = lbox_h/2.0;
+	float maxForce_h = MAXFORCE;
 
 	// determine gridSize and blockSize
 	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &isspas.mcBlockSize, isspa_mc_kernel, 0, nAtoms_h*isspas.nMC);
@@ -350,6 +275,7 @@ void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
 	cudaMemcpyToSymbol(forceRparams, &isspas.forceRparams, sizeof(float2));
 	cudaMemcpyToSymbol(nGRs, &isspas.nGRs, sizeof(int));
 	cudaMemcpyToSymbol(gRparams, &isspas.gRparams, sizeof(float2));
+	cudaMemcpyToSymbol(maxForce, &maxForce_h, sizeof(float));
 
 
 }
