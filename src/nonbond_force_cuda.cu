@@ -12,6 +12,7 @@
 // constants
 __constant__ float rCut2;
 __constant__ float lbox;
+__constant__ float hbox;
 __constant__ int nAtoms;
 __constant__ int nPairs;
 __constant__ int nTypes;
@@ -36,9 +37,15 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int *nE
 	float r6;
 	float fc;
 	float flj;
-	float hbox;
 	float2 ljAB;
 	float4 p1, p2;
+	int nPairs_l = nPairs;
+	int nAtoms_l = nAtoms;
+	float hbox_l = hbox;
+	float lbox_l = lbox;
+	int nTypes_l = nTypes;
+	float rCut2_l = rCut2;
+
 
 
 	// copy excluded atoms list to shared memory
@@ -48,10 +55,10 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int *nE
 	__syncthreads();
 	// move on
 
-	if (index < nPairs)
+	if (index < nPairs_l)
 	{
-		atom1 = (int) (index/nAtoms);
-		atom2 = index % nAtoms;
+		atom1 = (int) (index/nAtoms_l);
+		atom2 = index % nAtoms_l;
 		// check exclusions
 		exPass = 0;
 		if (atom1 < atom2) {
@@ -92,16 +99,15 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int *nE
 		}
 		// finish exclusion check
 		if (atom1 != atom2 && exPass == 0) {
-			hbox = lbox/2.0;
 			p1 = __ldg(xyz + atom1);
 			p2 = __ldg(xyz + atom2);
-			r = min_image(p1 - p2,lbox,hbox);
+			r = min_image(p1 - p2,lbox_l,hbox_l);
 			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-			if (dist2 < rCut2) {
+			if (dist2 < rCut2_l) {
 				// LJ pair type
 				it = __ldg(ityp+atom1);
 				jt = __ldg(ityp+atom2);
-				nlj = nTypes*(it)+jt;
+				nlj = nTypes_l*(it)+jt;
 				nlj = __ldg(nbparm+nlj);
 				ljAB = __ldg(lj+nlj);
 				// LJ force
@@ -147,6 +153,7 @@ float nonbond_force_cuda(atom &atoms)
 extern "C" void nonbond_force_cuda_grid_block(atom& atoms, float rCut2_h, float lbox_h)
 {
 	int minGridSize;
+	float hbox_h = lbox_h/2;
 
 	// determine gridSize and blockSize
 	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &atoms.blockSize, nonbond_force_kernel, 0, atoms.nPairs);
@@ -161,5 +168,6 @@ extern "C" void nonbond_force_cuda_grid_block(atom& atoms, float rCut2_h, float 
 	cudaMemcpyToSymbol(excludedAtomsListLength, &atoms.excludedAtomsListLength, sizeof(int));
 	cudaMemcpyToSymbol(rCut2, &rCut2_h, sizeof(float));
 	cudaMemcpyToSymbol(lbox, &lbox_h, sizeof(float));
+	cudaMemcpyToSymbol(hbox, &hbox_h, sizeof(float));
 	
 }

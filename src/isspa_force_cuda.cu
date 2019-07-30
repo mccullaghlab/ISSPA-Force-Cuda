@@ -119,6 +119,7 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcFor, float
 __global__ void isspa_density_kernel(float4 *xyz, float4 *mcPos, int *isspaTypes,  float *gTable) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	float4 r;
+	float4 mcPos_l;
 	int atomMC;
 	int atom2;
 	int jt;    // atom type of other atom
@@ -145,7 +146,8 @@ __global__ void isspa_density_kernel(float4 *xyz, float4 *mcPos, int *isspaTypes
 		// get ISSPA atom type of atom of interest
 		jt = __ldg(isspaTypes + atom2);
 		// determine separation vector between MC point and atom
-		r = min_image(__ldg(mcPos+atomMC) - __ldg(xyz+atom2),lbox_l,hbox_l);
+		mcPos_l = __ldg(mcPos+atomMC);
+		r = min_image(mcPos_l - __ldg(xyz+atom2),lbox_l,hbox_l);
 		dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 		dist = sqrtf(dist2);
 		// deterrmine density bin of distance
@@ -155,7 +157,7 @@ __global__ void isspa_density_kernel(float4 *xyz, float4 *mcPos, int *isspaTypes
 			gnow = 1.0;
 		} else if (bin < 0) {
 			gnow = 0.0;
-		} else {
+		} else if (mcPos_l.w > 1.0E-10) {
 			// linearly interpolate between two density bins
 			//fracDist = (dist - (gRparams.x+bin*gRparams.y)) / gRparams.y;
 			//g1 = __ldg(gTable+jt*nGRs+bin);
