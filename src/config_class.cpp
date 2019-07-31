@@ -59,6 +59,10 @@ void config::initialize(char *cfgFileName)
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				strcpy(inputCoordFileName,trim(temp));
 				printf("input coordinate file name: %s\n",inputCoordFileName);
+			} else if (strncmp(token,"nu",2)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				pnu = atof(trim(temp));
+				printf("Anderson thermostat frequency: %f\n",pnu);
 			} else if (strncmp(token,"nMC",3)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				nMC = atoi(trim(temp));
@@ -116,7 +120,6 @@ void config::initialize(char *cfgFileName)
 	dt = dtPs*20.455; // convert to amber time units
 	T *= 0.00198717; // convert to energy units
 	rCut2 = rCut*rCut; // cutoff distance squared
-	pnu = 0.001f;  // Anderson thermostat frequency
 	deltaNN = 10;  // neighborlist step frequency - currently not used
 	rNN = 15.0;    // neighborlist distance - currently not used
 	rNN2 = rNN*rNN; // neighbor list distance squared - currently not used
