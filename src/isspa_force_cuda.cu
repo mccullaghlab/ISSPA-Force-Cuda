@@ -37,7 +37,7 @@ __device__ float atomicMul(float* address, float val)
 
 // CUDA Kernels
 
-__global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcFor, float4 *mcDist, int *isspaTypes, float *forceTable, curandState *state) {
+__global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcDist, int *isspaTypes, float *forceTable, curandState *state) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float4 mcDist_s[];
@@ -93,7 +93,6 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcFor, float
 		bin = int ( (rnow-forceRparams_l.x)/forceRparams_l.y );
 		if (bin >= (localnForceRs-1)) {
 			fs = 0.0;
-			mcFor[index] = make_float4(0.0,0.0,0.0,0.0);
 		} else {
 			// linearly interpolate between two force bins
 			//fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
@@ -101,14 +100,12 @@ __global__ void isspa_mc_kernel(float4 *xyz, float4 *mcPos, float4 *mcFor, float
 			//f2 = __ldg(forceTable+it*nForceRs+bin+1);
 			//fs = f1*(1.0-fracDist)+f2*fracDist;
 			fs = __ldg(forceTable+it*localnForceRs+bin);
-			mcFor[index] = fs*tempMCPos/rnow;
-			mcFor[index].w = fabsf(fs);
-
 		}
 		// add atom position to mc point position
 		mcPos[index] = tempMCPos + atomPos;
 		// initialize density to N/P(r) = rho*4*pi*(r2-r1)*r^2/nMC
-		mcPos[index].w = mcDist_s[it].w*rnow*rnow;
+		// note should be dividing fs by rnow and then multiplying my rnow^2 so just multiply by rnow
+		mcPos[index].w = fs*mcDist_s[it].w*rnow;
 		// random state in global
 		state[index] = threadState;
 
@@ -157,7 +154,9 @@ __global__ void isspa_density_kernel(float4 *xyz, float4 *mcPos, int *isspaTypes
 			gnow = 1.0;
 		} else if (bin < 0) {
 			gnow = 0.0;
-		} else if (mcPos_l.w > 1.0E-10) {
+			atomicMul(&(mcPos[atomMC].w),gnow);
+		//} else if (fabsf(mcPos_l.w) > 1.0E-30)  {
+		} else {
 			// linearly interpolate between two density bins
 			//fracDist = (dist - (gRparams.x+bin*gRparams.y)) / gRparams.y;
 			//g1 = __ldg(gTable+jt*nGRs+bin);
@@ -170,37 +169,37 @@ __global__ void isspa_density_kernel(float4 *xyz, float4 *mcPos, int *isspaTypes
 	}
 }
 
-__global__ void isspa_force_kernel(float4 *f, float4 *mcPos, float4 *mcFor) {
+__global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *mcPos) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	int atom;
 	float4 tempMC;
-	float4 tempFor;
+	float4 tempAtom;
+	float4 r;
 	float maxForce_l = maxForce;
 	int nAtoms_l = nAtoms;
 	int nMC_l = nMC;
 
 	// thread for each MC point
 	if (index < nAtoms_l*nMC_l) {
-		// grab MC position - but really only need density
+		// grab MC position 
 		tempMC = __ldg(mcPos+index);
-		if (tempMC.w > 0.0f) {
-			// grab force
-			tempFor = __ldg(mcFor + index);
+		//if (fabsf(tempMC.w) > 1.0E-30) {
 			// figure out which atom we are working on
 			atom = int(index/(float) nMC_l);
-			// multiply force by density (and normalization factor)
-			tempFor *= tempMC.w;
-			tempFor.w *= tempMC.w;
+			// get separation vector
+			tempAtom = __ldg(xyz + atom);
+			r = tempAtom - tempMC;
 			// make sure force is within reasonable threshold
-			//mag = tempFor.x*tempFor.x + tempFor.y*tempFor.y + tempFor.z*tempFor.z;
-	 		if ( tempFor.w > maxForce_l) {		
-				tempFor *= tempFor.w/maxForce_l;
+	 		if ( tempMC.w > maxForce_l) {		
+				tempMC.w = maxForce_l;
 			}
+			// multiply force by density (and normalization factor)
+			r *= tempMC.w;
 			// add force to atom
-			atomicAdd(&(f[atom].x), tempFor.x);
-			atomicAdd(&(f[atom].y), tempFor.y);
-			atomicAdd(&(f[atom].z), tempFor.z);
-		}
+			atomicAdd(&(f[atom].x), r.x);
+			atomicAdd(&(f[atom].y), r.y);
+			atomicAdd(&(f[atom].z), r.z);
+		//}
 	}
 }
 
@@ -218,7 +217,7 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) 
 	
 
 	// generate MC points
-	isspa_mc_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float4)>>>(xyz_d, isspas.mcPos_d, isspas.mcFor_d, isspas.mcDist_d, isspas.isspaTypes_d, isspas.isspaForceTable_d, isspas.randStates_d);
+	isspa_mc_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,isspas.nTypes*sizeof(float4)>>>(xyz_d, isspas.mcPos_d, isspas.mcDist_d, isspas.isspaTypes_d, isspas.isspaForceTable_d, isspas.randStates_d);
 	// compute density at each mc point
 	isspa_density_kernel<<<isspas.gGridSize, isspas.gBlockSize>>>(xyz_d, isspas.mcPos_d, isspas.isspaTypes_d, isspas.isspaGTable_d);
 	// DEBUG
@@ -230,7 +229,7 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) 
         //	fprintf(isspas.denFile,"C %10.6f %10.6f %10.6f %10.6f\n", mcPos_h[i].x, mcPos_h[i].y, mcPos_h[i].z, mcPos_h[i].w);
 	//}
 	// add to forces
-	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize>>>(f_d, isspas.mcPos_d, isspas.mcFor_d);
+	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize>>>(xyz_d, f_d, isspas.mcPos_d);
 	// DEBUG
 	//cudaMemcpy(mcPos_h, isspas.mcPos_d, nAtoms_h*isspas.nMC*sizeof(float4), cudaMemcpyDeviceToHost);
         //fprintf(isspas.forFile,"%d\n", nAtoms_h*isspas.nMC);

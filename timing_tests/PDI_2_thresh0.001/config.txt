@@ -4,8 +4,7 @@
 prmtop=PDI.2.vacuum.prmtop
 isspaPrmtop = PDI.2.isspa
 inputCoord = PDI.2.vacuum.inpcrd
-inputVel = PDI.2.velocities.rst
-velRst = 1
+velRst = 0
 forFile = PDI.2.forces.xyz
 posFile = PDI.2.positions.nMC64.xyz
 velFile = PDI.2.velocities.xyz

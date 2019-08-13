@@ -6,5 +6,5 @@
 #define PI 3.1415926535
 #define RHO 0.00750924
 //#define RHO 0.00750924E-1
-#define MAXFORCE 1.5E2
+#define MAXFORCE 2.5E2
 

@@ -103,7 +103,7 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int *nE
 			p2 = __ldg(xyz + atom2);
 			r = min_image(p1 - p2,lbox_l,hbox_l);
 			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-			if (dist2 < rCut2_l) {
+			//if (dist2 < rCut2_l) {
 				// LJ pair type
 				it = __ldg(ityp+atom1);
 				jt = __ldg(ityp+atom2);
@@ -124,7 +124,7 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int *nE
 				//atomicAdd(&(f[atoms.y].y),-(flj+fc)*r.y);
 				//atomicAdd(&(f[atoms.y].z),-(flj+fc)*r.z);
 
-			}
+			//}
 		}
 
 	}
