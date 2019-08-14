@@ -7,4 +7,5 @@
 #define RHO 0.00750924
 //#define RHO 0.00750924E-1
 #define MAXFORCE 2.5E2
+#define THRESH 1E-32
 
