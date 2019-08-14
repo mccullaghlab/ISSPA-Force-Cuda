@@ -38,7 +38,7 @@ void isspa::construct_parameter_arrays()
 	// finish MC dist parameters
 	for (i=0;i<nTypes;i++) {
 		mcDist_h[i].z = mcDist_h[i].y - mcDist_h[i].x; // domain size
-		mcDist_h[i].w = 4.0 * PI * mcDist_h[i].z/float(nMC)*RHO;      // normalization factor
+		mcDist_h[i].w = 4.0 * PI * mcDist_h[i].z/float(nMC)*rho;      // normalization factor
 		printf("%10.5f%10.5f%10.5f%10.5f\n", mcDist_h[i].x, mcDist_h[i].y, mcDist_h[i].z,mcDist_h[i].w);	
 	}
 
@@ -87,6 +87,11 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 					printf("Number of ISSPA g values per type in prmtop file: %d\n", nGRs);
 					nForceRs = atoi(strncpy(token,line+24,8));
 					printf("Number of ISSPA force values per type in prmtop file: %d\n", nForceRs);
+					rho = atof(strncpy(token,line+32,8));
+					printf("Number density of ISSPA solvent in isspatop file: %f molecules/A^3\n", rho);
+					mu = atof(strncpy(token,line+40,8));
+					printf("Dipole moment of ISSPA solvent in isspatop file: %f Debye\n", mu);
+					mu *= DebyeTOeA*amberCharge;  // convert dipole moment to appropriate units
 					allocate(nAtoms,configMC);
 				} else if (strncmp(flag,isspaTypeFlag,16) == 0) {
 					// 
@@ -146,7 +151,7 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 						temp = fgets(line, MAXCHAR, prmFile);
 						isspaGR_h[i] = atof(strncpy(token,line,16));
 						for (typeCount=0;typeCount<nTypes;typeCount++) { 
-							isspaGTable_h[typeCount*nGRs+i] = atof(strncpy(token,line+(typeCount+1)*16,16));
+							isspaGTable_h[typeCount*nGRs+i].x = atof(strncpy(token,line+(typeCount+1)*16,16));
 						}
 					}
 					// store min and bin size
@@ -185,8 +190,8 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	cudaMalloc((void **) &isspaForceTable_d, nTypes*nForceRs*sizeof(float));
 	cudaMemcpy(isspaForceTable_d, isspaForceTable_h, nTypes*nForceRs*sizeof(float), cudaMemcpyHostToDevice);	
 	// allocate tabulated densities on device and pass data from host
-	cudaMalloc((void **) &isspaGTable_d, nTypes*nGRs*sizeof(float));
-	cudaMemcpy(isspaGTable_d, isspaGTable_h, nTypes*nGRs*sizeof(float), cudaMemcpyHostToDevice);
+	cudaMalloc((void **) &isspaGTable_d, nTypes*nGRs*sizeof(float2));
+	cudaMemcpy(isspaGTable_d, isspaGTable_h, nTypes*nGRs*sizeof(float2), cudaMemcpyHostToDevice);
 	// allocate MC distribution parameters on device and pass data from host
 	cudaMalloc((void **) &mcDist_d, nTypes*sizeof(float4));	
 	cudaMemcpy(mcDist_d, mcDist_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);	

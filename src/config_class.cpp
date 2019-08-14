@@ -124,15 +124,6 @@ void config::initialize(char *cfgFileName)
 	rNN = 15.0;    // neighborlist distance - currently not used
 	rNN2 = rNN*rNN; // neighbor list distance squared - currently not used
 	seed = 12345;  // random number seed currently hard coded to be changed later
-	set_cuda_constants();
 
-}
-
-void config::set_cuda_constants()
-{
-	cudaMemcpyToSymbol(&dt_d, &dt, sizeof(float),0, cudaMemcpyHostToDevice);
-	cudaMemcpyToSymbol(&pnu_d, &pnu, sizeof(float),0, cudaMemcpyHostToDevice);
-	cudaMemcpyToSymbol(&T_d, &T, sizeof(float),0, cudaMemcpyHostToDevice);
-	cudaMemcpyToSymbol(&lbox_d, &lbox, sizeof(float),0, cudaMemcpyHostToDevice);
 }
 

@@ -7,7 +7,7 @@ import sys
 ##############################################################################################################
 
 def read_config(cfgFile):
-    global prmtopFile, isspaPrmtopFile, isspaMol2File, isspaParamFile, isspaForceFile
+    global prmtopFile, isspaPrmtopFile, isspaMol2File, isspaParamFile, isspaForceFile, rho, mu, isspaEMFFile
     f = open(cfgFile, 'r')
     for line in f:
         # ignore comments
@@ -27,8 +27,14 @@ def read_config(cfgFile):
                 isspaMol2File = value
             elif option.lower()=='isspadensity':
                 isspaParamFile = value
+            elif option.lower()=='isspaemf':
+                isspaEMFFile = value
             elif option.lower()=='isspaforce':
                 isspaForceFile = value
+            elif option.lower()=='mu':
+                mu = float(value)
+            elif option.lower()=='rho':
+                rho = float(value)
             else:
                 print("Option:", option, " is not recognized")
     f.close()
@@ -148,14 +154,14 @@ def determine_isspa_domain(isspaGs,isspaForces):
     nTypes = isspaForces.shape[1]
     isspaParams = np.empty((nTypes-1,2),dtype=float)
     fg = isspaGs[:nRs,:]*np.abs(isspaForces[:nRs,:])
-    thresh = 1E-1
+    thresh = 1E-2
     for i in range(1,nTypes):
         isspaParams[i-1,0] = isspaGs[np.amin(np.argwhere(fg[:,i] > thresh)),0]
         isspaParams[i-1,1] = isspaGs[np.amax(np.argwhere(fg[:,i] > thresh)),0]
     return isspaParams     
 
 def write_isspa_prmtop(isspaPrmtopFile):
-    global isspaTypes, nAtoms, isspaParams, isspaForces, isspaGs
+    global isspaTypes, nAtoms, isspaParams, isspaForces, isspaGs, isspaEMFs, rho, mu
     nIsspaTypes = np.amax(isspaTypes)
     nForceRs = isspaForces.shape[0]
     nGRs = isspaGs.shape[0]
@@ -173,6 +179,11 @@ def write_isspa_prmtop(isspaPrmtopFile):
     f.write("%8d" % (nIsspaTypes))
     f.write("%8d" % (nRs))
     f.write("%8d" % (nRs))
+    f.write("\n")
+    f.write("%FLAG SOLVENT_PARAMETERS\n")
+    f.write("%FORMAT(2E16.8)\n")
+    f.write("%16.8e" % (rho))
+    f.write("%16.8e" % (mu))
     f.write("\n")
     # isspa type per atom section
     f.write("%FLAG ISSPA_TYPE_INDEX\n")
@@ -206,6 +217,12 @@ def write_isspa_prmtop(isspaPrmtopFile):
         for j in range(nIsspaTypes+1):
             f.write("%16.8e" % (isspaGs[i,j]))
         f.write("\n")
+    f.write("%FLAG ISSPA_MEANFIELDS\n")
+    f.write("%%FORMAT(%dE16.8)\n" %(nIsspaTypes+1))
+    for i in range(nRs):
+        for j in range(nIsspaTypes+1):
+            f.write("%16.8e" % (isspaEMFs[i,j]))
+        f.write("\n")
     # isspa tab force section
     f.write("%FLAG ISSPA_FORCES\n")
     f.write("%%FORMAT(%dE16.8)\n" %(nIsspaTypes+1))
@@ -232,6 +249,7 @@ read_prmtop(prmtopFile)
 # assign isspa types
 isspaTypes = assign_isspa_type(isspaMol2File,residueName,residuePointer)
 isspaGs = read_isspa_tab_density_file(isspaParamFile)
+isspaEMFs = read_isspa_tab_density_file(isspaEMFFile)
 isspaForces = read_isspa_tab_force_file(isspaForceFile)
 isspaParams = determine_isspa_domain(isspaGs,isspaForces)
 for i in range(isspaParams.shape[0]):

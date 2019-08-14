@@ -14,6 +14,7 @@ __constant__ int nTypes;
 __constant__ int nMC;
 __constant__ int nAtoms;
 __constant__ int nPairs;
+__constant__ float mu;
 __constant__ float lbox;
 __constant__ float hbox;
 __constant__ int nForceRs;
@@ -37,7 +38,7 @@ __device__ float atomicMul(float* address, float val)
 
 // CUDA Kernels
 
-__global__ void isspa_mc_force_kernel(float4 *xyz, float4 *f, int nAtoms, float4 *mcDist, int *isspaTypes, float *forceTable, float *gTable, curandState *state) {
+__global__ void isspa_mc_force_kernel(float4 *xyz, float4 *f, int nAtoms, float4 *mcDist, int *isspaTypes, float *forceTable, float2 *gTable, curandState *state) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float4 xyz_s[];
@@ -48,13 +49,22 @@ __global__ void isspa_mc_force_kernel(float4 *xyz, float4 *f, int nAtoms, float4
 	float4 atomPos;
 	float4 mcPos;
 	float4 rMC;
+	float4 rMChat;
+	float mcDens;
+	float4 mcEmf;
+	float4 fMC;
+	float fLJ;
+	float4 pol;
+	float4 polHat;
+	float magPol;
+	float magEmf;
 	float4 r;
 	int it, jt;
 	int i;
 	int bin;
-	float fs;
-	float gnow;
+	float2 gnow;
 	float dist2, dist;
+	float mu_l = mu;
 	float hbox_l = hbox;
 	float lbox_l = lbox;
 	float4 mcDist_l;
@@ -67,7 +77,7 @@ __global__ void isspa_mc_force_kernel(float4 *xyz, float4 *f, int nAtoms, float4
 	curandState_t threadState;
 
 	// copy atom positions to shared memory
-	for (i=t;i<nAtoms;i+=blockDim.x) {
+	for (i=t;i<localnAtoms;i+=blockDim.x) {
 		xyz_s[i] = __ldg(xyz+i);
 	}
 	__syncthreads();
@@ -103,24 +113,26 @@ __global__ void isspa_mc_force_kernel(float4 *xyz, float4 *f, int nAtoms, float4
 		// save force between MC point and atom of interest
 		bin = int ( (rnow-forceRparams_l.x)/forceRparams_l.y );
 		if (bin >= (localnForceRs-1)) {
-			fs = 0.0;
+			fLJ = 0.0;
 		} else {
 			// linearly interpolate between two force bins
 			//fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
 			//f1 = __ldg(forceTable+it*nForceRs+bin);
 			//f2 = __ldg(forceTable+it*nForceRs+bin+1);
-			//fs = f1*(1.0-fracDist)+f2*fracDist;
-			fs = __ldg(forceTable+it*localnForceRs+bin);
+			//fLJ = f1*(1.0-fracDist)+f2*fracDist;
+			fLJ = __ldg(forceTable+it*localnForceRs+bin);
 		}
 		// add atom position to mc point position
 		mcPos = rMC + atomPos;
 		// initialize density to N/P(r) = rho*4*pi*(r2-r1)*r^2/nMC
-		// note should be dividing fs by rnow and then multiplying my rnow^2 so just multiply by rnow
-		mcPos.w = -fs*mcDist_l.w*rnow;
+		mcDens = mcDist_l.w*rnow*rnow;
+		mcEmf.x = 0.0;  // initiate E_{MF}
+		mcEmf.y = 0.0;
+		mcEmf.z = 0.0;
 		// save random state in global
 		state[index] = threadState;
 
-		// loop through all neighboring atom to compute g at MC point
+		// loop through all neighboring atom to compute g and E_{MF} at MC point
 		for (atom2=0;atom2<nAtoms;atom2++) {
 			r = min_image(mcPos - xyz_s[atom2],lbox_l,hbox_l);
 			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
@@ -129,9 +141,8 @@ __global__ void isspa_mc_force_kernel(float4 *xyz, float4 *f, int nAtoms, float4
 			bin = int ( (dist-gRparams_l.x)/gRparams_l.y );
 			// make sure bin is in limits of density table
 			if (bin >= (localnGRs-1)) {
-				gnow = 1.0;
 			} else if (bin <= 0) {
-				mcPos.w = 0.0;
+				mcDens = 0.0;
 				break;
 			} else {
 				// get ISSPA atom type of atom of interest
@@ -142,23 +153,34 @@ __global__ void isspa_mc_force_kernel(float4 *xyz, float4 *f, int nAtoms, float4
 				//g2 = __ldg(gTable+jt*nGRs+bin+1);
 				//gnow = g1*(1.0-fracDist)+g2*fracDist;
 				gnow = __ldg(gTable + jt*localnGRs+bin);
-				mcPos.w *= gnow;
+				mcDens *= gnow.x; // Density
+				mcEmf += gnow.y/dist * r; // Mean field
 			}
 
-			if (mcPos.w < THRESH) {
+			if (mcDens < THRESH) {
 				break;
 			}
 
 		}
 		
-		// add force
-		// multiply force by density (and normalization factor)
-		rMC *= mcPos.w;
-		// add force to atom
-		atomicAdd(&(f[atom1].x), rMC.x);
-		atomicAdd(&(f[atom1].y), rMC.y);
-		atomicAdd(&(f[atom1].z), rMC.z);
-
+		if (mcDens > THRESH) {	
+			// calculate forces
+			// LJ force
+			rMChat = rMC/rnow;
+			fMC = -rMChat*fLJ;
+			// Coulomb dipole force
+			magEmf = sqrtf(mcEmf.x*mcEmf.x + mcEmf.y*mcEmf.y + mcEmf.z*mcEmf.z);
+			pol  = (1.0/tanhf(magEmf) - 1.0/magEmf)/magEmf  * mcEmf ;
+			magPol = sqrtf(pol.x*pol.x + pol.y*pol.y + pol.z*pol.z);
+			polHat = pol/magPol;
+			fMC += mu_l*atomPos.w*magPol*(3.0*(polHat.x*rMChat.x + polHat.y*rMChat.y + polHat.z*rMChat.z)*rMChat - polHat);
+			// weight force by density
+			fMC *= mcDens;
+			// add force to atom
+			atomicAdd(&(f[atom1].x), fMC.x);
+			atomicAdd(&(f[atom1].y), fMC.y);
+			atomicAdd(&(f[atom1].z), fMC.z);
+		}
 	}
 }
 
@@ -218,6 +240,7 @@ void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
 	cudaMemcpyToSymbol(nForceRs, &isspas.nForceRs, sizeof(int));
 	cudaMemcpyToSymbol(nAtoms, &nAtoms_h, sizeof(int));
 	cudaMemcpyToSymbol(nPairs, &nPairs_h, sizeof(int));
+	cudaMemcpyToSymbol(mu, &isspas.mu, sizeof(float));
 	cudaMemcpyToSymbol(lbox, &lbox_h, sizeof(float));
 	cudaMemcpyToSymbol(hbox, &hbox_h, sizeof(float));
 	cudaMemcpyToSymbol(forceRparams, &isspas.forceRparams, sizeof(float2));

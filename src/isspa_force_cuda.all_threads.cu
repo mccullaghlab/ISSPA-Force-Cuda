@@ -14,6 +14,8 @@ __constant__ int nTypes;
 __constant__ int nMC;
 __constant__ int nAtoms;
 __constant__ int nPairs;
+__constant__ float mu;
+__constant__ float rho;
 __constant__ float lbox;
 __constant__ float hbox;
 __constant__ int nForceRs;
@@ -273,6 +275,8 @@ void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
 	cudaMemcpyToSymbol(nPairs, &nPairs_h, sizeof(int));
 	cudaMemcpyToSymbol(lbox, &lbox_h, sizeof(float));
 	cudaMemcpyToSymbol(hbox, &hbox_h, sizeof(float));
+	cudaMemcpyToSymbol(mu, &isspas.mu, sizeof(float));
+	cudaMemcpyToSymbol(rho, &isspas.rho, sizeof(float));
 	cudaMemcpyToSymbol(forceRparams, &isspas.forceRparams, sizeof(float2));
 	cudaMemcpyToSymbol(nGRs, &isspas.nGRs, sizeof(int));
 	cudaMemcpyToSymbol(gRparams, &isspas.gRparams, sizeof(float2));
