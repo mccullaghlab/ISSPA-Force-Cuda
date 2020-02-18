@@ -113,7 +113,7 @@ int main(int argc, char* argv[])
 		times.dihTime += dih_force_cuda(atoms, dihs, configs.lbox);
 
 		// run isspa force cuda kernel
-		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas);
+		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas, atoms.nAtoms);
 
 		// run nonbond cuda kernel
 		times.nonbondTime += nonbond_force_cuda(atoms);

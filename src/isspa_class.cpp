@@ -33,7 +33,7 @@ void isspa::allocate(int nAtoms, int configMC)
 	cudaMallocHost((float **) &isspaForceR_h, nRs*sizeof(float)); // distance values for force table
 	// combined parameter data
 	//lj_vtot_h = (float4 *)malloc(nTypes*sizeof(float4));;     // isspa LJ parameter
-	x0_w_h = (float2 *)malloc(nTypes*sizeof(float2));;     // x0 and w parameters
+	x0_w_vtot_h = (float4 *)malloc(nTypes*sizeof(float4));;     // x0 and w parameters
 	gr2_g0_alpha_h = (float4 *)malloc(nTypes*sizeof(float4));;     // gr2 g0 alpha
 
 }
@@ -52,8 +52,9 @@ void isspa::construct_parameter_arrays()
 		w_h[i] = x2-x1;	 							// width of parabola
 		vtot_h[i] = 16.0/3.0*PI*w_h[i]*g0_h[i]/((float) nMC)*0.0334*1E-2;	// Monte Carlo integration normalization
 		// store these values in float2 and float4s for computational efficiency
-		x0_w_h[i].x = x0_h[i];
-		x0_w_h[i].y = w_h[i];
+		x0_w_vtot_h[i].x = x0_h[i];
+		x0_w_vtot_h[i].y = w_h[i];
+		x0_w_vtot_h[i].z = vtot_h[i];
 		gr2_g0_alpha_h[i].x = gr2_h[i].x;
 		gr2_g0_alpha_h[i].y = gr2_h[i].y;
 		gr2_g0_alpha_h[i].z = g0_h[i];
@@ -201,7 +202,7 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	cudaMalloc((void **) &isspaForceTable_d, nTypes*nRs*sizeof(float));
 	cudaMemcpy(isspaForceTable_d, isspaForceTable_h, nTypes*nRs*sizeof(float), cudaMemcpyHostToDevice);	
 	cudaMalloc((void **) &mcpos_d, nAtoms*nMC*sizeof(float4));
-	cudaMalloc((void **) &x0_w_d, nTypes*sizeof(float2));
+	cudaMalloc((void **) &x0_w_vtot_d, nTypes*sizeof(float4));
 	cudaMalloc((void **) &gr2_g0_alpha_d, nTypes*sizeof(float4));
 	//cudaMalloc((void **) &lj_d, nTypes*sizeof(float2));
 	cudaMalloc((void **) &isspaTypes_d, nAtoms*sizeof(int));
@@ -215,7 +216,7 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	cudaMemcpy(isspaTypes_d, isspaTypes_h, nAtoms*sizeof(int), cudaMemcpyHostToDevice);	
 	//cudaMemcpy(lj_vtot_d, lj_vtot_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);	
 	cudaMemcpy(vtot_d, vtot_h, nTypes*sizeof(float), cudaMemcpyHostToDevice);	
-	cudaMemcpy(x0_w_d, x0_w_h, nTypes*sizeof(float2), cudaMemcpyHostToDevice);	
+	cudaMemcpy(x0_w_vtot_d, x0_w_vtot_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);	
 	cudaMemcpy(gr2_g0_alpha_d, gr2_g0_alpha_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);	
 	//cudaMemcpy(lj_d, lj_h, nTypes*sizeof(float2), cudaMemcpyHostToDevice);	
 	//cudaMemcpy(w_d, w_h, nTypeBytes, cudaMemcpyHostToDevice);	
@@ -239,7 +240,7 @@ void isspa::free_arrays() {
 	free(x0_h); 
 	free(alpha_h); 
 	free(vtot_h);
-        free(x0_w_h);
+        free(x0_w_vtot_h);
 	free(gr2_g0_alpha_h);
 	cudaFree(isspaForceTable_h);	
 	cudaFree(isspaForceR_h);
@@ -253,7 +254,7 @@ void isspa::free_arrays_gpu() {
 	cudaFree(x0_d); 
 	//cudaFree(alpha_d); 
 	cudaFree(isspaForceTable_d);
-	cudaFree(x0_w_d);
+	cudaFree(x0_w_vtot_d);
 	cudaFree(gr2_g0_alpha_d);
 	cudaFree(vtot_d); 
 	cudaFree(randStates_d);

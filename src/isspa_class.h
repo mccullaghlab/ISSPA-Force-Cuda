@@ -19,8 +19,8 @@ class isspa
 		float4 *mcpos_d;
 		//float4 *lj_vtot_h;     // isspa LJ parameter
 		//float4 *lj_vtot_d;     // isspa LJ parameter -- device
-		float2 *x0_w_h;
-		float2 *x0_w_d;
+		float4 *x0_w_vtot_h;
+		float4 *x0_w_vtot_d;
 		float4 *gr2_g0_alpha_h;
 		float4 *gr2_g0_alpha_d;
 		//float2 *lj_h;     // isspa LJ parameter
