@@ -18,26 +18,28 @@ __constant__ int nPairs;
 __constant__ float2 box;
 __constant__ int nRs;
 __constant__ float2 forceRparams;
+__constant__ float2 gRparams;
 
 // device functions
 
 // CUDA Kernels
 
-__global__ void isspa_force_kernel(float4 *xyz, float vtot, int *isspaTypes, float *gTable, float *forceTable, float4 *f, curandState *state) {
+__global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *forceTable, float4 *f, curandState *state) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float4 xyz_s[];
 	int atom;
-	float rnow;
-        float prob;
-       	float attempt;
-	float x1, x2, r2;
+	//float rnow;
+        //float prob;
+       	//float attempt;
+	//float x1, x2, r2;
+	//float temp;
 	float dist2, dist;
 	float fs;
 	float f1, f2, fracDist;
-	float temp;
 	float gnow;
 	float vtot_l;
+	float rmax_l;
 	float2 gRparams_l = gRparams;
 	float4 mcpos;
 	float4 r;
@@ -91,24 +93,26 @@ __global__ void isspa_force_kernel(float4 *xyz, float vtot, int *isspaTypes, flo
 		    if (bin >= (nGRs-1)) {
 		      gnow = 1.0;
 		    } else if (bin < 0) {
-		      gnow = 0.0;
+		      mcpos.w = 0.0;
+		      break;
 		    } else {
 		      // linearly interpolate between two density bins
 		      gnow = __ldg(gTable + jt*nGRs+bin);
+		      mcpos.w *=gnow;
 		    }
-		    mcpos.w *=gnow;
 		  }
 		}
 		// add force 
 		if (mcpos.w > 0.0f) {
 		  // get separation vector
-		  bin = int ( (rnow-forceRparams.x)/forceRparams.y + 0.5f);
+		  // check dist is suppose to be rnow
+		  bin = int ( (dist-forceRparams.x)/forceRparams.y + 0.5f);
 		  // linearly interpolate between two force bins
-		  fracDist = (rnow - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
+		  fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
 		  f1 = __ldg(forceTable+it*nRs+bin);
 		  f2 = __ldg(forceTable+it*nRs+bin+1);
 		  fs = f1*(1.0-fracDist)+f2*fracDist;
-		  fs *= mcpos.w * vtot_l;
+		  fs *= mcpos.w; //* vtot_l;
 		  atomicAdd(&(f[atom].x), fs*mcr.x);
 		  atomicAdd(&(f[atom].y), fs*mcr.y);
 		  atomicAdd(&(f[atom].z), fs*mcr.z);
@@ -129,8 +133,7 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) 
 	
 
 	// compute isspa force
-	isspa_force_kernel(float4 *xyz, int *isspaTypes, float *gTable, float *forceTable, float4 *f, curandState *state)
-	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d,isspas.vtot_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d);
+	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d);
 
 	// finish timing
 	cudaEventRecord(isspas.isspaStop);

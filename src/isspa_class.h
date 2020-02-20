@@ -25,8 +25,8 @@ class isspa
 		float *isspaForceTable_d; //
 		float *isspaForceR_h; //
 		float *isspaForceR_d; //
-		float2 *isspaGTable_h; //
-                float2 *isspaGTable_d; //float *isspaForceTable_h; //
+		float *isspaGTable_h; //
+                float *isspaGTable_d; //float *isspaForceTable_h; //
                 float *isspaGR_h; //
                 float *isspaGR_d; //
                 float2 forceRparams;
