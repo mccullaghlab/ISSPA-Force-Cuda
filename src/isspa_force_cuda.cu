@@ -64,33 +64,12 @@ __global__ void isspa_force_kernel(float4 *xyz, float vtot, int *isspaTypes, flo
 		mcpos = xyz_s[atom];
 		// isspa type
 		it = __ldg(isspaTypes+atom);
-		// select one point from 1D parabolic distribution
-		rnow = 1.0f - 2.0f * curand_uniform(&threadState);
-		prob = rnow*rnow;
-		attempt = curand_uniform(&threadState);
-		while (attempt < prob)
-		{
-			rnow = 1.0f - 2.0f * curand_uniform(&threadState);
-			prob = rnow*rnow;
-			attempt = curand_uniform(&threadState);
-		}
 		vtot_l = __ldg(vtot+it);
-		rnow = x0_w_vtot_l.y * rnow + x0_w_vtot_l.x;
-		// select two points on surface of sphere
-		x1 = 1.0f - 2.0f * curand_uniform(&threadState);
-		x2 = 1.0f - 2.0f * curand_uniform(&threadState);
-		r2 = x1*x1 + x2*x2;
-		while (r2 > 1.0f)
-		{
-			x1 = 1.0f - 2.0f * curand_uniform(&threadState);
-			x2 = 1.0f - 2.0f * curand_uniform(&threadState);
-			r2 = x1*x1 + x2*x2;
-		}
-		// generate 3D MC pos based on position on surface of sphere and parabolic distribution in depth
-		mcr.x = rnow*(1.0f - 2.0f*r2);		
-		r2 = 2.0f*sqrtf(1.0f - r2);
-		mcr.y = rnow*x1*r2;
-		mcr.z = rnow*x2*r2;
+		rmax_l = __ldg(rmax+it);
+		// generate 3D MC pos based inside a sphere rnow
+		mcr.x = rmax_l*(1.0f - 2.0f * curand_uniform(&threadState));
+		mcr.y = rmax_l*(1.0f - 2.0f * curand_uniform(&threadState));
+		mcr.z = rmax_l*(1.0f - 2.0f * curand_uniform(&threadState));
 		mcpos += mcr;
 		// initialize density to 1.0
 		mcpos.w = 1.0;
