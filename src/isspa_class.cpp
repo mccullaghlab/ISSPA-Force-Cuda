@@ -1,6 +1,3 @@
-
-
-
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +6,7 @@
 #include <cuda_runtime.h>
 #include <vector_functions.h>
 #include "constants.h"
+#include <iostream>
 
 using namespace std;
 #include "isspa_class.h"
@@ -71,6 +69,8 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 					printf("Number of ISSPA types from prmtop file: %d\n", nTypes);
 					nRs = atoi(strncpy(token,line+16,8));
 					printf("Number of ISSPA force values per type in prmtop file: %d\n", nRs);
+					nGRs = atoi(strncpy(token,line+16,8));
+					printf("Number of g force values per type in prmtop file: %d\n", nRs);
 					allocate(nAtoms,configMC);
 				} else if (strncmp(flag,isspaTypeFlag,16) == 0) {
 					// 
@@ -105,24 +105,24 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 						}
 					}
 				} else if (strncmp(flag,isspaDensitiesFlag,15) == 0) {
-				        //
+					//
 				        nLines = nGRs;
 				        /* skip format line */
 				        temp = fgets(line, MAXCHAR, prmFile);
 				        /* loop over lines */
-				        for (i=0;i<nLines;i++) {
-				                temp = fgets(line, MAXCHAR, prmFile);
+					for (i=0;i<nLines;i++) {
+					        temp = fgets(line, MAXCHAR, prmFile);
 				                isspaGR_h[i] = atof(strncpy(token,line,16));
-				                for (typeCount=0;typeCount<nTypes;typeCount++) {
+						for (typeCount=0;typeCount<nTypes;typeCount++) {
 				                        isspaGTable_h[typeCount*nGRs+i] = atof(strncpy(token,line+(typeCount+1)*16,16));
-				                }
+						}
 				        }
 				        // store min and bin size
 				        gRparams.x = isspaGR_h[0];  // min
 				        gRparams.y = isspaGR_h[1] - isspaGR_h[0]; // bin size
 				} else if (strncmp(flag,isspaForcesFlag,12) == 0) {
-					// 
-					nLines = nRs;
+				       // 
+				       nLines = nRs;
 					/* skip format line */
 					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
