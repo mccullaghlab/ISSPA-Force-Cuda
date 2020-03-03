@@ -20,13 +20,24 @@ void isspa::allocate(int nAtoms, int configMC)
 	int nTypeBytes = nTypes*sizeof(float);
 	// allocate atom based parameter arrays
 	isspaTypes_h = (int *)malloc(nAtoms*sizeof(int));
-	//lj_h = (float2 *)malloc(nTypes*sizeof(float2));
 	rmax_h = (float *)malloc(nTypeBytes);
 	vtot_h = (float *)malloc(nTypeBytes);
 	cudaMallocHost((float **) &isspaForceTable_h, nTypes*nRs*sizeof(float)); // force table
 	cudaMallocHost((float **) &isspaForceR_h, nRs*sizeof(float)); // distance values for force table
 	cudaMallocHost((float **) &isspaGTable_h, nTypes*nGRs*sizeof(float)); // force table
 	cudaMallocHost((float **) &isspaGR_h, nGRs*sizeof(float)); // distance values for force table
+}
+
+void isspa::construct_parameter_arrays()
+{
+  int i;
+  float x1;
+  float x2;
+  // compute other version of parabola parameters from given g0, x0 and alpha
+  for (i=0;i<nTypes;i++) {
+    vtot_h[i] = 4.0/3.0*PI*rmax_h[i]*rmax_h[i]*rmax_h[i]/((float) nMC)*0.0075;// Monte Carlo integration normalization
+  }
+
 }
 
 void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
@@ -88,7 +99,7 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 							lineCount++;
 						}
 					}
-				} else if (strncmp(flag,isspaRmaxFlag,11) == 0) {
+				} else if (strncmp(flag,isspaRmaxFlag,10) == 0) {
 					// 
 					nLines = (int) (nTypes + 4) / 5.0 ;
 					/* skip format line */
@@ -142,8 +153,8 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 		fclose( prmFile );
 	}
 	// make other parameter arrays from the ones populated reading the prmtop
-	//construct_parameter_arrays();
-
+	construct_parameter_arrays();
+	
 }
 
 void isspa::initialize_gpu(int nAtoms, int seed)
@@ -189,6 +200,7 @@ void isspa::free_arrays_gpu() {
 	cudaFree(isspaForceTable_d);
 	cudaFree(isspaGTable_d);
 	cudaFree(vtot_d);
+	cudaFree(rmax_d); 
 	cudaFree(randStates_d);
 	cudaFree(isspaTypes_d);
 	cudaFree(mcpos_d);

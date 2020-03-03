@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
@@ -52,7 +51,7 @@ int main(int argc, char* argv[])
 	printf("Max threads per block: %d\n", prop.maxThreadsPerBlock);
 	printf("Max grid size: (%d,%d,%d)\n",prop.maxGridSize[0],prop.maxGridSize[1],prop.maxGridSize[2]);
 	printf("Multiprocessor count: %d\n", prop.multiProcessorCount);
-
+	
 	// read config file
 	configs.initialize(argv[1]);
 	// read atom parameters
@@ -86,10 +85,10 @@ int main(int argc, char* argv[])
 	dihs.initialize_gpu();
 	dih_force_cuda_grid_block(dihs.nDihs, &dihs.gridSize, &dihs.blockSize, &dihs.minGridSize);
 	// initialize isspa
-	isspas.read_isspa_prmtop(configs.isspaPrmtopFileName, configs.nMC);
+	isspas.read_isspa_prmtop(configs.isspaPrmtopFileName, configs.nMC);	
 	isspas.initialize_gpu(atoms.nAtoms, configs.seed);
 	isspa_grid_block(atoms.nAtoms, atoms.nPairs, configs.lbox, isspas);
-	
+	 
 	// initialize timing
 	times.initialize();
 	// copy atom data to device
@@ -97,6 +96,7 @@ int main(int argc, char* argv[])
 	atoms.copy_pos_vel_to_gpu();
 
 	for (step=0;step<configs.nSteps;step++) {
+	  //printf("%d\n", step);
 		//if (step%configs.deltaNN==0) {
 			// compute the neighborlist
 		//	times.neighborListTime += neighborlist_cuda(atoms, configs.rNN2, configs.lbox);
@@ -113,7 +113,7 @@ int main(int argc, char* argv[])
 		times.dihTime += dih_force_cuda(atoms, dihs, configs.lbox);
 
 		// run isspa force cuda kernel
-		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas);
+		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas, atoms.nAtoms);
 
 		// run nonbond cuda kernel
 		times.nonbondTime += nonbond_force_cuda(atoms);
