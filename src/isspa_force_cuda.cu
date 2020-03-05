@@ -25,7 +25,7 @@ __constant__ float2 gRparams;
 
 // CUDA Kernels
 
-__global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *forceTable, float4 *f, curandState *state) {
+__global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *forceTable, float4 *f, curandState *state, float4 *out) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float4 xyz_s[];
@@ -35,8 +35,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
        	//float attempt;
 	//float x1, x2, r2;
 	//float temp;
-	//float g1, g2;
-	//float gnow;
+	//float g1, g2;	//float gnow;
 	float dist2, dist;
 	float fs;
 	float f1, f2, fracDist;
@@ -60,9 +59,11 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 	}
 	__syncthreads();
 	// move on
+	out[index].x = 2.0;
+
 	if (index < nAtoms*nMC)
 	{
-		// random number state - store in temporary variable
+	        // random number state - store in temporary variable
 		threadState = state[index];
 		// get atom number of interest
 		atom = int(index/(float) nMC);
@@ -79,7 +80,6 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		mcpos += mcr;
 		// initialize density to 1.0
 		mcpos.w = 1.0;
-		
 		// random state in global
 		state[index] = threadState;
 
@@ -138,15 +138,25 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 /* C wrappers for kernels */
 
 float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) {
-  
+
 	float milliseconds;
-   
+
+	float4 out_h[nAtoms_h*isspas.nMC];
+
+	
 	// timing
 	cudaEventRecord(isspas.isspaStart);
 
 	// compute isspa force
-	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d);
-		
+	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d, isspas.out_d);
+	// DEBUG
+	cudaMemcpy(out_h, isspas.out_d, nAtoms_h*isspas.nMC*sizeof(float4), cudaMemcpyDeviceToHost);
+	//for (int i=0;i<nAtoms_h*isspas.nMC; i++)
+	for (int i=0;i<2*isspas.nMC; i++)
+	{
+	  printf("C %10.6f %10.6f %10.6f %10.6f\n", out_h[i].x, out_h[i].y, out_h[i].z, out_h[i].w);
+	}
+
 	// finish timing
 	cudaEventRecord(isspas.isspaStop);
 	cudaEventSynchronize(isspas.isspaStop);

@@ -178,6 +178,8 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	// allocate vtot on device and pass data from hose
 	cudaMalloc((void **) &vtot_d, nTypeBytes);
 	cudaMemcpy(vtot_d, vtot_h, nTypes*sizeof(float), cudaMemcpyHostToDevice);	
+	// allocate array on device for DEBUG
+	cudaMalloc((void **) &out_d, nAtoms*nMC*sizeof(float4));
 	// random number states
 	cudaMalloc((void**) &randStates_d, nAtoms*nMC*sizeof(curandState));
 	init_rand_states(randStates_d, seed, nMC*nAtoms);
@@ -204,5 +206,6 @@ void isspa::free_arrays_gpu() {
 	cudaFree(randStates_d);
 	cudaFree(isspaTypes_d);
 	cudaFree(mcpos_d);
+	cudaFree(out_d);
 	//cudaFree(lj_d);
 }

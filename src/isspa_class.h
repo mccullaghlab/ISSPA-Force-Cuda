@@ -11,7 +11,8 @@
 class isspa
 {
 	public:
-		int nTypes;      // number of isspa types
+                float4 *out_d;  // DEBUG variable
+                int nTypes;      // number of isspa types
 		int nMC;         // number of MC points
 		int nRs;         // number of distance values in tabulated forces
                 int nGRs;         // number of distance values in tabulated densities
