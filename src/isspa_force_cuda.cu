@@ -35,7 +35,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
        	//float attempt;
 	//float x1, x2, r2;
 	//float temp;
-	//float g1, g2;	//float gnow;
+	float g1, g2;	//float gnow;
 	float dist2, dist;
 	float fs;
 	float f1, f2, fracDist;
@@ -59,7 +59,6 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 	}
 	__syncthreads();
 	// move on
-	out[index].x = 2.0;
 
 	if (index < nAtoms*nMC)
 	{
@@ -78,8 +77,33 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		mcr.y = rmax_l*(2.0f * curand_uniform(&threadState) - 1.0f);
 		mcr.z = rmax_l*(2.0f * curand_uniform(&threadState) - 1.0f);
 		mcpos += mcr;
-		// initialize density to 1.0
+
+		//dist2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
+		//dist = sqrtf(dist2);
+		//if (dist < rmax_l) {
+		//  // determine density bin of distance
+		//  bin = int ( (dist-gRparams_l.x)/gRparams_l.y );
+		//  // make sure bin is in limits of density table
+		//  if (bin >= (nGRs-1)) {
+		//    mcpos.w = 1.0;
+		//  }
+		//  else if (bin < 0) {
+		//    mcpos.w = 0.0;
+		//    //break;
+		//  }
+		//  else {
+		//    // linearly interpolate between two density bins
+		//    fracDist = (dist - (gRparams.x+bin*gRparams.y)) / gRparams.y;
+		//    g1 = __ldg(gTable+it*nGRs+bin);
+		//    g2 = __ldg(gTable+it*nGRs+bin+1);
+		//    mcpos.w = g1*(1.0-fracDist)+g2*fracDist;
+		//    //mcpos.w *= __ldg(gTable + jt*nGRs+bin);
+		//  }
+		                            
 		mcpos.w = 1.0;
+
+		
+
 		// random state in global
 		state[index] = threadState;
 
@@ -101,35 +125,51 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		      }
 		      else if (bin < 0) {
 			mcpos.w *= 0.0;
-			//break;
+			break;
 		      }
 		      else {
 			// linearly interpolate between two density bins
-			//fracDist = (dist - (gRparams.x+bin*gRparams.y)) / gRparams.y;
-			//g1 = __ldg(gTable+jt*nGRs+bin);
-			//g2 = __ldg(gTable+jt*nGRs+bin+1);
-			//mcpos.w *= g1*(1.0-fracDist)+g2*fracDist;
-			mcpos.w *= __ldg(gTable + jt*nGRs+bin);
+			fracDist = (dist - (gRparams.x+bin*gRparams.y)) / gRparams.y;
+			g1 = __ldg(gTable+jt*nGRs+bin);
+			g2 = __ldg(gTable+jt*nGRs+bin+1);
+			mcpos.w *= g1*(1.0-fracDist)+g2*fracDist;
+			//mcpos.w *= __ldg(gTable + jt*nGRs+bin);
 		      }
-		      igo += 1;
-		    }		      
+		      igo += 1;	
+		    }
 		  }
 		}
+		out[index].x = mcpos.w; 
 		// add force 
 		if (mcpos.w > 0.0f) {
 		  // get separation vector
 		  // check dist is suppose to be rnow
+		  dist2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
+		  dist = sqrtf(dist2);
+		  
 		  bin = int ( (dist-forceRparams.x)/forceRparams.y + 0.5f);
-		  // linearly interpolate between two force bins
-		  fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
-		  f1 = __ldg(forceTable+it*nRs+bin);
-		  f2 = __ldg(forceTable+it*nRs+bin+1);
-		  fs = f1*(1.0-fracDist)+f2*fracDist;
-		  fs *= mcpos.w * vtot_l / igo; 
+		  if (bin >= (nRs)) {
+		    fs = 0.0;
+		  }
+		  else {
+		    // linearly interpolate between two force bins
+		    fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
+		    f1 = __ldg(forceTable+it*nRs+bin);
+		    f2 = __ldg(forceTable+it*nRs+bin+1);
+		    fs = f1*(1.0-fracDist)+f2*fracDist;
+		    //fs = __ldg(forceTable + it*nRs+bin);
+		    fs *= mcpos.w * vtot_l; // / igo; 
+		  }
+		  //out[index].x = fs;
+		  //out[index].y = it;
+		  //out[index].z = vtot_l;
+		  out[index].w = float(igo);
+		  
 		  atomicAdd(&(f[atom].x), fs*mcr.x);
 		  atomicAdd(&(f[atom].y), fs*mcr.y);
 		  atomicAdd(&(f[atom].z), fs*mcr.z);
-		}		
+		  
+		  }		
 	}
 }
 
@@ -143,11 +183,11 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) 
 
 	float4 out_h[nAtoms_h*isspas.nMC];
 
-	
 	// timing
 	cudaEventRecord(isspas.isspaStart);
 
 	// compute isspa force
+	//isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d);
 	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d, isspas.out_d);
 	// DEBUG
 	cudaMemcpy(out_h, isspas.out_d, nAtoms_h*isspas.nMC*sizeof(float4), cudaMemcpyDeviceToHost);

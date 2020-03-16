@@ -35,7 +35,7 @@ void isspa::construct_parameter_arrays()
   float x2;
   // compute other version of parabola parameters from given g0, x0 and alpha
   for (i=0;i<nTypes;i++) {
-    vtot_h[i] = 4.0/3.0*PI*rmax_h[i]*rmax_h[i]*rmax_h[i]/((float) nMC)*0.0075;// Monte Carlo integration normalization
+    vtot_h[i] = 4.0/3.0*PI*rmax_h[i]*rmax_h[i]*rmax_h[i]*0.0075/((float) nMC);// Monte Carlo integration normalization
   }
 
 }
@@ -80,8 +80,8 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 					printf("Number of ISSPA types from prmtop file: %d\n", nTypes);
 					nRs = atoi(strncpy(token,line+16,8));
 					printf("Number of ISSPA force values per type in prmtop file: %d\n", nRs);
-					nGRs = atoi(strncpy(token,line+16,8));
-					printf("Number of g force values per type in prmtop file: %d\n", nRs);
+					nGRs = atoi(strncpy(token,line+24,8));
+					printf("Number of g force values per type in prmtop file: %d\n", nGRs);
 					allocate(nAtoms,configMC);
 				} else if (strncmp(flag,isspaTypeFlag,16) == 0) {
 					// 
@@ -139,7 +139,7 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 					/* loop over lines */
 					for (i=0;i<nLines;i++) {
 						temp = fgets(line, MAXCHAR, prmFile);
-						isspaForceR_h[i] = atof(strncpy(token,line,16));
+						isspaForceR_h[i] = atof(strncpy(token,line,24));
 						for (typeCount=0;typeCount<nTypes;typeCount++) { 
 							isspaForceTable_h[typeCount*nRs+i] = atof(strncpy(token,line+(typeCount+1)*16,16));
 						}
@@ -154,7 +154,6 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 	}
 	// make other parameter arrays from the ones populated reading the prmtop
 	construct_parameter_arrays();
-	
 }
 
 void isspa::initialize_gpu(int nAtoms, int seed)
