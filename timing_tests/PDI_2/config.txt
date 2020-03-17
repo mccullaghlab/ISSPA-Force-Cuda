@@ -1,6 +1,3 @@
-
-
-
 prmtop=PDI.2.vacuum.prmtop
 isspaPrmtop = PDI.2.isspa
 inputCoord = PDI.2.positions.rst
@@ -16,8 +13,8 @@ cutoff = 12.0
 dielectric = 4.0
 nMC = 10
 nSteps = 10000
-deltaWrite = 100
+deltaWrite = 1000
 boxLength = 200.0
-US = 1
+US = 0
 usCfgFile = pdi2.us
 

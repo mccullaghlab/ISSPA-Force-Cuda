@@ -16,7 +16,7 @@ velRstFile = PDI.1.velocities.rst
 # PARAMETERS:
 nMC = 10
 nSteps = 10000
-deltaWrite = 1000
+deltaWrite = 100
 temperature = 298.00
 cutoff = 12.0
 dielectric = 4.0

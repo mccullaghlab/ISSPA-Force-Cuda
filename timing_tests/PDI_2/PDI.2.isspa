@@ -4,7 +4,7 @@
 PDI
 %FLAG POINTERS
 %FORMAT(10I8)
-     192      21     250      160
+     192      21     250     160
 %FLAG ISSPA_TYPE_INDEX
 %FORMAT(10I8)
       16      13      12      15      12      13       2       4       5       7
