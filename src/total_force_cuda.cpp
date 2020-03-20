@@ -39,6 +39,8 @@ int main(int argc, char* argv[])
 	int step;
 	int device;
 	cudaDeviceProp prop;
+
+	
 	cudaGetDevice(&device);
 	//device = 1;
 	cudaSetDevice(device);
@@ -72,6 +74,7 @@ int main(int argc, char* argv[])
 		atoms.initialize_velocities(configs.T);
 	}
 	atoms.open_traj_files(configs.forOutFileName, configs.posOutFileName, configs.velOutFileName);
+
 	atoms.initialize_gpu(configs.seed);
 	//leapfrog_cuda_grid_block(atoms.nAtoms, &atoms.gridSize, &atoms.blockSize, &atoms.minGridSize);
 	nonbond_force_cuda_grid_block(atoms, configs.rCut2, configs.lbox);
@@ -103,6 +106,8 @@ int main(int argc, char* argv[])
 		//}
 		// zero force array on gpu
 		cudaMemset(atoms.for_d, 0.0f,  atoms.nAtoms*sizeof(float4));
+		// zero force array on gpu
+		cudaMemset(atoms.isspaf_d, 0.0f,  atoms.nAtoms*sizeof(float4));
 		// compute bond forces on device
 		times.bondTime += bond_force_cuda(atoms.pos_d, atoms.for_d, atoms.nAtoms, configs.lbox, bonds);
 		
@@ -113,7 +118,8 @@ int main(int argc, char* argv[])
 		times.dihTime += dih_force_cuda(atoms, dihs, configs.lbox);
 
 		// run isspa force cuda kernel
-		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas, atoms.nAtoms);
+		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, atoms.isspaf_d, isspas, atoms.nAtoms);
+		//		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas, atoms.nAtoms);
 
 		// run nonbond cuda kernel
 		times.nonbondTime += nonbond_force_cuda(atoms);
@@ -123,10 +129,13 @@ int main(int argc, char* argv[])
 			times.usTime += us_force_cuda(atoms.pos_d, atoms.for_d, bias, configs.lbox, atoms.nAtoms);
 		}
 		// print stuff every so often
-		if (step > 0 && step%configs.deltaWrite==0) {
+		//		if (step > 0 && step%configs.deltaWrite==0) {
+		if (step%configs.deltaWrite==0) {
 			times.startWriteTimer();
 			// get positions, velocities, and forces from gpu
 			atoms.get_pos_vel_for_from_gpu();
+			// get isspa force and write to file
+			atoms.print_isspaf();
 			// print force xyz file
 			atoms.print_for();
 			// print xyz file

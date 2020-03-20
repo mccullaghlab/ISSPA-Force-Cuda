@@ -26,7 +26,9 @@ __constant__ float2 gRparams;
 // CUDA Kernels
 
 //__global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *forceTable, float4 *f, curandState *state, float4 *out) {
-__global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *forceTable, float4 *f, curandState *state) {
+//__global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *forceTable, float4 *f, curandState *state) {
+//__global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *forceTable, float4 *f, curandState *state, float4 *isspaf, float4 *out) {
+__global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *forceTable, float4 *f, curandState *state, float4 *isspaf) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float4 xyz_s[];
@@ -36,10 +38,10 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
        	//float attempt;
 	//float x1, x2, r2;
 	//float temp;
-	float g1, g2;	//float gnow;
+	//float g1, g2;	//float gnow;
 	float dist2, dist;
 	float fs;
-	float f1, f2, fracDist;
+	//float f1, f2, fracDist;
 	float vtot_l;
 	float rmax_l;
 	float r2;
@@ -81,25 +83,16 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		mcr.z = (2.0f * curand_uniform(&threadState) - 1.0f);
 		r2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
 		}
-		while (r2 < 1); 
-		  
-		  
+		while (r2 > 1.00);
+		mcr.x *= rmax_l;
+		mcr.y *= rmax_l;
+		mcr.z *= rmax_l;
+		
 		mcpos += mcr;
-
-		// out[index].z = mcr.y; 
-		// out[index].w = mcr.z; 
-		// out[index].x = mcpos.y; 
-		// out[index].y = mcpos.z; 
-		
-		                            
+		// initialize density of MC point
 		mcpos.w = 1.0;
-
-		
-
 		// random state in global
 		state[index] = threadState;
-
-		
 		// Get density from g table  
 		// get atom number of interest
 		for(atom2=0;atom2<nAtoms;atom2++){
@@ -109,7 +102,8 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		  dist = sqrtf(dist2);
 		  if (dist < rmax_l) {
 		    // determine density bin of distance
-		    bin = int ( (dist-gRparams_l.x)/gRparams_l.y );
+		    bin = int ( (dist-gRparams_l.x)/gRparams_l.y ); 
+		    //out[index/atom*atom2].z = float(bin);
 		    // make sure bin is in limits of density table
 		    if (bin >= (nGRs-1)) {
 		      continue;
@@ -129,35 +123,33 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		    igo += 1;
 		  }
 		}
+		
 		// add force 
 		if (mcpos.w > 0.0f) {
 		  // get separation vector
 		  // check dist is suppose to be rnow
 		  dist2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
 		  dist = sqrtf(dist2);
-		  
 		  bin = int ( (dist-forceRparams.x)/forceRparams.y + 0.5f);
 		  if (bin >= (nRs)) {
 		    fs = 0.0;
 		  }
 		  else {
 		    // linearly interpolate between two force bins
-		    fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
+		    //fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
 		    //f1 = __ldg(forceTable+it*nRs+bin);
 		    //f2 = __ldg(forceTable+it*nRs+bin+1);
 		    //fs = f1*(1.0-fracDist)+f2*fracDist;
 		    fs = __ldg(forceTable + it*nRs+bin);
-		    fs *= mcpos.w * vtot_l; // / igo; 
+		    fs = fs * mcpos.w * vtot_l; // / igo; 
 		  }
-		  //out[index].x = fs;
-		  //out[index].y = it;
-		  //out[index].z = vtot_l;
-		  //out[index].w = fs;
 		  
-		  atomicAdd(&(f[atom].x), fs*mcr.x);
-		  atomicAdd(&(f[atom].y), fs*mcr.y);
-		  atomicAdd(&(f[atom].z), fs*mcr.z);
-		  
+		  atomicAdd(&(f[atom].x), -fs*mcr.x);
+		  atomicAdd(&(f[atom].y), -fs*mcr.y);
+		  atomicAdd(&(f[atom].z), -fs*mcr.z);
+		  atomicAdd(&(isspaf[atom].x), -fs*mcr.x);
+		  atomicAdd(&(isspaf[atom].y), -fs*mcr.y);
+		  atomicAdd(&(isspaf[atom].z), -fs*mcr.z);
 		  }		
 	}
 }
@@ -166,33 +158,26 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 
 /* C wrappers for kernels */
 
-float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) {
+float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& isspas, int nAtoms_h) {
+  //float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) {
 
 	float milliseconds;
 
 	float4 out_h[nAtoms_h*isspas.nMC];
-	//FILE *MCFile;
 
 	// timing
 	cudaEventRecord(isspas.isspaStart);
 
 	// compute isspa force
-	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d);
-	//isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d, isspas.out_d);
+	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d, isspaf_d);
+	//isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d, isspaf_d, isspas.out_d);
 	// DEBUG
-	cudaMemcpy(out_h, isspas.out_d, nAtoms_h*isspas.nMC*sizeof(float4), cudaMemcpyDeviceToHost);
+	//cudaMemcpy(out_h, isspas.out_d, nAtoms_h*isspas.nMC*sizeof(float4), cudaMemcpyDeviceToHost);
 	//for (int i=0;i<nAtoms_h*isspas.nMC; i++)
 	//for (int i=0;i<2*isspas.nMC; i++)
 	//{
-	//  printf("C %10.6f %10.6f %10.6f %10.6f\n", out_h[i].x, out_h[i].y, out_h[i].z, out_h[i].w);
+	//    printf("C %10.6f %10.6f %10.6f %10.6f %5i \n", out_h[i].x, out_h[i].y, out_h[i].z, out_h[i].w, i);
 	//}
-	//MCFile = fopen("MC_forces.dat","w");
-	//for (int i=0;i<nAtoms_h*isspas.nMC; i++)
-	//  {
-	//    fprintf(MCFile,"C %10.6f %10.6f %10.6f %10.6f\n", out_h[i].x, out_h[i].y, out_h[i].z, out_h[i].w);
-	//  }
-	//fflush(MCFile);
-	
 	
 	// finish timing
 	cudaEventRecord(isspas.isspaStop);
