@@ -26,6 +26,8 @@ void isspa::allocate(int nAtoms, int configMC)
 	cudaMallocHost((float **) &isspaForceR_h, nRs*sizeof(float)); // distance values for force table
 	cudaMallocHost((float **) &isspaGTable_h, nTypes*nGRs*sizeof(float)); // force table
 	cudaMallocHost((float **) &isspaGR_h, nGRs*sizeof(float)); // distance values for force table
+	cudaMallocHost((float **) &isspaETable_h, nTypes*nERs*sizeof(float)); // force table
+	cudaMallocHost((float **) &isspaER_h, nGRs*sizeof(float)); // distance values for force table
 }
 
 void isspa::construct_parameter_arrays()
@@ -50,6 +52,7 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 	char const *isspaRmaxFlag = "ISSPA_RMAX";
 	char const *isspaForcesFlag = "ISSPA_FORCES";
 	char const *isspaDensitiesFlag = "ISSPA_DENSITIES";	
+	char const *isspaEFieldFlag = "ISSPA_EFIELD";	
 	char *flag;
 	char *token;
 	char *temp;
@@ -78,10 +81,12 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 					printf("Number of atoms from prmtop file: %d\n", nAtoms);
 					nTypes = atoi(strncpy(token,line+8,8));
 					printf("Number of ISSPA types from prmtop file: %d\n", nTypes);
-					nRs = atoi(strncpy(token,line+16,8));
+					nRs = atoi(strncpy(token,line+32,8));
 					printf("Number of ISSPA force values per type in prmtop file: %d\n", nRs);
-					nGRs = atoi(strncpy(token,line+24,8));
+					nGRs = atoi(strncpy(token,line+16,8));
 					printf("Number of g force values per type in prmtop file: %d\n", nGRs);
+					nERs = atoi(strncpy(token,line+24,8));
+					printf("Number of electric field values per type in prmtop file: %d\n", nERs);
 					allocate(nAtoms,configMC);
 				} else if (strncmp(flag,isspaTypeFlag,16) == 0) {
 					// 
@@ -131,6 +136,22 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 				        // store min and bin size
 				        gRparams.x = isspaGR_h[0];  // min
 				        gRparams.y = isspaGR_h[1] - isspaGR_h[0]; // bin size
+				} else if (strncmp(flag,isspaEFieldFlag,12) == 0) {
+				        //
+				        nLines = nERs;
+					/* skip format line */
+				        temp = fgets(line, MAXCHAR, prmFile);
+				        /* loop over lines */
+					for (i=0;i<nLines;i++) {
+				                temp = fgets(line, MAXCHAR, prmFile);
+						isspaER_h[i] = atof(strncpy(token,line,16));
+						for (typeCount=0;typeCount<nTypes;typeCount++) {
+						  isspaETable_h[typeCount*nERs+i] = atof(strncpy(token,line+(typeCount+1)*16,16));
+						}
+				        }
+				        // store min and bin size
+				        eRparams.x = isspaER_h[0];  // min
+				        eRparams.y = isspaER_h[1] - isspaER_h[0]; // bin size
 				} else if (strncmp(flag,isspaForcesFlag,12) == 0) {
 				       // 
 				       nLines = nRs;
@@ -139,14 +160,14 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 					/* loop over lines */
 					for (i=0;i<nLines;i++) {
 						temp = fgets(line, MAXCHAR, prmFile);
-						isspaForceR_h[i] = atof(strncpy(token,line,24));
+						isspaForceR_h[i] = atof(strncpy(token,line,16));
 						for (typeCount=0;typeCount<nTypes;typeCount++) { 
 							isspaForceTable_h[typeCount*nRs+i] = atof(strncpy(token,line+(typeCount+1)*16,16));
 						}
 					}
 					// store min and bin size
 					forceRparams.x = isspaForceR_h[0];
-					forceRparams.y = isspaForceR_h[1] - isspaForceR_h[0];
+					forceRparams.y = isspaForceR_h[1] - isspaForceR_h[0];		 
 				}
 			}
 		}
@@ -165,6 +186,9 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	// allocate tabulated densities on device and pass data from host
 	cudaMalloc((void **) &isspaGTable_d, nTypes*nGRs*sizeof(float));
 	cudaMemcpy(isspaGTable_d, isspaGTable_h, nTypes*nGRs*sizeof(float), cudaMemcpyHostToDevice);
+	// allocate tabulated electric field on device and pass data from host
+	cudaMalloc((void **) &isspaETable_d, nTypes*nERs*sizeof(float));
+	cudaMemcpy(isspaETable_d, isspaETable_h, nTypes*nERs*sizeof(float), cudaMemcpyHostToDevice);
 	// allocate MC position array on device
 	cudaMalloc((void **) &mcpos_d, nAtoms*nMC*sizeof(float4));
 	//cudaMemcpy(mcDist_d, mcDist_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);
@@ -194,12 +218,15 @@ void isspa::free_arrays() {
 	cudaFree(isspaForceR_h);
 	cudaFree(isspaGTable_h);
 	cudaFree(isspaGR_h);
+	cudaFree(isspaETable_h);
+	cudaFree(isspaER_h);
 	//free(lj_h);
 }
 void isspa::free_arrays_gpu() {
 	// free device variables
 	cudaFree(isspaForceTable_d);
 	cudaFree(isspaGTable_d);
+	cudaFree(isspaETable_d);
 	cudaFree(vtot_d);
 	cudaFree(rmax_d); 
 	cudaFree(randStates_d);

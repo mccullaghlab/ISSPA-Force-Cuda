@@ -16,6 +16,7 @@ class isspa
 		int nMC;         // number of MC points
 		int nRs;         // number of distance values in tabulated forces
                 int nGRs;         // number of distance values in tabulated densities
+                int nERs;         // number of distance values in tabulated densities
                 int *isspaTypes_h;
 		int *isspaTypes_d;
 		float *rmax_h;     // center position of parabola and g - host data 
@@ -27,11 +28,17 @@ class isspa
 		float *isspaForceR_h; //
 		float *isspaForceR_d; //
 		float *isspaGTable_h; //
-                float *isspaGTable_d; //float *isspaForceTable_h; //
-                float *isspaGR_h; //
+                float *isspaGTable_d; //
+  		float *isspaGR_h; //
                 float *isspaGR_d; //
+                float *isspaETable_h; //
+                float *isspaETable_d; //
+                float *isspaER_h; //
+                float *isspaER_d; //
                 float2 forceRparams;
                 float2 gRparams;
+                float2 eRparams;
+  
                 float4 *mcpos_d;
                 //float4 *mcDist_h; // min, max, delta, and normalization of Monte Carlo distribution - host data
                 //float4 *mcDist_d; // min, max delta, and normalization of Monte Carlo distribution - device data

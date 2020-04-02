@@ -67,6 +67,10 @@ void config::initialize(char *cfgFileName)
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				T = atof(trim(temp));
 				printf("Temperature (K): %f\n",T);
+			} else if (strncmp(token,"seed",4)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				seed = atof(trim(temp));
+				printf("Random number seed: %i\n",seed);
 			} else if (strncmp(token,"cutoff",6)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				rCut = atof(trim(temp));
@@ -120,9 +124,8 @@ void config::initialize(char *cfgFileName)
 	deltaNN = 10;  // neighborlist step frequency - currently not used
 	rNN = 15.0;    // neighborlist distance - currently not used
 	rNN2 = rNN*rNN; // neighbor list distance squared - currently not used
-	seed = 12345;  // random number seed currently hard coded to be changed later
+	//seed = 12345;  // random number seed currently hard coded to be changed later
 	set_cuda_constants();
-
 }
 
 void config::set_cuda_constants()
