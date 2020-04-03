@@ -148,13 +148,12 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		}
 
 		mcpos.w *= vtot_l/igo;
-
+		
 		// Convert enow into polarzation
 		r2 = enow.x*enow.x+enow.y*enow.y+enow.z*enow.z;
 		r0 = sqrtf(r2);
 		r0 = (1.0/tanh(r0)-1.0/r0)/r0;
 
-		//out[index].z = r0;
 		enow.x *= r0;
 		enow.y *= r0;
 		enow.z *= r0;
@@ -164,30 +163,22 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		e0now.z /= 3.0;
     
 		for(atom2=0;atom2<nAtoms;atom2++){
-		        //jt = __ldg(isspaTypes + atom2);
 		        r = min_image(mcpos - xyz_s[atom2],box.x,box.y);
 			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 			dist = sqrtf(dist2);
 			
 			// Coulombic Force
-			fs=-xyz_s[atom2].w*p0/dist2/dist*mcpos.w;
-			
-			pdotr=3.0*(enow.x*r.x+enow.y*r.y+enow.z*r.z)/dist2;
-			out[index*nAtoms + atom2].x = fs;
-			out[index*nAtoms + atom2].y = pdotr;
-			//out[atom2].z = mcpos.w;
-			//out[atom2].w = fs*(pdotr*r.x-enow.x)*mcpos.w;
-			
-			atomicAdd(&(f[atom2].x), -fs*(pdotr*r.x-enow.x));
-			atomicAdd(&(f[atom2].y), -fs*(pdotr*r.y-enow.y));
-			atomicAdd(&(f[atom2].z), -fs*(pdotr*r.z-enow.z));
+			fs=-xyz_s[atom2].w*p0/dist2/dist;
+			pdotr=3.0*(enow.x*r.x+enow.y*r.y+enow.z*r.z)/dist2;			
+			atomicAdd(&(f[atom2].x), -fs*(pdotr*r.x-enow.x)*mcpos.w);
+			atomicAdd(&(f[atom2].y), -fs*(pdotr*r.y-enow.y)*mcpos.w);
+			atomicAdd(&(f[atom2].z), -fs*(pdotr*r.z-enow.z)*mcpos.w);
 			//atomicAdd(&(isspaf[atom2].x),  -fs*(pdotr*r.x-enow.x)*mcpos.w);
 			//atomicAdd(&(isspaf[atom2].y),  -fs*(pdotr*r.y-enow.y)*mcpos.w);
 			//atomicAdd(&(isspaf[atom2].z),  -fs*(pdotr*r.z-enow.z)*mcpos.w);
 				
 			// Lennard-Jones Force 
 			if (in_flag[atom2] == 1){
-			  //			if (dist < rmax_l) {
 			        bin = int ( (dist-forceRparams.x)/forceRparams.y + 0.5f);
 				if (bin >= (nRs)) {
 				        fs = 0.0;
@@ -197,8 +188,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 				        //f1 = __ldg(forceTable+it*nRs+bin);
 				        //f2 = __ldg(forceTable+it*nRs+bin+1);
 				        //fs = f1*(1.0-fracDist)+f2*fracDist;
-				        fs = __ldg(forceTable + it*nRs+bin);
-					fs *= mcpos.w; 
+				        fs = __ldg(forceTable + it*nRs+bin)*mcpos.w;
 				}    	    
 				      atomicAdd(&(f[atom2].x), fs*mcr.x);
 				      atomicAdd(&(f[atom2].y), fs*mcr.y);
@@ -210,16 +200,12 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 			} else {
 			        // Constant Dielectric
 			        pdotr=3.0*(e0now.x*r.x+e0now.y*r.y+e0now.z*r.z)/dist2;
-				//out[index*nAtoms + atom2].x = fs;
-				//out[index*nAtoms + atom2].y = pdotr*r.x-e0now.x;
-				out[index*nAtoms + atom2].z = pdotr;
-				out[index*nAtoms + atom2].w = r.x;
-				atomicAdd(&(f[atom2].x), fs*(pdotr*r.x-e0now.x));
-				atomicAdd(&(f[atom2].y), fs*(pdotr*r.y-e0now.y));
-				atomicAdd(&(f[atom2].z), fs*(pdotr*r.z-e0now.z));
-				//atomicAdd(&(isspaf[atom2].x), (pdotr*r.x-e0now.x));
-				//atomicAdd(&(isspaf[atom2].y), (pdotr*r.y-e0now.y));
-				//atomicAdd(&(isspaf[atom2].z), (pdotr*r.z-e0now.z));
+				atomicAdd(&(f[atom2].x), -fs*(pdotr*r.x-e0now.x)*vtot_l/igo);
+				atomicAdd(&(f[atom2].y), -fs*(pdotr*r.y-e0now.y)*vtot_l/igo);
+				atomicAdd(&(f[atom2].z), -fs*(pdotr*r.z-e0now.z)*vtot_l/igo);
+				atomicAdd(&(isspaf[atom2].x), -fs*(pdotr*r.x-e0now.x)*vtot_l/igo);
+				atomicAdd(&(isspaf[atom2].y), -fs*(pdotr*r.y-e0now.y)*vtot_l/igo);
+				atomicAdd(&(isspaf[atom2].z), -fs*(pdotr*r.z-e0now.z)*vtot_l/igo);
 			}
 		}
 	}
@@ -245,11 +231,11 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& issp
 	
 	// DEBUG
 	cudaMemcpy(out_h, isspas.out_d, nAtoms_h*isspas.nMC*sizeof(float4), cudaMemcpyDeviceToHost);
-	for (int i=0;i<nAtoms_h*isspas.nMC; i++)
+	//for (int i=0;i<nAtoms_h*isspas.nMC; i++)
 	//for (int i=0;i<nAtoms_h; i++)
-	  {
-	    printf("C %10.6f %10.6f %10.6f %10.6f %5i \n", out_h[i].x, out_h[i].y, out_h[i].z, out_h[i].w, i);
-	  }
+	//  {
+	//    printf("C %10.6f %10.6f %10.6f %10.6f %5i \n", out_h[i].x, out_h[i].y, out_h[i].z, out_h[i].w, i);
+	//  }
 
 	// finish timing
 	cudaEventRecord(isspas.isspaStop);
