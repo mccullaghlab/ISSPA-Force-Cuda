@@ -37,6 +37,7 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 	float r6;
 	float fc;
 	float flj;
+	float fdir;
 	float hbox;
 	float2 ljAB;
 	float4 p1, p2;
@@ -95,15 +96,14 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 		}
 		// finish exclusion check
 		if (atom1 != atom2) {
+		  hbox = lbox/2.0;
 		        if (exPass == 0) {
-			       hbox = lbox/2.0;
 			       p1 = __ldg(xyz + atom1);
 			       p2 = __ldg(xyz + atom2);
 			       r = min_image(p1 - p2,lbox,hbox);
 			       dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 			       dist = sqrtf(dist2);
-			       //if (dist2 < rCut2) {
-				       // LJ pair type
+			       // LJ pair type
 			       it = __ldg(ityp+atom1);
 			       jt = __ldg(ityp+atom2);
 			       nlj = nTypes*(it)+jt;
@@ -112,52 +112,48 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 			       // LJ force
 			       r6 = powf(dist2,-3.0);
 			       flj = r6 * (12.0 * ljAB.x * r6 - 6.0 * ljAB.y) / dist2;
-			       //fc = p1.w*p2.w/dist2/sqrtf(dist2);
-			       fc = 0;
+			       //atomicAdd(&(isspaf[atom1].x),(flj)*r.x);
+			       //atomicAdd(&(isspaf[atom1].y),(flj)*r.y);
+			       //atomicAdd(&(isspaf[atom1].z),(flj)*r.z);
+			       fc = p1.w*p2.w/dist2/sqrtf(dist2);
 			       //atomicAdd(&(isspaf[atom1].x),(fc)*r.x);
 			       //atomicAdd(&(isspaf[atom1].y),(fc)*r.y);
 			       //atomicAdd(&(isspaf[atom1].z),(fc)*r.z);
-			       //} else {
-			       //	       flj = 0;
-			       //	       fc = 0;
-			       //}
 			       if (dist > 2.0*rmax_l) {
 				       // coulomb force
-				       fc = -p1.w*p2.w/dist2/dist*2.0/3.0*(1.0-1.0/ep);
+				       fdir = -p1.w*p2.w/dist2/dist*2.0/3.0*(1.0-1.0/ep);
 				       //fc += p1.w*p2.w/dist2/dist*(1.0+2.0/ep)/3.0;
-				       //fc += 0;
 			       } else {
-				       fc = -p1.w*p2.w*(1.0-1.0/ep)*(8.0*rmax_l-3.0*dist)/24.0/(rmax_l*rmax_l*rmax_l*rmax_l);
+				       fdir = -p1.w*p2.w*(1.0-1.0/ep)*(8.0*rmax_l-3.0*dist)/24.0/(rmax_l*rmax_l*rmax_l*rmax_l);
 				       //fc += p1.w*p2.w/dist2/dist*(1.0-1.0/ep)*(8.0*rmax_l-3.0*dist)/24.0/(rmax_l*rmax_l*rmax_l*rmax_l);
-				       //fc += 0;
-			       	}
+			       }
 			       // add forces to atom1
-			       atomicAdd(&(f[atom1].x),(flj+fc)*r.x);
-			       atomicAdd(&(f[atom1].y),(flj+fc)*r.y);
-			       atomicAdd(&(f[atom1].z),(flj+fc)*r.z);
-			       atomicAdd(&(isspaf[atom1].x),(fc)*r.x);
-			       atomicAdd(&(isspaf[atom1].y),(fc)*r.y);
-			       atomicAdd(&(isspaf[atom1].z),(fc)*r.z);
+			       atomicAdd(&(f[atom1].x),(flj+fc+fdir)*r.x);
+			       atomicAdd(&(f[atom1].y),(flj+fc+fdir)*r.y);
+			       atomicAdd(&(f[atom1].z),(flj+fc+fdir)*r.z);
+			       //atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
+			       //atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
+			       //atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
 			} else {
 			        p1 = __ldg(xyz + atom1);
 				p2 = __ldg(xyz + atom2);
 				r = min_image(p1 - p2,lbox,hbox);
 				dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-				if (dist2 < rCut2) {
-				        fc = -p1.w*p2.w/dist2/dist*2.0/3.0*(1.0-1.0/ep);
+				dist = sqrtf(dist2);
+				if (dist > 2.0*rmax_l) {
+				        fdir = -p1.w*p2.w/dist2/dist*2.0/3.0*(1.0-1.0/ep);
 					//fc = 0;
-			       } else {
-				        fc = -p1.w*p2.w*(1.0-1.0/ep)*(8.0*rmax_l-3.0*dist)/24.0/(rmax_l*rmax_l*rmax_l*rmax_l);
+				} else {
+				        fdir = -p1.w*p2.w*(1.0-1.0/ep)*(8.0*rmax_l-3.0*dist)/24.0/(rmax_l*rmax_l*rmax_l*rmax_l);
 					//fc = 0;
-			       }
+				}
 				// add forces to atom1
-				atomicAdd(&(f[atom1].x),fc*r.x);
-				atomicAdd(&(f[atom1].y),fc*r.y);
-				atomicAdd(&(f[atom1].z),fc*r.z);
-			 	atomicAdd(&(isspaf[atom1].x),(fc)*r.x);
-				atomicAdd(&(isspaf[atom1].y),(fc)*r.y);
-				atomicAdd(&(isspaf[atom1].z),(fc)*r.z);
-			
+				atomicAdd(&(f[atom1].x),fdir*r.x);
+				atomicAdd(&(f[atom1].y),fdir*r.y);
+				atomicAdd(&(f[atom1].z),fdir*r.z);
+			 	//atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
+				//atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
+				//atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
 			}
 		}
 	}
