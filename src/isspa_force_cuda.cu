@@ -44,6 +44,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 	float rmax_l;
 	float r0, r2;
 	float pdotr;
+	float etab;
 	float2 gRparams_l = gRparams;
 	int in_flag[2];
 	float4 mcpos;
@@ -55,7 +56,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 	int it, jt;
 	int i;
 	int atom2;
-	int igo;
+	float igo;
 	curandState_t threadState;
   
   
@@ -114,13 +115,14 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 			if (dist < rmax_l) {
 		                // determine density bin of distance
 			        bin = int ( (dist-gRparams_l.x)/gRparams_l.y ); 
+				in_flag[atom2] = 1;
+				igo += 1;
 				// make sure bin is in limits of density table
 				if (bin >= (nGRs-1)) {
 				        continue;
 				}
 				else if (bin < 0) {
 				        mcpos.w *= 0.0;
-					break;
 				} else {
 				        // Push Density to MC point
 				        // linearly interpolate between two density bins
@@ -130,12 +132,11 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 				        //mcpos.w *= g1*(1.0-fracDist)+g2*fracDist;
 				        mcpos.w *= __ldg(gTable + jt*nGRs+bin);
 					// Push electric field to MC point
-					enow.x += r.x/dist*__ldg(eTable + jt*nERs+bin);
-					enow.y += r.y/dist*__ldg(eTable + jt*nERs+bin);
-					enow.z += r.z/dist*__ldg(eTable + jt*nERs+bin);
+					etab = __ldg(eTable + jt*nERs+bin);
+					enow.x += r.x/dist*etab;
+					enow.y += r.y/dist*etab;
+					enow.z += r.z/dist*etab;
 				}
-				in_flag[atom2] = 1;
-				igo += 1;
 			} else {
 			        e0now.x -= e0*xyz_s[atom2].w*r.x/dist2/dist;
 				e0now.y -= e0*xyz_s[atom2].w*r.y/dist2/dist;
@@ -148,25 +149,19 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		}
 
 		mcpos.w *= vtot_l/igo;
-		
 		// Convert enow into polarzation
 		r2 = enow.x*enow.x+enow.y*enow.y+enow.z*enow.z;
 		r0 = sqrtf(r2);
 		r0 = (1.0/tanh(r0)-1.0/r0)/r0;
+		enow *= r0;
+		e0now /= 3.0;
 
-		enow.x *= r0;
-		enow.y *= r0;
-		enow.z *= r0;
-
-		e0now.x /= 3.0;
-		e0now.y /= 3.0;
-		e0now.z /= 3.0;
-    
 		for(atom2=0;atom2<nAtoms;atom2++){
+		        jt = __ldg(isspaTypes + atom2);
 		        r = min_image(mcpos - xyz_s[atom2],box.x,box.y);
 			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 			dist = sqrtf(dist2);
-			
+		       
 			// Coulombic Force
 			fs=-xyz_s[atom2].w*p0/dist2/dist;
 			pdotr=3.0*(enow.x*r.x+enow.y*r.y+enow.z*r.z)/dist2;			
@@ -176,7 +171,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 			//atomicAdd(&(isspaf[atom2].x),  -fs*(pdotr*r.x-enow.x)*mcpos.w);
 			//atomicAdd(&(isspaf[atom2].y),  -fs*(pdotr*r.y-enow.y)*mcpos.w);
 			//atomicAdd(&(isspaf[atom2].z),  -fs*(pdotr*r.z-enow.z)*mcpos.w);
-				
+
 			// Lennard-Jones Force 
 			if (in_flag[atom2] == 1){
 			        bin = int ( (dist-forceRparams.x)/forceRparams.y + 0.5f);
@@ -188,14 +183,14 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 				        //f1 = __ldg(forceTable+it*nRs+bin);
 				        //f2 = __ldg(forceTable+it*nRs+bin+1);
 				        //fs = f1*(1.0-fracDist)+f2*fracDist;
-				        fs = __ldg(forceTable + it*nRs+bin)*mcpos.w;
+				        fs = __ldg(forceTable + jt*nRs+bin)*mcpos.w;
 				}    	    
-				      atomicAdd(&(f[atom2].x), fs*mcr.x);
-				      atomicAdd(&(f[atom2].y), fs*mcr.y);
-				      atomicAdd(&(f[atom2].z), fs*mcr.z);
-				      //atomicAdd(&(isspaf[atom2].x), fs*mcr.x);
-				      //atomicAdd(&(isspaf[atom2].y), fs*mcr.y);
-				      //atomicAdd(&(isspaf[atom2].z), fs*mcr.z);
+				      atomicAdd(&(f[atom2].x), fs*r.x);
+				      atomicAdd(&(f[atom2].y), fs*r.y);
+				      atomicAdd(&(f[atom2].z), fs*r.z);
+				      //atomicAdd(&(isspaf[atom2].x), fs*r.x);
+				      //atomicAdd(&(isspaf[atom2].y), fs*r.y);
+				      //atomicAdd(&(isspaf[atom2].z), fs*r.z);
 
 			} else {
 			        // Constant Dielectric
@@ -230,13 +225,13 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& issp
 	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaETable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d, isspaf_d, isspas.out_d);
 	
 	// DEBUG
-	cudaMemcpy(out_h, isspas.out_d, nAtoms_h*isspas.nMC*sizeof(float4), cudaMemcpyDeviceToHost);
+	//cudaMemcpy(out_h, isspas.out_d, nAtoms_h*isspas.nMC*sizeof(float4), cudaMemcpyDeviceToHost);
 	//for (int i=0;i<nAtoms_h*isspas.nMC; i++)
-	//for (int i=0;i<nAtoms_h; i++)
+	//  //for (int i=0;i<nAtoms_h; i++)
 	//  {
 	//    printf("C %10.6f %10.6f %10.6f %10.6f %5i \n", out_h[i].x, out_h[i].y, out_h[i].z, out_h[i].w, i);
 	//  }
-
+	
 	// finish timing
 	cudaEventRecord(isspas.isspaStop);
 	cudaEventSynchronize(isspas.isspaStop);
