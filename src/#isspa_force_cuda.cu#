@@ -216,9 +216,8 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 
 float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& isspas, int nAtoms_h) {
 //float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) {
-  
         float milliseconds;
-	//  float4 out_h[nAtoms_h*isspas.nMC*nAtoms_h];
+	//  float4 out_h[nAtoms_h*isspas.nMC];
 
 	// timing
 	cudaEventRecord(isspas.isspaStart);

@@ -1,5 +1,5 @@
 
-CUDA_FLAGS = -Wno-deprecated-gpu-targets -lcurand -use_fast_math -arch=sm_61
+CUDA_FLAGS = -Wno-deprecated-gpu-targets -lcurand -use_fast_math -arch=sm_52
 GNU_FLAGS = -I/usr/local/cuda/include -O3 -lcudart
 
 CXX = g++

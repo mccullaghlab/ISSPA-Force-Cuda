@@ -19,7 +19,7 @@ __constant__ int excludedAtomsListLength;
 
 // CUDA Kernels
 
-__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, float2 *lj, float *rmax, int *isspaTypes, int *nExcludedAtoms, int *excludedAtomsList, int *nbparm, int *ityp) {
+__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, float2 *lj, float *rmax, int *isspaTypes, int *nExcludedAtoms, int *excludedAtomsList, int *nbparm, int *ityp, float4 *out) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ int excludedAtomsList_s[];
@@ -98,11 +98,13 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 		if (atom1 != atom2) {
 		  hbox = lbox/2.0;
 		        if (exPass == 0) {
+			  
 			       p1 = __ldg(xyz + atom1);
 			       p2 = __ldg(xyz + atom2);
 			       r = min_image(p1 - p2,lbox,hbox);
 			       dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 			       dist = sqrtf(dist2);
+			  
 			       // LJ pair type
 			       it = __ldg(ityp+atom1);
 			       jt = __ldg(ityp+atom2);
@@ -135,6 +137,9 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 			       //atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
 			       //atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
 			} else {
+			        out[atom1*nAtoms +atom2].x = atom1+1;
+				out[atom1*nAtoms +atom2].y = atom2+1;
+			       
 			        p1 = __ldg(xyz + atom1);
 				p2 = __ldg(xyz + atom2);
 				r = min_image(p1 - p2,lbox,hbox);
@@ -161,16 +166,24 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 
 /* C wrappers for kernels */
 
-float nonbond_force_cuda(atom& atoms, isspa& isspas)
+float nonbond_force_cuda(atom& atoms, isspa& isspas, int nAtoms_h)
 {
 	float milliseconds;
+	//float4 out_h[nAtoms_h*nAtoms_h]; 
 
 	// timing
 	cudaEventRecord(atoms.nonbondStart);
 	
 	// run nonbond cuda kernel
-	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.isspaf_d, atoms.lj_d, isspas.rmax_d, isspas.isspaTypes_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d);
+	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.isspaf_d, atoms.lj_d, isspas.rmax_d, isspas.isspaTypes_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d, isspas.out_d);
 
+	// DEBUG
+	//udaMemcpy(out_h, isspas.out_d, nAtoms_h*nAtoms_h*sizeof(float4), cudaMemcpyDeviceToHost);
+	//or (int i=0;i<=nAtoms_h*nAtoms_h; i++)
+	 // {
+	 //   printf("  %15.10f  %15.10f  %15.10f  %15.10f\n", out_h[i].x, out_h[i].y, out_h[i].z, out_h[i].w);
+	 // } 
+	
 	// finish timing
 	cudaEventRecord(atoms.nonbondStop);
 	cudaEventSynchronize(atoms.nonbondStop);

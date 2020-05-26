@@ -122,7 +122,7 @@ int main(int argc, char* argv[])
 		//		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas, atoms.nAtoms);
 
 		// run nonbond cuda kernel
-		times.nonbondTime += nonbond_force_cuda(atoms, isspas);
+		times.nonbondTime += nonbond_force_cuda(atoms, isspas, atoms.nAtoms);
 
 		if (configs.us == 1) {
 			// run US CUDA kernel

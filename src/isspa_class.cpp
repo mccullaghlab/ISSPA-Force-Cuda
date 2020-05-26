@@ -27,7 +27,7 @@ void isspa::allocate(int nAtoms, int configMC)
 	cudaMallocHost((float **) &isspaGTable_h, nTypes*nGRs*sizeof(float)); // force table
 	cudaMallocHost((float **) &isspaGR_h, nGRs*sizeof(float)); // distance values for force table
 	cudaMallocHost((float **) &isspaETable_h, nTypes*nERs*sizeof(float)); // force table
-	cudaMallocHost((float **) &isspaER_h, nGRs*sizeof(float)); // distance values for force table
+	cudaMallocHost((float **) &isspaER_h, nERs*sizeof(float)); // distance values for force table
 }
 
 void isspa::construct_parameter_arrays()
@@ -202,7 +202,7 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	cudaMalloc((void **) &vtot_d, nTypeBytes);
 	cudaMemcpy(vtot_d, vtot_h, nTypes*sizeof(float), cudaMemcpyHostToDevice);	
 	// allocate array on device for DEBUG
-	cudaMalloc((void **) &out_d, nAtoms*nMC*sizeof(float4));
+	cudaMalloc((void **) &out_d, nAtoms*nAtoms*sizeof(float4));
 	// random number states
 	cudaMalloc((void**) &randStates_d, nAtoms*nMC*sizeof(curandState));
 	init_rand_states(randStates_d, seed, nMC*nAtoms);
