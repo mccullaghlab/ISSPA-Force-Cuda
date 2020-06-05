@@ -87,9 +87,9 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		mcr.x *= rmax_l;
 		mcr.y *= rmax_l;
 		mcr.z *= rmax_l;		
-		//mcr.x = 2.5;
-		//mcr.y = 8.5;
-		//mcr.z = -6.5;
+		mcr.x = 2.5;
+		mcr.y = 8.5;
+		mcr.z = -6.5;
 		
 		mcpos += mcr;
 		// initialize density of MC point
@@ -192,9 +192,9 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 				      atomicAdd(&(f[atom2].x), -fs*r.x/dist);
 				      atomicAdd(&(f[atom2].y), -fs*r.y/dist);
 				      atomicAdd(&(f[atom2].z), -fs*r.z/dist);
-				      //atomicAdd(&(isspaf[atom2].x), -fs*r.x/dist);
-				      //atomicAdd(&(isspaf[atom2].y), -fs*r.y/dist);
-				      //atomicAdd(&(isspaf[atom2].z), -fs*r.z/dist);
+				      atomicAdd(&(isspaf[atom2].x), -fs*r.x/dist);
+				      atomicAdd(&(isspaf[atom2].y), -fs*r.y/dist);
+				      atomicAdd(&(isspaf[atom2].z), -fs*r.z/dist);
 
 			} else {
 			        // Constant Dielectric

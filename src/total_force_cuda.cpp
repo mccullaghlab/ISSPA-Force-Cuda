@@ -42,7 +42,6 @@ int main(int argc, char* argv[])
 
 	
 	cudaGetDevice(&device);
-	//device = 1;
 	cudaSetDevice(device);
 	printf("Currently using device:%d\n",device);
 	cudaGetDeviceProperties(&prop,device);

@@ -2,7 +2,7 @@
 velRst = 0
 inputVel = notread.rst
 # INPUT FILES:
-prmtop = PDI.2.vacuum.prmtop
+prmtop = PDI2.strip.prmtop
 inputCoord = PDI2.rst7
 isspaPrmtop = PDI.2.isspatop
 # OUTPUT FILES:
@@ -13,9 +13,9 @@ velFile = PDI.2.velocities.xyz
 posRstFile = PDI.2.positions.rst
 velRstFile = PDI.2.velocities.rst
 # PARAMETERS:
-nMC = 1
-nSteps = 1
-deltaWrite = 1
+nMC = 10
+nSteps = 10000
+deltaWrite = 100
 temperature = 298.00
 seed = 12345
 cutoff = 12.0
