@@ -11,33 +11,38 @@
 class isspa
 {
 	public:
-		int nTypes;      // number of isspa types
+                float4 *out_d;  // DEBUG variable
+                int nTypes;      // number of isspa types
 		int nMC;         // number of MC points
 		int nRs;         // number of distance values in tabulated forces
-		int *isspaTypes_h;
+                int nGRs;         // number of distance values in tabulated densities
+                int nERs;         // number of distance values in tabulated densities
+                int *isspaTypes_h;
 		int *isspaTypes_d;
-		float4 *mcpos_d;
-		//float4 *lj_vtot_h;     // isspa LJ parameter
-		//float4 *lj_vtot_d;     // isspa LJ parameter -- device
-		float4 *x0_w_vtot_h;
-		float4 *x0_w_vtot_d;
-		float4 *gr2_g0_alpha_h;
-		float4 *gr2_g0_alpha_d;
-		//float2 *lj_h;     // isspa LJ parameter
-		float *x0_h;     // center position of parabola and g - host data 
-		float *x0_d;     // center position of parabola and g - device data 
-		float *g0_h;     // height of parabola approximation of g - host data 
-		float *alpha_h;  // alpha parameter for g - host data
-		float2 *gr2_h;     // excluded volume distance and end of parabola distance squared - host data 
-		float *w_h;      // width of parabola - host data
+		float *rmax_h;     // center position of parabola and g - host data 
+		float *rmax_d;     // center position of parabola and g - device data 
 		float *vtot_h;  // Monte Carlo normalization factor - host data
 		float *vtot_d;  // Monte Carlo normalization factor - device data
-		float *isspaForceTable_h; //
+                float *isspaForceTable_h; //
 		float *isspaForceTable_d; //
 		float *isspaForceR_h; //
 		float *isspaForceR_d; //
-		float2 forceRparams;
-		// kernel grid/block configurations
+		float *isspaGTable_h; //
+                float *isspaGTable_d; //
+  		float *isspaGR_h; //
+                float *isspaGR_d; //
+                float *isspaETable_h; //
+                float *isspaETable_d; //
+                float *isspaER_h; //
+                float *isspaER_d; //
+                float2 forceRparams;
+                float2 gRparams;
+                float2 eRparams;
+  
+                float4 *mcpos_d;
+                //float4 *mcDist_h; // min, max, delta, and normalization of Monte Carlo distribution - host data
+                //float4 *mcDist_d; // min, max delta, and normalization of Monte Carlo distribution - device data
+                // kernel grid/block configurations
 		int mcGridSize;
 		int mcBlockSize;
 		int gGridSize;

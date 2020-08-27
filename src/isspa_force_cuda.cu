@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
@@ -9,169 +8,311 @@
 #include "isspa_force_cuda.h"
 #include "constants.h"
 
+using namespace std;
+
 // constants
 __constant__ int nTypes;
 __constant__ int nMC;
+__constant__ int nRs;
+__constant__ int nGRs;
+__constant__ int nERs;
 __constant__ int nAtoms;
 __constant__ int nPairs;
 __constant__ float2 box;
-__constant__ int nRs;
 __constant__ float2 forceRparams;
+__constant__ float2 gRparams;
+__constant__ float2 eRparams;
 
+// device functions
 
 // CUDA Kernels
 
-__global__ void isspa_force_kernel(float4 *xyz, float4 *f, float4 *x0_w_vtot, float4 *gr2_g0_alpha, int *isspaTypes, float *forceTable, curandState *state) {
-	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
+__global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *eTable, float *forceTable, float4 *f, curandState *state, float4 *isspaf) {
+  //__global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *eTable, float *forceTable, float4 *f, curandState *state, float4 *isspaf, float4 *out) {
+        unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ float4 xyz_s[];
 	int atom;
-	float rnow;
-        float prob;
-       	float attempt;
-	float x1, x2, r2;
+	float g1, g2, fracDist;	//float gnow;
+	float dist2, dist;
+	float fs;
+	//float f1, f2;
+	float e1, e2;
+	float vtot_l;
+	float rmax_l;
+	float r0, r2;
+	float pdotr;
+	float etab;
+	float2 gRparams_l = gRparams;
+	float2 eRparams_l = eRparams;
 	float4 mcpos;
-	float4 mcr;
+	float4 enow;
+	float4 e0now;
 	float4 r;
-	float dist2;
+	float4 mcr;
+	float cothE;
+        float c1,c2,c3;
+        float dp1,dp2,dp3;
+	float Rz;
+	//	float test;
+
 	int bin;
 	int it, jt;
 	int i;
 	int atom2;
-	float fs;
-	float f1, f2, fracDist;
-	float temp, gnow;
-	float4 gr2_g0_alpha_l;
-	float4 x0_w_vtot_l;
+	float igo;
 	curandState_t threadState;
-
-	// copy atom positions to shared memory
+  
+  
+	// copy atom position to shared memory
 	for (i=t;i<nAtoms;i+=blockDim.x) {
-		xyz_s[i] = __ldg(xyz+i);
+                xyz_s[i] = __ldg(xyz+i);	
 	}
 	__syncthreads();
+  
 	// move on
-	if (index < nAtoms*nMC)
-	{
-		// local variables
-		// random number state - store in temporary variable
-		threadState = state[index];
+  
+	if (index < nAtoms*nMC) {
+	        // random number state - store in temporary variable
+	        threadState = state[index];
 		// get atom number of interest
 		atom = int(index/(float) nMC);
 		mcpos = xyz_s[atom];
 		// isspa type
 		it = __ldg(isspaTypes+atom);
-		// select one point from 1D parabolic distribution
-		rnow = 1.0f - 2.0f * curand_uniform(&threadState);
-		prob = rnow*rnow;
-		attempt = curand_uniform(&threadState);
-		while (attempt < prob)
-		{
-			rnow = 1.0f - 2.0f * curand_uniform(&threadState);
-			prob = rnow*rnow;
-			attempt = curand_uniform(&threadState);
+		vtot_l = __ldg(vtot+it);
+		rmax_l = __ldg(rmax+it);
+		igo = 0;
+		// generate 3D MC pos based inside a sphere rnow
+		do {
+		        mcr.x = (2.0f * curand_uniform(&threadState) - 1.0f);
+			mcr.y = (2.0f * curand_uniform(&threadState) - 1.0f);
+			mcr.z = (2.0f * curand_uniform(&threadState) - 1.0f);
+			r2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
 		}
-		x0_w_vtot_l = __ldg(x0_w_vtot+it);
-		rnow = x0_w_vtot_l.y * rnow + x0_w_vtot_l.x;
-		// select two points on surface of sphere
-		x1 = 1.0f - 2.0f * curand_uniform(&threadState);
-		x2 = 1.0f - 2.0f * curand_uniform(&threadState);
-		r2 = x1*x1 + x2*x2;
-		while (r2 > 1.0f)
-		{
-			x1 = 1.0f - 2.0f * curand_uniform(&threadState);
-			x2 = 1.0f - 2.0f * curand_uniform(&threadState);
-			r2 = x1*x1 + x2*x2;
-		}
-		// generate 3D MC pos based on position on surface of sphere and parabolic distribution in depth
-		mcr.x = rnow*(1.0f - 2.0f*r2);
-		r2 = 2.0f * sqrtf(1.0f - r2);
-		mcr.y = rnow*x1*r2;
-		mcr.z = rnow*x2*r2;
+		while (r2 >= 1.0f);
+		mcr.x *= rmax_l;
+		mcr.y *= rmax_l;
+		mcr.z *= rmax_l;
+
+		mcr.x = 2.5;
+		mcr.y = 8.5;
+		mcr.z = -6.5;
+		
 		mcpos += mcr;
-		// initialize density to 1.0
-		mcpos.w =  x0_w_vtot_l.z;
+		// initialize density of MC point
+		mcpos.w = 1.0;
+		enow.x = 0.0;
+		enow.y = 0.0;
+		enow.z = 0.0;
+		e0now.x = 0.0;
+		e0now.y = 0.0;
+		e0now.z = 0.0;		
 		// random state in global
 		state[index] = threadState;
+			// Get density from g table  
+		// get atom number of interest
+		for(atom2=0;atom2<nAtoms;atom2++){
+		        jt = __ldg(isspaTypes + atom2);
+			
+			r = min_image(mcpos - xyz_s[atom2],box.x,box.y);
+		        dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
+			dist = sqrtf(dist2);			
+			if (dist <= rmax_l) {
+			        igo += 1;
+				// determine density bin of distance
+			        bin = int ( (dist-gRparams_l.x)/gRparams_l.y ); 	
+				// make sure bin is in limits of density table
+				if (bin < 0) {
+				        mcpos.w *= 0.0;
+				} else if (bin < nGRs) {
+				        // Push Density to MC point
+				        // linearly interpolate between two density bins
+				        fracDist = (dist - (gRparams_l.x+bin*gRparams_l.y)) / gRparams_l.y;
+				        g1 = __ldg(gTable+jt*nGRs+bin);
+				        g2 = __ldg(gTable+jt*nGRs+bin+1);
+					mcpos.w *= g1*(1.0-fracDist)+g2*fracDist;
+				        //mcpos.w *= __ldg(gTable + jt*nGRs+bin);
 
-		// determine density at MC pos
-		for (atom2=0;atom2<nAtoms;atom2++) {
-			if (atom2 != atom) {	
-				jt = __ldg(isspaTypes + atom2);
-				gr2_g0_alpha_l = __ldg(gr2_g0_alpha+jt);
-				r = min_image(mcpos - xyz_s[atom2],box.x,box.y);
-				dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-				if (dist2 < gr2_g0_alpha_l.x) {
-					mcpos.w = 0.0f;
-					break;
-				} else if (dist2 < gr2_g0_alpha_l.y) {
-					temp = sqrtf(dist2)-__ldg(x0_w_vtot+jt).x;
-					gnow = (-gr2_g0_alpha_l.w * temp*temp + gr2_g0_alpha_l.z);
-					mcpos.w *= gnow;
+					// Push electric field to MC point
+					fracDist = (dist - (eRparams_l.x+bin*eRparams_l.y)) / eRparams_l.y;
+					e1 = __ldg(eTable+jt*nERs+bin);
+				        e2 = __ldg(eTable+jt*nERs+bin+1);					
+					etab =  e1*(1.0-fracDist)+e2*fracDist;
+					//etab = __ldg(eTable + jt*nERs+bin);
+					enow.x += r.x/dist*etab;
+					enow.y += r.y/dist*etab;
+					enow.z += r.z/dist*etab;
 				}
+			} else {				
+			        e0now.x -= e0*xyz_s[atom2].w*r.x/dist2/dist;
+				e0now.y -= e0*xyz_s[atom2].w*r.y/dist2/dist;
+				e0now.z -= e0*xyz_s[atom2].w*r.z/dist2/dist; 
+			}
+
+			enow.x -= e0*xyz_s[atom2].w*r.x/dist2/dist;
+			enow.y -= e0*xyz_s[atom2].w*r.y/dist2/dist;
+			enow.z -= e0*xyz_s[atom2].w*r.z/dist2/dist; 
+		}
+
+
+		mcpos.w *= vtot_l/igo;
+		
+		// Convert enow into polarzation
+		r2 = enow.x*enow.x+enow.y*enow.y+enow.z*enow.z;
+                r0 = sqrtf(r2);
+                enow.x /= r0;
+                enow.y /= r0;
+                enow.z /= r0;
+		e0now.x /= 3.0;
+                e0now.y /= 3.0;
+                e0now.z /= 3.0;
+
+		for(atom2=0;atom2<nAtoms;atom2++){
+		        jt = __ldg(isspaTypes + atom2);
+		        r = min_image(mcpos - xyz_s[atom2],box.x,box.y);
+			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
+			dist = sqrtf(dist2);
+			
+			// Coulombic Force
+                        cothE=1.0/tanh(r0);
+                        c1=cothE-1.0/r0;
+                        c2=1.0-2.0*c1/r0;
+                        c3=cothE-3.0*c2/r0;
+
+			Rz=(enow.x*r.x+enow.y*r.y+enow.z*r.z)/dist;
+                        dp1=3.0*Rz;
+                        dp2=7.5*Rz*Rz-1.5;
+                        dp3=(17.50*Rz*Rz-7.50)*Rz;
+		  
+			fs=-xyz_s[atom2].w*p0*c1/dist2/dist*mcpos.w;
+			//test =  fs*(dp1*r.x/dist-enow.x);
+                        //test =  fs*(dp1*r.y/dist-enow.y);
+                        //test =  fs*(dp1*r.z/dist-enow.z);
+                        atomicAdd(&(f[atom2].x), fs*(dp1*r.x/dist-enow.x));
+                        atomicAdd(&(f[atom2].y), fs*(dp1*r.y/dist-enow.y));
+                        atomicAdd(&(f[atom2].z), fs*(dp1*r.z/dist-enow.z));
+			//atomicAdd(&(isspaf[atom2].x), fs*(dp1*r.x/dist-enow.x));
+                        //atomicAdd(&(isspaf[atom2].y), fs*(dp1*r.y/dist-enow.y));
+                        //atomicAdd(&(isspaf[atom2].z), fs*(dp1*r.z/dist-enow.z));
+			fs=-xyz_s[atom2].w*q0*(1.5*c2-0.5)/dist2/dist2*mcpos.w;
+                        //test =  fs*(dp2*r.x/dist-dp1*enow.x);
+                        //test =  fs*(dp2*r.y/dist-dp1*enow.y);
+                        //test =  fs*(dp2*r.z/dist-dp1*enow.z);
+                        atomicAdd(&(f[atom2].x), fs*(dp2*r.x/dist-dp1*enow.x));
+                        atomicAdd(&(f[atom2].y), fs*(dp2*r.y/dist-dp1*enow.y));
+                        atomicAdd(&(f[atom2].z), fs*(dp2*r.z/dist-dp1*enow.z));
+                        //atomicAdd(&(isspaf[atom2].x), fs*(dp2*r.x/dist-dp1*enow.x));
+                        //atomicAdd(&(isspaf[atom2].y), fs*(dp2*r.y/dist-dp1*enow.y));
+                        //atomicAdd(&(isspaf[atom2].z), fs*(dp2*r.z/dist-dp1*enow.z));
+                	fs=-xyz_s[atom2].w*o0*(2.5*c3-1.5*c1)/dist2/dist2/dist*mcpos.w;
+			//test = fs*(dp3*r.x/dist-dp2*enow.x);
+                        //test = fs*(dp3*r.y/dist-dp2*enow.y);
+                        //test = fs*(dp3*r.z/dist-dp2*enow.z);
+			atomicAdd(&(f[atom2].x), fs*(dp3*r.x/dist-dp2*enow.x));
+                        atomicAdd(&(f[atom2].y), fs*(dp3*r.y/dist-dp2*enow.y));
+                        atomicAdd(&(f[atom2].z), fs*(dp3*r.z/dist-dp2*enow.z));
+			//atomicAdd(&(isspaf[atom2].x), fs*(dp3*r.x/dist-dp2*enow.x));
+                        //atomicAdd(&(isspaf[atom2].y), fs*(dp3*r.y/dist-dp2*enow.y));
+                        //atomicAdd(&(isspaf[atom2].z), fs*(dp3*r.z/dist-dp2*enow.z));
+
+			// Lennard-Jones Force 
+			if (dist <= rmax_l) {
+
+			    bin = int ( (dist-forceRparams.x)/forceRparams.y + 0.5f);
+				if (bin >= (nRs)) {
+				        fs = 0.0;
+				} else {
+				        // linearly interpolate between two force bins
+				        //fracDist = (dist - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
+				        //f1 = __ldg(forceTable+it*nRs+bin);
+				        //f2 = __ldg(forceTable+it*nRs+bin+1);
+				        //fs = (f1*(1.0-fracDist)+f2*fracDist)*mcpos.w;					
+				        fs = __ldg(forceTable + jt*nRs+bin)*mcpos.w;
+				}    	    
+				      //test = -fs*r.x/dist;
+				      //test = -fs*r.y/dist;
+				      //test = -fs*r.z/dist;
+				      atomicAdd(&(f[atom2].x), -fs*r.x/dist);
+				      atomicAdd(&(f[atom2].y), -fs*r.y/dist);
+				      atomicAdd(&(f[atom2].z), -fs*r.z/dist);
+				      //atomicAdd(&(isspaf[atom2].x), -fs*r.x/dist);
+				      //atomicAdd(&(isspaf[atom2].y), -fs*r.y/dist);
+				      //atomicAdd(&(isspaf[atom2].z), -fs*r.z/dist);
+
+			} else {
+			        // Constant Dielectric
+			        fs=-xyz_s[atom2].w*p0/dist2/dist;
+			        pdotr=3.0*(e0now.x*r.x+e0now.y*r.y+e0now.z*r.z)/dist2;
+				//test = fs*(pdotr*r.x-e0now.x)*vtot_l/igo;
+				//test = fs*(pdotr*r.y-e0now.y)*vtot_l/igo;
+				//test = fs*(pdotr*r.z-e0now.z)*vtot_l/igo;
+				atomicAdd(&(f[atom2].x), fs*(pdotr*r.x-e0now.x)*vtot_l/igo);
+				atomicAdd(&(f[atom2].y), fs*(pdotr*r.y-e0now.y)*vtot_l/igo);
+				atomicAdd(&(f[atom2].z), fs*(pdotr*r.z-e0now.z)*vtot_l/igo);
+				//atomicAdd(&(isspaf[atom2].x), fs*(pdotr*r.x-e0now.x)*vtot_l/igo);
+				//atomicAdd(&(isspaf[atom2].y), fs*(pdotr*r.y-e0now.y)*vtot_l/igo);
+				//atomicAdd(&(isspaf[atom2].z), fs*(pdotr*r.z-e0now.z)*vtot_l/igo);
 			}
 		}
-
-		// add force to atoms
-		if (mcpos.w > 0.0f) {
-			bin = int ( (rnow-forceRparams.x)/forceRparams.y + 0.5f);
-			// linearly interpolate between two force bins
-			fracDist = (rnow - (forceRparams.x+bin*forceRparams.y)) / forceRparams.y;
-			f1 = __ldg(forceTable+it*nRs+bin);
-			f2 = __ldg(forceTable+it*nRs+bin+1);
-			fs = f1*(1.0-fracDist)+f2*fracDist;
-			fs *= mcpos.w;
-			atomicAdd(&(f[atom].x), fs*mcr.x);
-			atomicAdd(&(f[atom].y), fs*mcr.y);
-			atomicAdd(&(f[atom].z), fs*mcr.z);
-		}
-
 	}
 }
 
 
-// CUDA Kernel wrapper
-float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) {
 
-	float milliseconds;
+/* C wrappers for kernels */
+
+float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& isspas, int nAtoms_h) {
+//float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) {
+  
+        float milliseconds;
+	//float4 out_h[nAtoms_h*isspas.nMC];
 
 	// timing
 	cudaEventRecord(isspas.isspaStart);
 	
-
-	// generate MC points
-	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize,nAtoms_h*sizeof(float4)>>>(xyz_d, f_d, isspas.x0_w_vtot_d, isspas.gr2_g0_alpha_d, isspas.isspaTypes_d, isspas.isspaForceTable_d, isspas.randStates_d);
-
-
+	// compute isspa force
+	isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaETable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d, isspaf_d);
+	//isspa_force_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaETable_d, isspas.isspaForceTable_d, f_d, isspas.randStates_d, isspaf_d, isspas.out_d);
+	
+	// DEBUG
+	//cudaMemcpy(out_h, isspas.out_d, isspas.nMC*nAtoms_h*sizeof(float4), cudaMemcpyDeviceToHost);
+	//for (int i=0;i<nAtoms_h*isspas.nMC; i++)
+	//  {
+	//    printf("C %10.6e %10.6e %10.6e %10.6e %5i \n", out_h[i].x, out_h[i].y, out_h[i].z, out_h[i].w, i);
+	//  }
+	
 	// finish timing
 	cudaEventRecord(isspas.isspaStop);
 	cudaEventSynchronize(isspas.isspaStop);
 	cudaEventElapsedTime(&milliseconds, isspas.isspaStart, isspas.isspaStop);
 	return milliseconds;
-
 }
 
 void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
 
-	int minGridSize;
+        int minGridSize;
 	float2 box_h;
-
+	
 	// determine gridSize and blockSize
 	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &isspas.mcBlockSize, isspa_force_kernel, 0, nAtoms_h*isspas.nMC);
-    	// Round up according to array size
-    	isspas.mcGridSize = (nAtoms_h*isspas.nMC + isspas.mcBlockSize - 1) / isspas.mcBlockSize;
-
-
+	// Round up according to array size
+	isspas.mcGridSize = (nAtoms_h*isspas.nMC + isspas.mcBlockSize - 1) / isspas.mcBlockSize;
+	
+	// fill box with box and half box length
+	box_h.x = lbox_h;
+	box_h.y = lbox_h/2.0;
+	
 	// set constant memory
 	cudaMemcpyToSymbol(nMC, &isspas.nMC, sizeof(int));
 	cudaMemcpyToSymbol(nTypes, &isspas.nTypes, sizeof(int));
 	cudaMemcpyToSymbol(nRs, &isspas.nRs, sizeof(int));
+	cudaMemcpyToSymbol(nGRs, &isspas.nGRs, sizeof(int));
+	cudaMemcpyToSymbol(nERs, &isspas.nERs, sizeof(int));
 	cudaMemcpyToSymbol(nAtoms, &nAtoms_h, sizeof(int));
 	cudaMemcpyToSymbol(nPairs, &nPairs_h, sizeof(int));
-	box_h.x = lbox_h;
-	box_h.y = lbox_h/2.0;
 	cudaMemcpyToSymbol(box, &box_h, sizeof(float2));
 	cudaMemcpyToSymbol(forceRparams, &isspas.forceRparams, sizeof(float2));
-
-
+	cudaMemcpyToSymbol(gRparams, &isspas.gRparams, sizeof(float2));	
+	cudaMemcpyToSymbol(eRparams, &isspas.eRparams, sizeof(float2));	
 }

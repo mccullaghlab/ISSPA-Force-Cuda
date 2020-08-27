@@ -1,6 +1,3 @@
-
-
-
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +6,7 @@
 #include <cuda_runtime.h>
 #include <vector_functions.h>
 #include "constants.h"
+#include <iostream>
 
 using namespace std;
 #include "isspa_class.h"
@@ -22,44 +20,25 @@ void isspa::allocate(int nAtoms, int configMC)
 	int nTypeBytes = nTypes*sizeof(float);
 	// allocate atom based parameter arrays
 	isspaTypes_h = (int *)malloc(nAtoms*sizeof(int));
-	//lj_h = (float2 *)malloc(nTypes*sizeof(float2));
-	x0_h = (float *)malloc(nTypeBytes);
-	g0_h = (float *)malloc(nTypeBytes);
-	gr2_h = (float2 *)malloc(nTypes*sizeof(float2));
-	w_h = (float *)malloc(nTypeBytes);
-	alpha_h = (float *)malloc(nTypeBytes);
+	rmax_h = (float *)malloc(nTypeBytes);
 	vtot_h = (float *)malloc(nTypeBytes);
 	cudaMallocHost((float **) &isspaForceTable_h, nTypes*nRs*sizeof(float)); // force table
 	cudaMallocHost((float **) &isspaForceR_h, nRs*sizeof(float)); // distance values for force table
-	// combined parameter data
-	//lj_vtot_h = (float4 *)malloc(nTypes*sizeof(float4));;     // isspa LJ parameter
-	x0_w_vtot_h = (float4 *)malloc(nTypes*sizeof(float4));;     // x0 and w parameters
-	gr2_g0_alpha_h = (float4 *)malloc(nTypes*sizeof(float4));;     // gr2 g0 alpha
-
+	cudaMallocHost((float **) &isspaGTable_h, nTypes*nGRs*sizeof(float)); // force table
+	cudaMallocHost((float **) &isspaGR_h, nGRs*sizeof(float)); // distance values for force table
+	cudaMallocHost((float **) &isspaETable_h, nTypes*nERs*sizeof(float)); // force table
+	cudaMallocHost((float **) &isspaER_h, nERs*sizeof(float)); // distance values for force table
 }
 
 void isspa::construct_parameter_arrays()
 {
-	int i;
-	float x1;
-	float x2;
-	// compute other version of parabola parameters from given g0, x0 and alpha
-	for (i=0;i<nTypes;i++) {
-		x1 = x0_h[i] - sqrt(g0_h[i]/alpha_h[i]);	 			// lower limit of parabola
-		x2 = x0_h[i] + sqrt((g0_h[i]-1.0)/alpha_h[i]);	 			// upper limit of parabola
-		gr2_h[i].x = x1*x1;							// square of lower limit of parabola (g(r) = 0)
-		gr2_h[i].y = x2*x2;							// square of upper limit of parabola (g(r) = 1)
-		w_h[i] = x2-x1;	 							// width of parabola
-		vtot_h[i] = 16.0/3.0*PI*w_h[i]*g0_h[i]/((float) nMC)*0.0334*1E-2;	// Monte Carlo integration normalization
-		// store these values in float2 and float4s for computational efficiency
-		x0_w_vtot_h[i].x = x0_h[i];
-		x0_w_vtot_h[i].y = w_h[i];
-		x0_w_vtot_h[i].z = vtot_h[i];
-		gr2_g0_alpha_h[i].x = gr2_h[i].x;
-		gr2_g0_alpha_h[i].y = gr2_h[i].y;
-		gr2_g0_alpha_h[i].z = g0_h[i];
-		gr2_g0_alpha_h[i].w = alpha_h[i];
-	}
+  int i;
+  float x1;
+  float x2;
+  // compute other version of parabola parameters from given g0, x0 and alpha
+  for (i=0;i<nTypes;i++) {
+    vtot_h[i] = 4.0/3.0*PI*rmax_h[i]*rmax_h[i]*rmax_h[i]*0.0074/((float) nMC);// Monte Carlo integration normalization
+  }
 
 }
 
@@ -70,10 +49,10 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 	char const *blank = " ";
 	char const *metaDataFlag = "POINTERS";
 	char const *isspaTypeFlag = "ISSPA_TYPE_INDEX";
-	char const *isspaG0Flag = "ISSPA_G0";
-	char const *isspaX0Flag = "ISSPA_X0";
-	char const *isspaAlphaFlag = "ISSPA_ALPHA";
+	char const *isspaRmaxFlag = "ISSPA_RMAX";
 	char const *isspaForcesFlag = "ISSPA_FORCES";
+	char const *isspaDensitiesFlag = "ISSPA_DENSITIES";	
+	char const *isspaEFieldFlag = "ISSPA_EFIELD";	
 	char *flag;
 	char *token;
 	char *temp;
@@ -102,8 +81,12 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 					printf("Number of atoms from prmtop file: %d\n", nAtoms);
 					nTypes = atoi(strncpy(token,line+8,8));
 					printf("Number of ISSPA types from prmtop file: %d\n", nTypes);
-					nRs = atoi(strncpy(token,line+16,8));
+					nRs = atoi(strncpy(token,line+32,8));
 					printf("Number of ISSPA force values per type in prmtop file: %d\n", nRs);
+					nGRs = atoi(strncpy(token,line+16,8));
+					printf("Number of g force values per type in prmtop file: %d\n", nGRs);
+					nERs = atoi(strncpy(token,line+24,8));
+					printf("Number of electric field values per type in prmtop file: %d\n", nERs);
 					allocate(nAtoms,configMC);
 				} else if (strncmp(flag,isspaTypeFlag,16) == 0) {
 					// 
@@ -121,7 +104,7 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 							lineCount++;
 						}
 					}
-				} else if (strncmp(flag,isspaG0Flag,8) == 0) {
+				} else if (strncmp(flag,isspaRmaxFlag,10) == 0) {
 					// 
 					nLines = (int) (nTypes + 4) / 5.0 ;
 					/* skip format line */
@@ -132,46 +115,46 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 						temp = fgets(line, MAXCHAR, prmFile);
 						lineCount = 0;
 						while (typeCount < nTypes && lineCount < 5) {
-							g0_h[typeCount] = atof(strncpy(token,line+lineCount*16,16));
+							rmax_h[typeCount] = atof(strncpy(token,line+lineCount*16,16));
 							typeCount++;
 							lineCount++;
 						}
 					}
-				} else if (strncmp(flag,isspaX0Flag,8) == 0) {
-					// 
-					nLines = (int) (nTypes + 4) / 5.0 ;
-					/* skip format line */
-					temp = fgets(line, MAXCHAR, prmFile);
-					/* loop over lines */
-					typeCount = 0;
+				} else if (strncmp(flag,isspaDensitiesFlag,15) == 0) {
+					//
+				        nLines = nGRs;
+				        /* skip format line */
+				        temp = fgets(line, MAXCHAR, prmFile);
+				        /* loop over lines */
 					for (i=0;i<nLines;i++) {
-						temp = fgets(line, MAXCHAR, prmFile);
-						lineCount = 0;
-						while (typeCount < nTypes && lineCount < 5) {
-							x0_h[typeCount] = atof(strncpy(token,line+lineCount*16,16));
-							typeCount++;
-							lineCount++;
+					        temp = fgets(line, MAXCHAR, prmFile);
+				                isspaGR_h[i] = atof(strncpy(token,line,16));
+						for (typeCount=0;typeCount<nTypes;typeCount++) {
+				                        isspaGTable_h[typeCount*nGRs+i] = atof(strncpy(token,line+(typeCount+1)*16,16));
 						}
-					}
-				} else if (strncmp(flag,isspaAlphaFlag,11) == 0) {
-					// 
-					nLines = (int) (nTypes + 4) / 5.0 ;
+				        }
+				        // store min and bin size
+				        gRparams.x = isspaGR_h[0];  // min
+				        gRparams.y = isspaGR_h[1] - isspaGR_h[0]; // bin size
+				} else if (strncmp(flag,isspaEFieldFlag,12) == 0) {
+				        //
+				        nLines = nERs;
 					/* skip format line */
-					temp = fgets(line, MAXCHAR, prmFile);
-					/* loop over lines */
-					typeCount = 0;
+				        temp = fgets(line, MAXCHAR, prmFile);
+				        /* loop over lines */
 					for (i=0;i<nLines;i++) {
-						temp = fgets(line, MAXCHAR, prmFile);
-						lineCount = 0;
-						while (typeCount < nTypes && lineCount < 5) {
-							alpha_h[typeCount] = atof(strncpy(token,line+lineCount*16,16));
-							typeCount++;
-							lineCount++;
+				                temp = fgets(line, MAXCHAR, prmFile);
+						isspaER_h[i] = atof(strncpy(token,line,16));
+						for (typeCount=0;typeCount<nTypes;typeCount++) {
+						  isspaETable_h[typeCount*nERs+i] = atof(strncpy(token,line+(typeCount+1)*16,16));
 						}
-					}
+				        }
+				        // store min and bin size
+				        eRparams.x = isspaER_h[0];  // min
+				        eRparams.y = isspaER_h[1] - isspaER_h[0]; // bin size
 				} else if (strncmp(flag,isspaForcesFlag,12) == 0) {
-					// 
-					nLines = nRs;
+				       // 
+				       nLines = nRs;
 					/* skip format line */
 					temp = fgets(line, MAXCHAR, prmFile);
 					/* loop over lines */
@@ -184,7 +167,7 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 					}
 					// store min and bin size
 					forceRparams.x = isspaForceR_h[0];
-					forceRparams.y = isspaForceR_h[1] - isspaForceR_h[0];
+					forceRparams.y = isspaForceR_h[1] - isspaForceR_h[0];		 
 				}
 			}
 		}
@@ -192,39 +175,34 @@ void isspa::read_isspa_prmtop(char* isspaPrmtopFileName, int configMC)
 	}
 	// make other parameter arrays from the ones populated reading the prmtop
 	construct_parameter_arrays();
-
 }
 
 void isspa::initialize_gpu(int nAtoms, int seed)
 {
 	int nTypeBytes = nTypes*sizeof(float);
-	// allocate atom based parameter arrays
+	// allocate tabulated forces on device and pass data from host
 	cudaMalloc((void **) &isspaForceTable_d, nTypes*nRs*sizeof(float));
 	cudaMemcpy(isspaForceTable_d, isspaForceTable_h, nTypes*nRs*sizeof(float), cudaMemcpyHostToDevice);	
+	// allocate tabulated densities on device and pass data from host
+	cudaMalloc((void **) &isspaGTable_d, nTypes*nGRs*sizeof(float));
+	cudaMemcpy(isspaGTable_d, isspaGTable_h, nTypes*nGRs*sizeof(float), cudaMemcpyHostToDevice);
+	// allocate tabulated electric field on device and pass data from host
+	cudaMalloc((void **) &isspaETable_d, nTypes*nERs*sizeof(float));
+	cudaMemcpy(isspaETable_d, isspaETable_h, nTypes*nERs*sizeof(float), cudaMemcpyHostToDevice);
+	// allocate MC position array on device
 	cudaMalloc((void **) &mcpos_d, nAtoms*nMC*sizeof(float4));
-	cudaMalloc((void **) &x0_w_vtot_d, nTypes*sizeof(float4));
-	cudaMalloc((void **) &gr2_g0_alpha_d, nTypes*sizeof(float4));
-	//cudaMalloc((void **) &lj_d, nTypes*sizeof(float2));
+	//cudaMemcpy(mcDist_d, mcDist_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);
+	// allocate ISSPA types on device and pass data from host
 	cudaMalloc((void **) &isspaTypes_d, nAtoms*sizeof(int));
-	cudaMalloc((void **) &x0_d, nTypeBytes);
-	//cudaMalloc((void **) &g0_d, nTypeBytes);
-	//cudaMalloc((void **) &gr2_d, nTypes*sizeof(float2));
-	//cudaMalloc((void **) &w_d, nTypeBytes);
-	//cudaMalloc((void **) &alpha_d, nTypeBytes);
+	cudaMemcpy(isspaTypes_d, isspaTypes_h, nAtoms*sizeof(int), cudaMemcpyHostToDevice);
+	// allocate rmax on device and pass data from hose
+	cudaMalloc((void **) &rmax_d, nTypeBytes);
+	cudaMemcpy(rmax_d, rmax_h, nTypes*sizeof(float), cudaMemcpyHostToDevice);	
+	// allocate vtot on device and pass data from hose
 	cudaMalloc((void **) &vtot_d, nTypeBytes);
-	// copy params to gpu
-	cudaMemcpy(isspaTypes_d, isspaTypes_h, nAtoms*sizeof(int), cudaMemcpyHostToDevice);	
-	//cudaMemcpy(lj_vtot_d, lj_vtot_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);	
 	cudaMemcpy(vtot_d, vtot_h, nTypes*sizeof(float), cudaMemcpyHostToDevice);	
-	cudaMemcpy(x0_w_vtot_d, x0_w_vtot_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);	
-	cudaMemcpy(gr2_g0_alpha_d, gr2_g0_alpha_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);	
-	//cudaMemcpy(lj_d, lj_h, nTypes*sizeof(float2), cudaMemcpyHostToDevice);	
-	//cudaMemcpy(w_d, w_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	cudaMemcpy(x0_d, x0_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	//cudaMemcpy(g0_d, g0_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	//cudaMemcpy(gr2_d, gr2_h, nTypes*sizeof(float2), cudaMemcpyHostToDevice);	
-	//cudaMemcpy(alpha_d, alpha_h, nTypeBytes, cudaMemcpyHostToDevice);	
-	//cudaMemcpy(vtot_d, vtot_h, nTypeBytes, cudaMemcpyHostToDevice);	
+	// allocate array on device for DEBUG
+	cudaMalloc((void **) &out_d, nAtoms*nAtoms*sizeof(float4));
 	// random number states
 	cudaMalloc((void**) &randStates_d, nAtoms*nMC*sizeof(curandState));
 	init_rand_states(randStates_d, seed, nMC*nAtoms);
@@ -234,31 +212,26 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 
 }
 void isspa::free_arrays() {
-	free(w_h); 
-	free(g0_h); 
-	free(gr2_h); 
-	free(x0_h); 
-	free(alpha_h); 
+	free(rmax_h); 
 	free(vtot_h);
-        free(x0_w_vtot_h);
-	free(gr2_g0_alpha_h);
-	cudaFree(isspaForceTable_h);	
+        cudaFree(isspaForceTable_h);	
 	cudaFree(isspaForceR_h);
+	cudaFree(isspaGTable_h);
+	cudaFree(isspaGR_h);
+	cudaFree(isspaETable_h);
+	cudaFree(isspaER_h);
 	//free(lj_h);
 }
 void isspa::free_arrays_gpu() {
 	// free device variables
-	//cudaFree(w_d); 
-	//cudaFree(g0_d); 
-	//cudaFree(gr2_d); 
-	cudaFree(x0_d); 
-	//cudaFree(alpha_d); 
 	cudaFree(isspaForceTable_d);
-	cudaFree(x0_w_vtot_d);
-	cudaFree(gr2_g0_alpha_d);
-	cudaFree(vtot_d); 
+	cudaFree(isspaGTable_d);
+	cudaFree(isspaETable_d);
+	cudaFree(vtot_d);
+	cudaFree(rmax_d); 
 	cudaFree(randStates_d);
 	cudaFree(isspaTypes_d);
 	cudaFree(mcpos_d);
+	cudaFree(out_d);
 	//cudaFree(lj_d);
 }

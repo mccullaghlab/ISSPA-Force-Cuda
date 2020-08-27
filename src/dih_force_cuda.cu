@@ -12,7 +12,7 @@
 
 __global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox, int4 *dihAtoms, int *dihTypes, float4 *dihParams, int nDihs, int nTypes, float2 *scaled14Factors, float2 *lj, int *atomType, int *nbparm, int nAtomTypes) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
-	unsigned int t = threadIdx.x;
+	//unsigned int t = threadIdx.x;
 	//extern __shared__ float4 dihParams_s[];
 	//extern __shared__ float2 scaled14_s[];
 //	extern __shared__ float scnb_s[];
@@ -31,12 +31,13 @@ __global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox,
 	float fdih;
 	float hbox;
 	float rMag, r6;
-	int it, jt,  nlj;
+	//int it, jt,
+	int nlj;
 	float f14e,f14v;
 	float4 params;
 	float2 ljAB;
 	float2 sc14;
-	int i;
+	//int i;
 
 	// copy dihedral parameters to shared memory per block
 //	for (i=t;i<nTypes;i+=blockDim.x) {
