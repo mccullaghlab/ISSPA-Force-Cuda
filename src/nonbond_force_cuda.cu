@@ -1,10 +1,10 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
 #include <vector_functions.h>
 #include "cuda_vector_routines.h"
 #include "atom_class.h"
+#include "isspa_class.h"
 #include "nonbond_force_cuda.h"
 
 #define nDim 3
@@ -19,12 +19,12 @@ __constant__ int excludedAtomsListLength;
 
 // CUDA Kernels
 
-__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int *nExcludedAtoms, int *excludedAtomsList, int *nbparm, int *ityp) {
+__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, float2 *lj, float *rmax, int *isspaTypes, int *nExcludedAtoms, int *excludedAtomsList, int *nbparm, int *ityp) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int t = threadIdx.x;
 	extern __shared__ int excludedAtomsList_s[];
 	int atom1, atom2;
-	float dist2;	
+	float dist, dist2;	
 	int i;
 	int exStart;
 	int exStop;
@@ -33,9 +33,11 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int *nE
 	int it, jt;    // atom type of atom of interest
 	int nlj;
 	float4 r;
+	float rmax_l;
 	float r6;
 	float fc;
 	float flj;
+	float fdir;
 	float hbox;
 	float2 ljAB;
 	float4 p1, p2;
@@ -52,6 +54,8 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int *nE
 	{
 		atom1 = (int) (index/nAtoms);
 		atom2 = index % nAtoms;
+		it = __ldg(isspaTypes + atom2);
+		rmax_l = __ldg(rmax+it);
 		// check exclusions
 		exPass = 0;
 		if (atom1 < atom2) {
@@ -91,51 +95,93 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float2 *lj, int *nE
 			}
 		}
 		// finish exclusion check
-		if (atom1 != atom2 && exPass == 0) {
-			hbox = lbox/2.0;
-			p1 = __ldg(xyz + atom1);
-			p2 = __ldg(xyz + atom2);
-			r = min_image(p1 - p2,lbox,hbox);
-			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-			if (dist2 < rCut2) {
-				// LJ pair type
-				it = __ldg(ityp+atom1);
-				jt = __ldg(ityp+atom2);
-				nlj = nTypes*(it)+jt;
-				nlj = __ldg(nbparm+nlj);
-				ljAB = __ldg(lj+nlj);
-				// LJ force
-				r6 = powf(dist2,-3.0);
-				flj = r6 * (12.0 * ljAB.x * r6 - 6.0 * ljAB.y) / dist2;
-				// coulomb force
-				fc = p1.w*p2.w/dist2/sqrtf(dist2);
+		if (atom1 != atom2) {
+		  hbox = lbox/2.0;
+		        if (exPass == 0) {
+			  
+			       p1 = __ldg(xyz + atom1);
+			       p2 = __ldg(xyz + atom2);
+			       r = min_image(p1 - p2,lbox,hbox);
+			       dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
+			       dist = sqrtf(dist2);
+			  
+			       // LJ pair type
+			       it = __ldg(ityp+atom1);
+			       jt = __ldg(ityp+atom2);
+			       nlj = nTypes*(it)+jt;
+			       nlj = __ldg(nbparm+nlj);
+			       ljAB = __ldg(lj+nlj);
+			       // LJ force
+			       r6 = powf(dist2,-3.0);
+			       flj = r6 * (12.0 * ljAB.x * r6 - 6.0 * ljAB.y) / dist2;
+			       //atomicAdd(&(isspaf[atom1].x),(flj)*r.x);
+			       //atomicAdd(&(isspaf[atom1].y),(flj)*r.y);
+			       //atomicAdd(&(isspaf[atom1].z),(flj)*r.z);
+			       fc = p1.w*p2.w/dist2/sqrtf(dist2);
+			       //atomicAdd(&(isspaf[atom1].x),(fc)*r.x);
+			       //atomicAdd(&(isspaf[atom1].y),(fc)*r.y);
+			       //atomicAdd(&(isspaf[atom1].z),(fc)*r.z);
+			       if (dist > 2.0*rmax_l) {
+				       // coulomb force
+				       fdir = -p1.w*p2.w/dist2/dist*2.0/3.0*(1.0-1.0/ep);
+				       //fc += p1.w*p2.w/dist2/dist*(1.0+2.0/ep)/3.0;
+			       } else {
+				       fdir = -p1.w*p2.w*(1.0-1.0/ep)*(8.0*rmax_l-3.0*dist)/24.0/(rmax_l*rmax_l*rmax_l*rmax_l);
+				       //fc += p1.w*p2.w/dist2/dist*(1.0-1.0/ep)*(8.0*rmax_l-3.0*dist)/24.0/(rmax_l*rmax_l*rmax_l*rmax_l);
+			       }
+			       // add forces to atom1
+			       atomicAdd(&(f[atom1].x),(flj+fc+fdir)*r.x);
+			       atomicAdd(&(f[atom1].y),(flj+fc+fdir)*r.y);
+			       atomicAdd(&(f[atom1].z),(flj+fc+fdir)*r.z);
+			       //atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
+			       //atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
+			       //atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
+			} else {
+			       
+			        p1 = __ldg(xyz + atom1);
+				p2 = __ldg(xyz + atom2);
+				r = min_image(p1 - p2,lbox,hbox);
+				dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
+				dist = sqrtf(dist2);
+				if (dist > 2.0*rmax_l) {
+				        fdir = -p1.w*p2.w/dist2/dist*2.0/3.0*(1.0-1.0/ep);
+					//fc = 0;
+				} else {
+				        fdir = -p1.w*p2.w*(1.0-1.0/ep)*(8.0*rmax_l-3.0*dist)/24.0/(rmax_l*rmax_l*rmax_l*rmax_l);
+					//fc = 0;
+				}
 				// add forces to atom1
-				atomicAdd(&(f[atom1].x),(flj+fc)*r.x);
-				atomicAdd(&(f[atom1].y),(flj+fc)*r.y);
-				atomicAdd(&(f[atom1].z),(flj+fc)*r.z);
-				// add forces to atom2
-				//atomicAdd(&(f[atoms.y].x),-(flj+fc)*r.x);
-				//atomicAdd(&(f[atoms.y].y),-(flj+fc)*r.y);
-				//atomicAdd(&(f[atoms.y].z),-(flj+fc)*r.z);
-
+				atomicAdd(&(f[atom1].x),fdir*r.x);
+				atomicAdd(&(f[atom1].y),fdir*r.y);
+				atomicAdd(&(f[atom1].z),fdir*r.z);
+			 	//atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
+				//atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
+				//atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
 			}
 		}
-
 	}
 }
 
 /* C wrappers for kernels */
 
-float nonbond_force_cuda(atom &atoms)
+float nonbond_force_cuda(atom& atoms, isspa& isspas, int nAtoms_h)
 {
 	float milliseconds;
+	//float4 out_h[nAtoms_h*nAtoms_h]; 
 
 	// timing
 	cudaEventRecord(atoms.nonbondStart);
 	
 	// run nonbond cuda kernel
-	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.lj_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d);
+	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.isspaf_d, atoms.lj_d, isspas.rmax_d, isspas.isspaTypes_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d);
 
+	// DEBUG
+	//udaMemcpy(out_h, isspas.out_d, nAtoms_h*nAtoms_h*sizeof(float4), cudaMemcpyDeviceToHost);
+	//or (int i=0;i<=nAtoms_h*nAtoms_h; i++)
+	 // {
+	 //   printf("  %15.10f  %15.10f  %15.10f  %15.10f\n", out_h[i].x, out_h[i].y, out_h[i].z, out_h[i].w);
+	 // } 
+	
 	// finish timing
 	cudaEventRecord(atoms.nonbondStop);
 	cudaEventSynchronize(atoms.nonbondStop);
