@@ -1,17 +1,17 @@
 #/bin/bash
-#type=Csolv
-type=Csolu
 #type=Csolv_pair
-#type=Csolv_CDD
+#type=Csolu
 #type=LJsolu
 #type=LJsolv
+#type=Csolv
+type=Csolv_CDD
 rm ISSPA_force_${type}_10000.xyz
 touch ISSPA_force_${type}_10000.xyz
 rm random_number_seed.dat
 tough random_number_seed.dat
 export CUDA_VISIBLE_DEVICES=0
 i=1
-while [ $i -le 100 ]
+while [ $i -le 2000 ]
 do
     j=$(printf "%06d" $i)
     rand=$RANDOM

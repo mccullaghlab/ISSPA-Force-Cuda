@@ -38,7 +38,7 @@ void isspa::construct_parameter_arrays()
 
   // compute other parameters needed for isspa force calculateions
   for (i=0;i<nTypes;i++) {
-    vtot_h[i] = 4.0/3.0*PI*rmax_h[i]*rmax_h[i]*rmax_h[i]*0.0075/((float) nMC);// Monte Carlo integration normalization
+    vtot_h[i] = 4.0/3.0*PI*rmax_h[i]*rmax_h[i]*rmax_h[i]*0.0074/((float) nMC);// Monte Carlo integration normalization
   }  
 }
 
@@ -195,18 +195,16 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	// allocate ISSPA types on device and pass data from host
 	cudaMalloc((void **) &isspaTypes_d, nAtoms*sizeof(int));
 	cudaMemcpy(isspaTypes_d, isspaTypes_h, nAtoms*sizeof(int), cudaMemcpyHostToDevice);
-	// allocate rmax on device and pass data from hose
+	// allocate rmax on device and pass data from host
 	cudaMalloc((void **) &rmax_d, nTypeBytes);
 	cudaMemcpy(rmax_d, rmax_h, nTypes*sizeof(float), cudaMemcpyHostToDevice);	
-	// allocate vtot on device and pass data from hose
+	// allocate vtot on device and pass data from host
 	cudaMalloc((void **) &vtot_d, nTypeBytes);
 	cudaMemcpy(vtot_d, vtot_h, nTypes*sizeof(float), cudaMemcpyHostToDevice);
-	// allocate enow on device and pass data from hose
-	cudaMalloc((void **) &enow_d, nAtoms*nMC);
-	cudaMemcpy(enow_d, enow_h, nAtoms*nMC*sizeof(float4), cudaMemcpyHostToDevice);
-	// allocate e0now on device and pass data from hose
-	cudaMalloc((void **) &e0now_d, nAtoms*nMC);
-	cudaMemcpy(e0now_d, e0now_h, nAtoms*nMC*sizeof(float4), cudaMemcpyHostToDevice);
+	// allocate enow on device and pass data from host
+	cudaMalloc((void **) &enow_d, nAtoms*nMC*sizeof(float4));
+	// allocate e0now on device and pass data from host
+	cudaMalloc((void **) &e0now_d, nAtoms*nMC*sizeof(float4));
 	// random number states
 	cudaMalloc((void**) &randStates_d, nAtoms*nMC*sizeof(curandState));
 	init_rand_states(randStates_d, seed, nMC*nAtoms);

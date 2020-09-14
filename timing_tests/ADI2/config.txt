@@ -13,11 +13,11 @@ velFile = ADI.2.velocities.xyz
 posRstFile = ADI.2.positions.rst
 velRstFile = ADI.2.velocities.rst
 # PARAMETERS:
-nMC = 1
-nSteps = 1
+nMC = 50
+nSteps = 1000
 deltaWrite = 100
 temperature = 298.00
-seed = 4604
+seed = 12345
 cutoff = 12.0
 dielectric = 1.0
 boxLength = 200.0

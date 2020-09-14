@@ -264,8 +264,7 @@ void atom::print_isspaf() {
 	fprintf(IFFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
-	  //fprintf(IFFile,"C %10.6f %10.6f %10.6f\n", isspaf_h[i].x, isspaf_h[i].y, isspaf_h[i].z);
-		fprintf(IFFile,"C %10.6f %10.6f %10.6f %16.8e %16.8e %16.8e\n", pos_h[i].x, pos_h[i].y, pos_h[i].z, isspaf_h[i].x, isspaf_h[i].y, isspaf_h[i].z);
+	  fprintf(IFFile,"C %10.6f %10.6f %10.6f %16.8e %16.8e %16.8e\n", pos_h[i].x, pos_h[i].y, pos_h[i].z, isspaf_h[i].x, isspaf_h[i].y, isspaf_h[i].z);
 	}
 	fflush(IFFile);
 }

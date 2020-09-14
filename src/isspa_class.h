@@ -40,8 +40,6 @@ class isspa
                 float4 *mcpos_d;
 		float4 *e0now_d;
 		float4 *enow_d;
-                float4 *e0now_h;
-		float4 *enow_h;
                 float4 *out_d;  // DEBUG variable
                 //float4 *mcDist_h; // min, max, delta, and normalization of Monte Carlo distribution - host data
                 //float4 *mcDist_d; // min, max delta, and normalization of Monte Carlo distribution - device data

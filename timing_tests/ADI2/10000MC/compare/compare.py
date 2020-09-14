@@ -3,8 +3,8 @@ import sys
 
 
 
-#names = ["LJsolu","LJsolv","Csolu","Csolv","Csolv_pair","Csolv_CDD"]
-names = ["LJsolu"]
+names = ["LJsolu","LJsolv","Csolu","Csolv","Csolv_pair","Csolv_CDD"]
+#names = ["LJsolu","Csolu","Csolv_pair","LJsolv","Csolv"]
 
 for name in names:
     file = open("ISSPA_force_%s_10000.xyz" %(name),'r')
@@ -12,6 +12,8 @@ for name in names:
     start=[]
     stop = []
     for num,line in enumerate(lines):
+        if num == 0:
+            nAtoms = int(line)
         temp = line.split()
         if len(temp) == 1:
             if len(lines[num+1].split()) != 1:
@@ -22,7 +24,7 @@ for name in names:
         if num == len(lines)-1:
             stop.append(num)
             
-    avg = np.zeros((len(start),3),dtype=float)
+    avg = np.zeros((nAtoms,3),dtype=float)
     for i in range(len(start)):
         count = 0
         for j in range(start[i],stop[i]):
