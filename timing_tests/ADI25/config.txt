@@ -2,16 +2,16 @@
 velRst = 0
 inputVel = notread.rst
 # INPUT FILES:
-prmtop = ADI2.prmtop
-inputCoord = ADI2.rst7
-isspaPrmtop = ADI2.isspatop
+prmtop = ADI25.prmtop
+inputCoord = ADI25.rst7
+isspaPrmtop = ADI25.isspatop
 # OUTPUT FILES:
-forFile = ADI.2.forces.xyz
-posFile = ADI.2.positions.xyz
-velFile = ADI.2.velocities.xyz
+forFile = ADI.25.forces.xyz
+posFile = ADI.25.positions.xyz
+velFile = ADI.25.velocities.xyz
 # RESTART FILES:
-posRstFile = ADI.2.positions.rst
-velRstFile = ADI.2.velocities.rst
+posRstFile = ADI.25.positions.rst
+velRstFile = ADI.25.velocities.rst
 # PARAMETERS:
 nMC = 10
 nSteps = 1000
