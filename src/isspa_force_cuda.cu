@@ -27,146 +27,94 @@ __constant__ float2 eRparams;
 
 // CUDA Kernels
 
-__global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *eTable, curandState *state, float4 *enow, float4 *e0now, float4 *mcpos, float4 *out) {
-  //__global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *eTable, curandState *state, float4 *enow, float4 *e0now, float4 *mcpos) {
+ 
+__global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *eTable, curandState *state, float4 *enow, float4 *e0now, float4 *mcpos) { 
         unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
         unsigned int t = threadIdx.x;
-	extern __shared__ float4 xyz_s[];
-	int atom;
-	int atom2;
-         int bin;
-	int it, jt;
-	int i;
+        extern __shared__ float4 fields[];
+        int atom;
+        int atom2;
+	int bin;
+        int it, jt;
+        int i;
         float igo;
-	float vtot_l;
-	float rmax_l;
+        float vtot_l;
+        float rmax_l;
         float dist2, dist;
         float fracDist;
         float g1, g2;
         float e1, e2;
-	float etab;
-	float r0, r2;
+        float etab;
+        float r0, r2;
         float2 gRparams_l = gRparams;
-	float2 eRparams_l = eRparams;
-	float4 r;
-	float4 mcr;
-	float4 enow_l;
-	float4 e0now_l;
-	curandState_t threadState;
-  
-  
-	// copy atom position to shared memory
-	for (i=t;i<nAtoms;i+=blockDim.x) {
-                xyz_s[i] = __ldg(xyz+i);	
-	}
-	__syncthreads();
-  
-	// move on
-  
-	if (index < nAtoms*nMC) {
-	        // random number state - store in temporary variable
-	        threadState = state[index];
+        float2 eRparams_l = eRparams;
+        float4 r;
+        float4 mcr;
+        float4 mcpos_l;
+        float4 enow_l;
+        float4 e0now_l;
+        curandState_t threadState;
 
-		// get atom number of interest
-		atom = int(index/(float) nMC);
-		mcpos[index] = xyz_s[atom];
-		// isspa type
-		it = __ldg(isspaTypes+atom);
-		vtot_l = __ldg(vtot+it);
-		rmax_l = __ldg(rmax+it);
-		igo = 0;
+	if (index < nAtoms*nAtoms*nMC) {
+	        threadState = state[index];
+		// Determine which atom the MC point is being generated on
+		atom = int(index/(float) nAtoms*nMC);
+		// Determine the index of the  MC point being generated 
+		MC = int((index-atom*nAtoms*nMC) / (float) nAtoms);
+		// Determine which atom is generating the field at the MC point
+		atom2 = int(index- atom*nAtoms*nMC - MC*nAtoms);
+		
+		atom_pos = __ldg(xyz+atom);
+		atom2_pos = __ldg(xyz+atom2);
+		mcpos_l = atom_pos;
 		// generate 3D MC pos based inside a sphere rnow
 		do {
-		        mcr.x = (2.0f * curand_uniform(&threadState) - 1.0f);
+	                mcr.x = (2.0f * curand_uniform(&threadState) - 1.0f);
 			mcr.y = (2.0f * curand_uniform(&threadState) - 1.0f);
 			mcr.z = (2.0f * curand_uniform(&threadState) - 1.0f);
 			r2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
 		}
 		while (r2 >= 1.0f);
-		mcr.x *= rmax_l;
-		mcr.y *= rmax_l;
-		mcr.z *= rmax_l;		
-		//mcr.x = 2.5;
-		//mcr.y = 8.5;
-		//mcr.z = -6.5;
-
-
-		mcpos[index] += mcr;
-		// initialize density of MC point
-		mcpos[index].w = 1.0;
-		//enow[index].x = 0.0;
-		//enow[index].y = 0.0;
-		//enow[index].z = 0.0;
-		//e0now[index].x = 0.0;
-		//e0now[index].y = 0.0;
-		//e0now[index].z = 0.0;		
-		enow_l.x = 0.0;
-		enow_l.y = 0.0;
-		enow_l.z = 0.0;
-		e0now_l.x = 0.0;
-		e0now_l.y = 0.0;
-		e0now_l.z = 0.0;
+		mcr *= rmax_l;
+		mcpos_l += mcr;
+		mcpos_l.w = 1.0;
 		
-		// random state in global
-		state[index] = threadState;
-                // Get density from g table  
-		// get atom number of interest
-		for(atom2=0;atom2<nAtoms;atom2++){
-		        jt = __ldg(isspaTypes + atom2);
-			r = min_image(mcpos[index] - xyz_s[atom2],box.x,box.y);
-		        dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-			dist = sqrtf(dist2);
-			
-			if (dist <= rmax_l) {
-				igo += 1;
-				// determine density bin of distance
-			        bin = int ( (dist-gRparams_l.x)/gRparams_l.y ); 	
-				// make sure bin is in limits of density table
-				if (bin < 0) {
-				        mcpos[index].w *= 0.0;
-				} else if (bin < nGRs) {
-					// Push Density to MC point
-				        // linearly interpolate between two density bins
-				        fracDist = (dist - (gRparams_l.x+bin*gRparams_l.y)) / gRparams_l.y;
-				        g1 = __ldg(gTable+jt*nGRs+bin);
-				        g2 = __ldg(gTable+jt*nGRs+bin+1);
-					mcpos[index].w *= g1*(1.0-fracDist)+g2*fracDist;
-				        //mcpos[index].w *= __ldg(gTable + jt*nGRs+bin);
-					// Push electric field to MC point
-					fracDist = (dist - (eRparams_l.x+bin*eRparams_l.y)) / eRparams_l.y;
-					e1 = __ldg(eTable+jt*nERs+bin);
-				        e2 = __ldg(eTable+jt*nERs+bin+1);					
-					etab =  e1*(1.0-fracDist)+e2*fracDist;
-					etab = __ldg(eTable + jt*nERs+bin);
-					enow_l.x += r.x/dist*etab;
-					enow_l.y += r.y/dist*etab;
-					enow_l.z += r.z/dist*etab;
-}      
-			} else {
-			        e0now_l.x -= e0*xyz_s[atom2].w*r.x/dist2/dist;
-				e0now_l.y -= e0*xyz_s[atom2].w*r.y/dist2/dist;
-				e0now_l.z -= e0*xyz_s[atom2].w*r.z/dist2/dist; 
-			}		
-			enow_l.x -= e0*xyz_s[atom2].w*r.x/dist2/dist;
-			enow_l.y -= e0*xyz_s[atom2].w*r.y/dist2/dist;
-			enow_l.z -= e0*xyz_s[atom2].w*r.z/dist2/dist; 
-		}
-
-		mcpos[index].w *= vtot_l/igo;
-                e0now[index].w = vtot_l/igo;
-		// Convert enow into polarzation
-		//r2 = enow[index].x*enow[index].x+enow[index].y*enow[index].y+enow[index].z*enow[index].z;
-		r2 = enow_l.x*enow_l.x+enow_l.y*enow_l.y+enow_l.z*enow_l.z;
-		r0 = sqrtf(r2);
-		enow[index].x = enow_l.x/r0;
-		enow[index].y = enow_l.y/r0;
-		enow[index].z = enow_l.z/r0;
-		enow[index].w = r0;
-		e0now[index].x = e0now_l.x/3.0;
-		e0now[index].y = e0now_l.y/3.0;
-		e0now[index].z = e0now_l.z/3.0;
-		
+		jt = __ldg(isspaTypes + atom2);
+		r = min_image(mcpos_l - atom2_pos,box.x,box.y);
+		dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
+		dist = sqrtf(dist2);			
+		if (dist <= rmax_l) {
+	                igo = 1;
+			// determine density bin of distance
+			bin = int ( (dist-gRparams_l.x)/gRparams_l.y ); 	
+			// make sure bin is in limits of density table
+			if (bin < 0) {
+		                mcpos_l = 0.0;
+			} else if (bin < nGRs) {
+		                // Push Density to MC point
+		                fracDist = (dist - (gRparams_l.x+bin*gRparams_l.y)) / gRparams_l.y;
+				g1 = __ldg(gTable+jt*nGRs+bin);
+				g2 = __ldg(gTable+jt*nGRs+bin+1);
+				mcpos_l = g1*(1.0-fracDist)+g2*fracDist;
+				// Push electric field to MC point
+				fracDist = (dist - (eRparams_l.x+bin*eRparams_l.y)) / eRparams_l.y;
+				e1 = __ldg(eTable+jt*nERs+bin);
+				e2 = __ldg(eTable+jt*nERs+bin+1);					
+				etab =  e1*(1.0-fracDist)+e2*fracDist;
+				enow_l = r.x/dist*etab;
+			}      
+		} else {
+	                e0now_l -= e0*atom2_pos.w*r/dist2/dist;
+		}		
+		enow_l -= e0*atom2_pos.w*r/dist2/dist;
 	}
+
+	fields[index] = mcpos_l;
+	fields[index+nAtoms*nAtoms*nMC] = enow_l;
+	fields[index+nAtoms*nAtoms*nMC*2] = e0now_l;
+
+	__syncthreads();
+
 }
 
 __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *forceTable, float4 *f, curandState *state,  float4 *enow, float4 *e0now, float4 *mcpos, float4 *out, float4 *isspaf) {
@@ -301,7 +249,7 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& issp
 	
         // compute densities and mean electric field value for each MC point
 	//isspa_field_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*isspas.nMC*sizeof(float4)>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaGTable_d,isspas.isspaETable_d,isspas.randStates_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d);
-	isspa_field_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*isspas.nMC*sizeof(float4)>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaGTable_d,isspas.isspaETable_d,isspas.randStates_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d,isspas.out_d);
+	isspa_field_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, nAtoms_h*nAtoms_h*isspas.nMC*3*sizeof(float4)>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaGTable_d,isspas.isspaETable_d,isspas.randStates_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d,isspas.out_d);
 
 	// DEBUG
 	//cudaMemcpy(out_h, isspas.out_d, isspas.nMC*nAtoms_h*sizeof(float4), cudaMemcpyDeviceToHost);
