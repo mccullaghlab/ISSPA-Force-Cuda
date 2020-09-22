@@ -208,8 +208,8 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	// random number states
 	cudaMalloc((void**) &randStates_d, nAtoms*nMC*sizeof(curandState));
 	init_rand_states(randStates_d, seed, nMC*nAtoms);
-	// allocate array on device for DEBUG                                                                                                      
-        cudaMalloc((void **) &out_d, nAtoms*nAtoms*sizeof(float4));
+	// allocate array on device for DEBUG
+	cudaMalloc((void **) &out_d, nAtoms*nAtoms*nMC*sizeof(float4));
 	// gpu timing
 	cudaEventCreate(&isspaStart);
 	cudaEventCreate(&isspaStop);

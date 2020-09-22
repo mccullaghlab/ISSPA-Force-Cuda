@@ -167,7 +167,6 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 float nonbond_force_cuda(atom& atoms, isspa& isspas, int nAtoms_h)
 {
 	float milliseconds;
-	//float4 out_h[nAtoms_h*nAtoms_h]; 
 
 	// timing
 	cudaEventRecord(atoms.nonbondStart);
@@ -175,12 +174,6 @@ float nonbond_force_cuda(atom& atoms, isspa& isspas, int nAtoms_h)
 	// run nonbond cuda kernel
 	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.isspaf_d, atoms.lj_d, isspas.rmax_d, isspas.isspaTypes_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d);
 
-	// DEBUG
-	//udaMemcpy(out_h, isspas.out_d, nAtoms_h*nAtoms_h*sizeof(float4), cudaMemcpyDeviceToHost);
-	//or (int i=0;i<=nAtoms_h*nAtoms_h; i++)
-	 // {
-	 //   printf("  %15.10f  %15.10f  %15.10f  %15.10f\n", out_h[i].x, out_h[i].y, out_h[i].z, out_h[i].w);
-	 // } 
 	
 	// finish timing
 	cudaEventRecord(atoms.nonbondStop);

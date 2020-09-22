@@ -41,11 +41,10 @@ class isspa
 		float4 *e0now_d;
 		float4 *enow_d;
                 float4 *out_d;  // DEBUG variable
-                //float4 *mcDist_h; // min, max, delta, and normalization of Monte Carlo distribution - host data
-                //float4 *mcDist_d; // min, max delta, and normalization of Monte Carlo distribution - device data
                 // kernel grid/block configurations
 		int mcGridSize;
 		int mcBlockSize;
+		int2 mcCalcsPerThread;
 		int fGridSize;
 		int fBlockSize;
 		// gpu timing events

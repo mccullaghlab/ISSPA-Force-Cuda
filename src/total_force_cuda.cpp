@@ -106,6 +106,9 @@ int main(int argc, char* argv[])
 		// zero force array on gpu
 		cudaMemset(atoms.for_d, 0.0f,  atoms.nAtoms*sizeof(float4));
 		// zero force array on gpu
+		cudaMemset(isspas.enow_d,  0.0f,   atoms.nAtoms*isspas.nMC*sizeof(float4));
+		cudaMemset(isspas.e0now_d, 0.0f,  atoms.nAtoms*isspas.nMC*sizeof(float4));
+		cudaMemset(isspas.mcpos_d, 1.0f,  atoms.nAtoms*isspas.nMC*sizeof(float4));
 		cudaMemset(atoms.isspaf_d, 0.0f,  atoms.nAtoms*sizeof(float4));
 		// compute bond forces on device
 		times.bondTime += bond_force_cuda(atoms.pos_d, atoms.for_d, atoms.nAtoms, configs.lbox, bonds);

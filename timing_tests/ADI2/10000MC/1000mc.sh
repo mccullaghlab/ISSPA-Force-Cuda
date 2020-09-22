@@ -11,7 +11,7 @@ rm random_number_seed.dat
 tough random_number_seed.dat
 export CUDA_VISIBLE_DEVICES=0
 i=1
-while [ $i -le 2000 ]
+while [ $i -le 1000 ]
 do
     j=$(printf "%06d" $i)
     rand=$RANDOM
