@@ -44,7 +44,7 @@ class isspa
                 // kernel grid/block configurations
 		int mcGridSize;
 		int mcBlockSize;
-		int2 mcCalcsPerThread;
+		int4 mcCalcsPerThread;
 		int fGridSize;
 		int fBlockSize;
 		// gpu timing events

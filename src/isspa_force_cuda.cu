@@ -36,7 +36,7 @@ __device__ float atomicMul(float* address, float val) {
 	} while (assumed != old); return __uint_as_float(old);
 }
 
-__global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *eTable, curandState *state, float4 *enow, float4 *e0now, float4 *mcpos, int2 CalcsPerThread, int GridSize, float4 *out) { 
+__global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *eTable, curandState *state, float4 *enow, float4 *e0now, float4 *mcpos, int4 CalcsPerThread, int GridSize, float4 *out) { 
         unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int tid = threadIdx.x;
 	extern __shared__ float smem[];	
@@ -79,10 +79,9 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		// Determine the index of the  MC point being generated 
 		MC = blockIdx.x;
 		// Local thread Id
-		tid = int(index - atom*nAtoms*nMC - (MC-atom*nMC)*nAtoms);
-			
+		tid = int(index - atom*nAtoms*nMC - (MC-atom*nMC)*nAtoms);			
 		// Grab the Random Number State corresponding to MC index
-		threadState = state[atom*nMC+MC];
+		threadState = state[MC];
 		// Get atom positions
 		atom_pos = __ldg(xyz+atom);
 		mcpos_l = atom_pos;
@@ -102,13 +101,15 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		mcr.y = 8.5;
 		mcr.z = -6.5;   
 		mcpos_l += mcr;
-		mcpos_l.w = 1.0;
+		//mcpos_l.w = 1.0;
 		for(i=0;i<CalcsPerThread.x;i++) {
-			// Determine which atom is generating the field at the MC point
-			//atom2 = int(index - atom*nAtoms*nMC - (MC-atom*nMC)*nAtoms);
-		        atom2 = int(index - atom*nAtoms*nMC - (MC-atom*nMC)*nAtoms + i*CalcsPerThread.y);
+		        // Determine which atom is generating the field at the MC point
+			atom2 = int(index - atom*nAtoms*nMC - (MC-atom*nMC)*nAtoms + i*CalcsPerThread.y);
 			if (atom2 == 0) {
 			    mcpos[MC] = mcpos_l;
+			    for (i=0;i<CalcsPerThread.z;i++) {
+			      smem[i] = 1;
+			    }			    
 			}
 			if (atom2 <= nAtoms) {	
 			        // Get atom positions
@@ -136,7 +137,7 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 						} else {
 						        smem[tid] *= g1*(1.0-fracDist)+g2*fracDist;
 						}
-						mcpos_l.w *= g1*(1.0-fracDist)+g2*fracDist;
+						//mcpos_l.w *= g1*(1.0-fracDist)+g2*fracDist;
 						// Push electric field to MC point
 						fracDist = (dist - (eRparams_l.x+bin*eRparams_l.y)) / eRparams_l.y;
 						e1 = __ldg(eTable+jt*nERs+bin);
@@ -147,7 +148,7 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 				} else {
 				        igo = 0;
 					e0now_l -= e0*atom2_pos.w*r/dist2/dist;
-					smem[tid] = 1;
+					//smem[tid] = 1;
 				}		
 				enow_l -= e0*atom2_pos.w*r/dist2/dist;
 			}
@@ -155,7 +156,7 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 
 		
 		
-		atomicMul(&(mcpos[MC].w), mcpos_l.w);
+		//atomicMul(&(mcpos[MC].w), mcpos_l.w);
 		atomicAdd(&(enow[MC].x), enow_l.x);
 		atomicAdd(&(enow[MC].y), enow_l.y);
 		atomicAdd(&(enow[MC].z), enow_l.z);
@@ -166,29 +167,20 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		
 		__syncthreads();
 		
-		//out[tid].x = smem[0];
-		//out[tid].y = blockDim.x;
-		// Reduction of shared memory arrays
 		
+		// Reduction of shared memory arrays		
 		for (unsigned int s=1; s < blockDim.x; s*=2) {
 		        int idx = 2*s*tid;
 			if (idx < blockDim.x) {			  
-			        smem[idx] *= smem[idx+s];				
-				//out[idx].x = smem[idx];
-				//out[idx].y = smem[idx+s];
-				  
+			        smem[idx] *= smem[idx+s];								  
 			}
 			__syncthreads();
 		}
-		out[tid].z = smem[0];
-		//if (tid == 0) {
-		//	out[MC].x = smem[0];
-		//	out[MC].y = mcpos_l.w;
-		//	out[MC].z = tid;
-		//}
+
 		if (tid == 0) {
 		        igo = vtot_l/e0now[MC].w;
-			mcpos[MC].w *= igo;
+		        mcpos[MC].w = smem[0]*igo;
+			//mcpos[MC].w *= igo;
 		        // Convert enow into polarzation
 		        r2 = enow[MC].x*enow[MC].x+enow[MC].y*enow[MC].y+enow[MC].z*enow[MC].z;
 			r0 = sqrtf(r2);
@@ -290,13 +282,13 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
                                         fs = __ldg(forceTable + jt*nRs+bin)*mcpos_l.w;
                                 }
                                 fi += -fs*r/dist;
-                                //fj += -fs*r/dist;
+                                fj += -fs*r/dist;
                         } else {
                                 // Constant Density Dielectric
 			        fs=-xyz_l.w*p0/dist2/dist;
 				pdotr=3.0*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z)/dist2;
 				fi += fs*(pdotr*r-e0now_l)*e0now_l.w;
-                                fj += fs*(pdotr*r-e0now_l)*e0now_l.w;
+                                //fj += fs*(pdotr*r-e0now_l)*e0now_l.w;
                         }
                 }
                 f[atom].x += fi.x;
@@ -321,13 +313,13 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& issp
         cudaEventRecord(isspas.isspaStart);
 
         // compute densities and mean electric field value for each MC point
-	isspa_field_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, isspas.mcBlockSize*sizeof(float)>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaGTable_d,isspas.isspaETable_d,isspas.randStates_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d,isspas.mcCalcsPerThread,isspas.mcBlockSize,isspas.out_d);
+	isspa_field_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, isspas.mcCalcsPerThread.z*sizeof(float)>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaGTable_d,isspas.isspaETable_d,isspas.randStates_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d,isspas.mcCalcsPerThread,isspas.mcBlockSize,isspas.out_d);
 
 	//// DEBUG
-	cudaMemcpy(out_h, isspas.out_d, nAtoms_h*nAtoms_h*isspas.nMC*sizeof(float4), cudaMemcpyDeviceToHost);
-        for (int i=0;i<nAtoms_h*isspas.nMC; i++) {
-	  printf("C %10.6f %10.6f %10.6f %10.6f %5i \n", out_h[i].  x, out_h[i].y, out_h[i].z, out_h[i].w, i);
-	}
+	//cudaMemcpy(out_h, isspas.out_d, nAtoms_h*nAtoms_h*isspas.nMC*sizeof(float4), cudaMemcpyDeviceToHost);
+        //for (int i=0;i<nAtoms_h*isspas.nMC; i++) {
+	//  printf("C %10.6f %10.6f %10.6f %10.6f %5i \n", out_h[i].  x, out_h[i].y, out_h[i].z, out_h[i].w, i);
+	//}
        
 	// compute forces for each atom
 	isspa_force_kernel<<<isspas.fGridSize, isspas.fBlockSize>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaForceTable_d,f_d,isspas.randStates_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d,isspaf_d,isspas.out_d);
@@ -353,7 +345,8 @@ void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
 	float2 box_h;
 	int maxThreadsPerBlock = 1024;
 	//// determine gridSize and blockSize
-
+	int pot[10]={2,4,8,16,32,64,128,256,512,1024};
+	
 	if (nAtoms_h <= maxThreadsPerBlock) {
 	        isspas.mcBlockSize = nAtoms_h;
 		isspas.mcCalcsPerThread.y = nAtoms_h;	  	
@@ -366,7 +359,13 @@ void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
 	printf("Number of threads per block: %d \n", isspas.mcBlockSize);
 	printf("Number of ISSPA MC-atom pair calculations per thread: %d \n", isspas.mcCalcsPerThread.x);
 	printf("Number of blocks: %d \n", isspas.mcGridSize);
-	
+	int i = -1;
+	do {
+	  i += 1;
+	  isspas.mcCalcsPerThread.z = pot[i];
+	}
+	while (isspas.mcBlockSize >= isspas.mcCalcsPerThread.z);
+	printf("Shared Memory Array Size: %d \n", isspas.mcCalcsPerThread.z);
 	
         // determine gridSize and blockSize
 	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &isspas.fBlockSize, isspa_force_kernel, 0, nAtoms_h);
