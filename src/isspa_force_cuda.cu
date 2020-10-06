@@ -64,33 +64,38 @@ float4 warpReduceSumTriple(float4 val) {
   return val; 
 }
 
-__inline__ __device__
-float4 createMonteCarloPoint(float rmax, curandState_t threadState, int MC) {
-  float r2;
-  float4 mcr;
-  do {
-    mcr.x = (2.0f * curand_uniform(&threadState) - 1.0f);
-    mcr.y = (2.0f * curand_uniform(&threadState) - 1.0f);
-    mcr.z = (2.0f * curand_uniform(&threadState) - 1.0f);
-    r2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
-  }
-  while (r2 >= 1.0f);
-  mcr *= rmax;
-//  if (MC == 0) {
-//    mcr.x = 2.5;
-//    mcr.y = 8.5;
-//    mcr.z = -6.5;
-//  }
-//  if (MC == 1) {
-//    mcr.x = 3.8;
-//    mcr.y = -9.2;
-//    mcr.z = -2.6;
-//  }
-  
-  return mcr; 
+__global__  void isspa_MC_points_kernel(float4 *xyz, float4 *mcpos, curandState *state, float *rmax, int *isspaTypes) {
+        unsigned int MC = threadIdx.x + blockIdx.x*blockDim.x;    
+	int atom = blockIdx.x;
+	int it;
+	float r2;
+	float rmax_l;
+	float4 mcr;
+	float4 mcpos_l;
+	curandState_t threadState;
+	
+	// Determine which atom the MC point is being generated on
+	it = __ldg(isspaTypes+atom);
+	rmax_l = __ldg(rmax+it);
+	mcpos_l = __ldg(xyz+atom);
+	threadState = state[MC];
+	
+	do {
+	        mcr.x = (2.0f * curand_uniform(&threadState) - 1.0f);
+		mcr.y = (2.0f * curand_uniform(&threadState) - 1.0f);
+		mcr.z = (2.0f * curand_uniform(&threadState) - 1.0f);
+		r2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
+	}
+	while (r2 >= 1.0f);
+	mcr *= rmax_l;
+	mcpos_l += mcr;
+	mcpos_l.w = 1.0;
+	mcpos[MC] = mcpos_l;
 }
 
-__global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *eTable, curandState *state, float4 *enow, float4 *e0now, float4 *mcpos, int4 CalcsPerThread, int GridSize) { 
+
+
+__global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *gTable, float *eTable, float4 *enow, float4 *e0now, float4 *mcpos, int4 CalcsPerThread) { 
         unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	unsigned int tid = threadIdx.x;
 	int atom;
@@ -100,8 +105,7 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
         int it;
 	int jt;
         int i;
-	int MCind;
-        float igo;
+	float igo;
         float vtot_l;
         float rmax_l;
         float dist2, dist;
@@ -113,14 +117,11 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
         float r0;
         float2 gRparams_l = gRparams;
         float2 eRparams_l = eRparams;
-	float4 atom_pos;
 	float4 atom2_pos;
-        float4 mcr;
         float4 r;
         float4 mcpos_l;
         float4 enow_l;
         float4 e0now_l;
-        curandState_t threadState;
 	enow_l.x = 0.0;
 	enow_l.y = 0.0;
 	enow_l.z = 0.0;
@@ -132,21 +133,11 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 	atom = int(index/(float) (nMC*CalcsPerThread.y));
 	// Determine the index of the  MC point being generated 
 	MC = blockIdx.x;
-	MCind = int(MC - atom*nMC);
 	// Get atom positions
-	atom_pos = __ldg(xyz+atom);
-	mcpos_l = atom_pos;
+	mcpos_l = __ldg(mcpos+MC);
 	it = __ldg(isspaTypes+atom);
 	rmax_l = __ldg(rmax+it);
 	vtot_l = __ldg(vtot+it);
-	// generate 3D MC pos based inside a sphere rnow based on MC point index		
-	threadState = state[MC];
-	mcr = createMonteCarloPoint(rmax_l, threadState, MCind);
-	mcpos_l += mcr;
-	mcpos_l.w = 1.0;
-	if (tid == 0) {
-	  mcpos[MC].w = 1.0;
-	}
 	for(i=0;i<CalcsPerThread.x;i++) {
 	        // Determine which atom is generating the field at the MC point
 	        atom2 = int(tid + i*CalcsPerThread.y);
@@ -206,9 +197,6 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 	if (tid == 0) {
 		// Convert enow into polarzation
 	        igo = vtot_l/e0now[MC].w;
-		mcpos[MC].x = mcpos_l.x;
-		mcpos[MC].y = mcpos_l.y;
-		mcpos[MC].z = mcpos_l.z;
 		mcpos[MC].w *= igo;	
 		r2 = enow[MC].x*enow[MC].x+enow[MC].y*enow[MC].y+enow[MC].z*enow[MC].z;
 		r0 = sqrtf(r2);
@@ -304,7 +292,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 			        fs = __ldg(forceTable + jt*nRs+bin)*mcpos_l.w;
 			}
 			      fi += -fs*r/dist;
-			      //fj += -fs*r/dist;
+			      fj += -fs*r/dist;
 		} else {
 		        // Constant Density Dielectric
 		        fs=-xyz_l.w*p0/dist2/dist;
@@ -315,7 +303,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 	}
 	
 	fi =  warpReduceSumTriple(fi);
-	//fj =  warpReduceSumTriple(fj);
+	fj =  warpReduceSumTriple(fj);
 	  	
 	if ((threadIdx.x & (warpSize - 1)) == 0) {
 	        atomicAdd(&(f[atom].x), fi.x);
@@ -338,10 +326,11 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& issp
         cudaEventRecord(isspas.isspaStart);
 
 	cudaProfilerStart();
-	
+
+	// compute position of each MC point
+	isspa_MC_points_kernel<<<nAtoms_h,isspas.nMC >>>(xyz_d, isspas.mcpos_d, isspas.randStates_d, isspas.rmax_d, isspas.isspaTypes_d);
         // compute densities and mean electric field value for each MC point
-	isspa_field_kernel<<<isspas.mcGridSize, isspas.mcBlockSize, isspas.mcCalcsPerThread.z*sizeof(float)>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaGTable_d,isspas.isspaETable_d,isspas.randStates_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d,isspas.mcCalcsPerThread,isspas.mcBlockSize);
-       
+	isspa_field_kernel<<<isspas.mcGridSize, isspas.mcBlockSize>>>(xyz_d, isspas.vtot_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaETable_d, isspas.enow_d, isspas.e0now_d, isspas.mcpos_d, isspas.mcCalcsPerThread);
 	// compute forces for each atom
 	isspa_force_kernel<<<isspas.fGridSize, isspas.fBlockSize>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaForceTable_d,f_d,isspas.randStates_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d,isspaf_d);
 
