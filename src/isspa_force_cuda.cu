@@ -76,17 +76,16 @@ float4 createMonteCarloPoint(float rmax, curandState_t threadState, int MC) {
   }
   while (r2 >= 1.0f);
   mcr *= rmax;
-
-  if (MC == 0) {
-    mcr.x = 2.5;
-    mcr.y = 8.5;
-    mcr.z = -6.5;
-  }
-  if (MC == 1) {
-    mcr.x = 3.8;
-    mcr.y = -9.2;
-    mcr.z = -2.6;
-  }
+//  if (MC == 0) {
+//    mcr.x = 2.5;
+//    mcr.y = 8.5;
+//    mcr.z = -6.5;
+//  }
+//  if (MC == 1) {
+//    mcr.x = 3.8;
+//    mcr.y = -9.2;
+//    mcr.z = -2.6;
+//  }
   
   return mcr; 
 }
@@ -144,11 +143,13 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 	threadState = state[MC];
 	mcr = createMonteCarloPoint(rmax_l, threadState, MCind);
 	mcpos_l += mcr;
-	mcpos_l.w = 1.0;		  
+	mcpos_l.w = 1.0;
+	if (tid == 0) {
+	  mcpos[MC].w = 1.0;
+	}
 	for(i=0;i<CalcsPerThread.x;i++) {
 	        // Determine which atom is generating the field at the MC point
 	        atom2 = int(tid + i*CalcsPerThread.y);
-		//atom2 = threadIdx.x;		
 		if (atom2 < nAtoms) {	
 		        // Get atom positions
 		        atom2_pos = __ldg(xyz+atom2);
@@ -157,9 +158,6 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 			r = min_image(mcpos_l - atom2_pos,box.x,box.y);
 			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 			dist = sqrtf(dist2);			
-			//if (atom == 1) {
-			//  printf("atom2 %d: %f %f %f\n",atom2,mcpos_l.x,atom2_pos.x,r.x);
-			//}
 			if (dist <= rmax_l) {
 			        e0now_l.w += 1;
 				// determine density bin of distance
@@ -169,7 +167,7 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 				        mcpos_l.w = 0.0;
 				} else if (bin < nGRs) {
 				        // Push Density to MC point
-				        fracDist = (dist - (gRparams_l.x+bin*gRparams_l.y)) / gRparams_l.y;
+					fracDist = (dist - (gRparams_l.x+bin*gRparams_l.y)) / gRparams_l.y;   				        
 					g1 = __ldg(gTable+jt*nGRs+bin);
 					g2 = __ldg(gTable+jt*nGRs+bin+1);
 					mcpos_l.w *= g1*(1.0-fracDist)+g2*fracDist;
@@ -201,19 +199,22 @@ __global__ void isspa_field_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		atomicAdd(&(e0now[MC].z), e0now_l.z);
 		atomicAdd(&(e0now[MC].w), e0now_l.w);
 	}
+	
 	__syncthreads();
-	
-	
+	  
+	  
 	if (tid == 0) {
 		// Convert enow into polarzation
 	        igo = vtot_l/e0now[MC].w;
-		mcpos[MC] = mcpos_l;
+		mcpos[MC].x = mcpos_l.x;
+		mcpos[MC].y = mcpos_l.y;
+		mcpos[MC].z = mcpos_l.z;
 		mcpos[MC].w *= igo;	
 		r2 = enow[MC].x*enow[MC].x+enow[MC].y*enow[MC].y+enow[MC].z*enow[MC].z;
 		r0 = sqrtf(r2);
-		enow[MC] = enow[MC]/r0;			
+		enow[MC] /= r0;			
 		enow[MC].w = r0;
-		e0now[MC] = e0now[MC]/3.0;
+		e0now[MC] /= 3.0;
 		e0now[MC].w = igo;
 	}
 }
@@ -282,9 +283,6 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		fs =-xyz_l.w*p0*c1/dist2/dist*mcpos_l.w;
 		fi += fs*(dp1*r/dist-enow_l);
 		//fj += fs*(dp1*r/dist-enow_l);
-		//if (atom == 0) {
-		//  printf("atom %d atom2 %d MC %d: %e %e %e %e\n",atom,atom2,MC,fj.x,fj.y,fj.z);
-		//}
 		fs =-xyz_l.w*q0*(1.5*c2-0.5)/dist2/dist2*mcpos_l.w;
 		fi += fs*(dp2*r/dist-dp1*enow_l);
 		//fj += fs*(dp2*r/dist-dp1*enow_l);
@@ -303,13 +301,10 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 				//f1 = __ldg(forceTable+it*nRs+bin);
 				//f2 = __ldg(forceTable+it*nRs+bin+1);
 				//fs = (f1*(1.0-fracDist)+f2*fracDist)*mcpos.w;
-				fs = __ldg(forceTable + jt*nRs+bin)*mcpos_l.w;
+			        fs = __ldg(forceTable + jt*nRs+bin)*mcpos_l.w;
 			}
 			      fi += -fs*r/dist;
-			      fj += -fs*r/dist;
-			      if (atom == 0) {
-			        printf("atom %d atom2 %d MC %d: %e %e %e %e\n",atom,atom2,MC,fj.x,fj.y,fj.z,dist);
-			      }
+			      //fj += -fs*r/dist;
 		} else {
 		        // Constant Density Dielectric
 		        fs=-xyz_l.w*p0/dist2/dist;
@@ -320,7 +315,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 	}
 	
 	fi =  warpReduceSumTriple(fi);
-	fj =  warpReduceSumTriple(fj);
+	//fj =  warpReduceSumTriple(fj);
 	  	
 	if ((threadIdx.x & (warpSize - 1)) == 0) {
 	        atomicAdd(&(f[atom].x), fi.x);
