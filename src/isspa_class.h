@@ -47,6 +47,7 @@ class isspa
 		int4 mcCalcsPerThread;
 		int fGridSize;
 		int fBlockSize;
+		int4 fCalcsPerThread;
 		// gpu timing events
 		cudaEvent_t isspaStart, isspaStop;
 		// random number generator on gpu
