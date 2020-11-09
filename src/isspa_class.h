@@ -10,7 +10,7 @@
 
 class isspa
 {
-	public:
+public:
                 int nTypes;      // number of isspa types
 		int nMC;         // number of MC points
 		int nRs;         // number of distance values in tabulated forces
@@ -40,13 +40,14 @@ class isspa
                 float4 *mcpos_d;
 		float4 *e0now_d;
 		float4 *enow_d;
-                float4 *out_d;  // DEBUG variable
                 // kernel grid/block configurations
 		int mcGridSize;
 		int mcBlockSize;
-		int4 mcCalcsPerThread;
-		int fGridSize;
+                int mcThreads;
+                int fThreads;
+                int fGridSize;
 		int fBlockSize;
+		int4 fCalcsPerThread;
 		// gpu timing events
 		cudaEvent_t isspaStart, isspaStop;
 		// random number generator on gpu
