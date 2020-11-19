@@ -91,6 +91,7 @@ __global__  void isspa_MC_points_kernel(float4 *xyz, float4 *mcpos, curandState 
 	mcpos_l += mcr;
 	mcpos_l.w = 1.0f;
 	mcpos[MC] = mcpos_l;
+        state[MC] = threadState;
 }
 
 
@@ -234,9 +235,9 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 	fi.x = 0.0f;
 	fi.y = 0.0f;
 	fi.z = 0.0f;
-	//fj.x = 0.0;
-	//fj.y = 0.0;
-	//fj.z = 0.0;
+	//fj.x = 0.0f;
+	//fj.y = 0.0f;
+	//fj.z = 0.0f;
                 
 	if (MC < nAtoms*nMC) {
         
@@ -274,30 +275,43 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
                 
 
 		// Coulombic Force
-                cothE=1.0f/tanhf(enow_l.w);
-		c1=cothE-1.0f/enow_l.w;
-		c2=1.0f-2.0f*c1/enow_l.w;
-		c3=cothE-3.0f*c2/enow_l.w;
+                cothE=__fdividef(1.0f,tanhf(enow_l.w));
+		c1=cothE-__fdividef(1.0f,enow_l.w);
+		c2=1.0f-2.0f*__fdividef(c1,enow_l.w);
+		c3=cothE-3.0f*__fdividef(c2,enow_l.w);
 		
-		Rz=(enow_l.x*r.x+enow_l.y*r.y+enow_l.z*r.z)/dist;
+                //Rz=(enow_l.x*r.x+enow_l.y*r.y+enow_l.z*r.z)/dist;
+		Rz=__fdividef(enow_l.x*r.x+enow_l.y*r.y+enow_l.z*r.z,dist);
 		dp1=3.0f*Rz;
 		dp2=7.5f*Rz*Rz-1.5f;
 		dp3=(17.50f*Rz*Rz-7.50f)*Rz;                
 
                 
-                fs = -xyz_l.w*p0*c1/dist2/dist*mcpos_l.w;
-                fi += fs*(dp1*r/dist-enow_l);
+                fs = __fdividef(-xyz_l.w*p0*c1*mcpos_l.w,dist2*dist);
+                fi.x += fs*(__fdividef(dp1*r.x,dist)-enow_l.x);
+		fi.y += fs*(__fdividef(dp1*r.y,dist)-enow_l.y);
+		fi.z += fs*(__fdividef(dp1*r.z,dist)-enow_l.z);
+		//fi += fs*(dp1*r/dist-enow_l);
 		//fj += fs*(dp1*r/dist-enow_l);
-                fs = -xyz_l.w*q0*(1.5f*c2-0.5f)/dist2/dist2*mcpos_l.w;
-                fi += fs*(dp2*r/dist-dp1*enow_l);
+
+                fs = __fdividef(-xyz_l.w*q0*(1.5f*c2-0.5f)*mcpos_l.w,dist2*dist2);
+                fi.x += fs*(__fdividef(dp2*r.x,dist)-dp1*enow_l.x);
+		fi.y += fs*(__fdividef(dp2*r.y,dist)-dp1*enow_l.y);
+		fi.z += fs*(__fdividef(dp2*r.z,dist)-dp1*enow_l.z);
+		//fi += fs*(dp2*r/dist-dp1*enow_l);
 		//fj += fs*(dp2*r/dist-dp1*enow_l);                
-		fs = -xyz_l.w*o0*(2.5f*c3-1.5f*c1)/dist2/dist2/dist*mcpos_l.w;
-                fi += fs*(dp3*r/dist-dp2*enow_l);
+
+                fs = __fdividef(-xyz_l.w*o0*(2.5f*c3-1.5f*c1)*mcpos_l.w,dist2*dist2*dist);
+                fi.x += fs*(__fdividef(dp3*r.x,dist)-dp2*enow_l.x);
+		fi.y += fs*(__fdividef(dp3*r.y,dist)-dp2*enow_l.y);
+		fi.z += fs*(__fdividef(dp3*r.z,dist)-dp2*enow_l.z);
+		//fi += fs*(dp3*r/dist-dp2*enow_l);
 		//fj += fs*(dp3*r/dist-dp2*enow_l);
 
 		// Lennard-Jones Force  
 		if (dist <= rmax_l) {
-		        bin = int ( (dist-forceRparams.x)/forceRparams.y + 0.5f);
+		        bin = int ( __fdividef(dist-forceRparams.x,forceRparams.y) + 0.5f);
+			//bin = int ( (dist-forceRparams.x)/forceRparams.y + 0.5f);
 			if (bin >= (nRs)) {
 			        fs = 0.0f;
 			} else {
@@ -309,12 +323,16 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 			        //fs = __ldg(forceTable + jt*nRs+bin)*mcpos_l.w;
                                 fs = forceTable[jt*nRs+bin]*mcpos_l.w;
                         }
-			fi += -fs*r/dist;
+			fi.x += __fdividef(-fs*r.x,dist);
+			fi.y += __fdividef(-fs*r.y,dist);
+			fi.z += __fdividef(-fs*r.z,dist);
+			//fi += -fs*r/dist;
 			//fj += -fs*r/dist;                        
 		} else {
 		        // Constant Density Dielectric
-		        fs=-xyz_l.w*p0/dist2/dist;
-			pdotr=3.0f*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z)/dist2;
+		        fs=__fdividef(-xyz_l.w*p0,dist2*dist);
+			pdotr=__fdividef(3.0f*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z),dist2);
+			//pdotr=3.0f*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z)/dist2;
 			fi += fs*(pdotr*r-e0now_l)*e0now_l.w;
 			//fj += fs*(pdotr*r-e0now_l)*e0now_l.w;			
 		}	
