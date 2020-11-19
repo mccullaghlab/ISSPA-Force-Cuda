@@ -3,13 +3,13 @@
 #define LONGCHAR 2400
 #define MAXLEN 80
 #define nDim 3
-#define PI 3.1415926535
-#define ep 2.3473
-#define rho 0.0075
-#define d0 -0.210
-#define p0 4.173705894203977
-#define q0 1.6899960102882601
-#define o0 9.3658298730779350
-#define e0 3.0/(4.0*PI*rho*p0)*(1.0-1.0/ep)
+#define PI 3.1415926535f
+#define ep 2.3473f
+#define rho 0.0075f
+#define d0 -0.210f
+#define p0 4.173705894203977f
+#define q0 1.6899960102882601f
+#define o0 9.3658298730779350f
+#define e0 3.0f/(4.0f*PI*rho*p0)*(1.0f-1.0f/ep)
 
 	    

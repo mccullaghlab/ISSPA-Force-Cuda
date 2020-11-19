@@ -99,7 +99,7 @@ __global__  void isspa_MC_points_kernel(float4 *xyz, float4 *mcpos, curandState 
 
 
 
-__global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, int *isspaTypes, float *gTable, float *eTable, float4 *enow, float4 *e0now, float4 *mcpos, int nThreads) { 
+__global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, int *isspaTypes, const float* __restrict__  gTable, const float* __restrict__  eTable, float4 *enow, float4 *e0now, float4 *mcpos, int nThreads) { 
         unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	int atom;
         int atom2;
@@ -150,8 +150,8 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
 				if (dist <= rmax_l) {
 				        e0now_l.w = 1.0f;
 					// determine density bin of distance
-                                        //bin = int ( __fdividef(dist-gRparams_l.x,gRparams_l.y)); 	
-                                        bin = int ( (dist-gRparams_l.x)/gRparams_l.y );
+                                        bin = int ( __fdividef(dist-gRparams_l.x,gRparams_l.y)); 	
+                                        //bin = int ( (dist-gRparams_l.x)/gRparams_l.y );
                                         // make sure bin is in limits of density table
                                         if (bin < 0) {
 					        mcpos_l.w = 0.0f;
@@ -159,34 +159,32 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
 					        // Push Density to MC point
 					        //fracDist = __fdividef(dist - fmaf(bin,gRparams_l.y,gRparams_l.x),gRparams_l.y);
                                                 fracDist = (dist - (gRparams_l.x+bin*gRparams_l.y)) / gRparams_l.y;
-                                                g1 = __ldg(gTable+jt*nGRs+bin);
-						g2 = __ldg(gTable+jt*nGRs+bin+1);
+                                                g1 = eTable[jt*nGRs+bin];
+                                                g2 = eTable[jt*nGRs+bin+1];
+                                                //g1 = __ldg(gTable+jt*nGRs+bin);
+						//g2 = __ldg(gTable+jt*nGRs+bin+1);
 						mcpos_l.w = g1*(1.0f-fracDist)+g2*fracDist;
 						// Push electric field to MC point
 						//fracDist = __fdividef(dist - fmaf(bin,eRparams_l.y,eRparams_l.x),eRparams_l.y);
                                                 fracDist = (dist - (eRparams_l.x+bin*eRparams_l.y)) / eRparams_l.y;
-                                                e1 = __ldg(eTable+jt*nERs+bin);
-						e2 = __ldg(eTable+jt*nERs+bin+1);					
+                                                e1 = eTable[jt*nERs+bin];
+                                                e2 = eTable[jt*nERs+bin+1];
+                                                //e1 = __ldg(eTable+jt*nERs+bin);
+						//e2 = __ldg(eTable+jt*nERs+bin+1);					
 						etab =  e1*(1.0f-fracDist)+e2*fracDist;
 						etab =  fmaf(e2,fracDist,e1*(1.0f-fracDist));
 						//enow_l += r/dist*etab;
-						enow_l.x += r.x/dist*etab;
-						enow_l.y += r.y/dist*etab;
-						enow_l.z += r.z/dist*etab;
-                                        }      
+                                                enow_l += r*__fdividef(etab,dist);
+					}      
                                 } else {
-                                        e0now_l = -e0*atom2_pos.w*r/dist2/dist;
-                                        //e0now_l.x = __fdividef(-e0*atom2_pos.w*r.x,dist2*dist);
-                                        //e0now_l.y = __fdividef(-e0*atom2_pos.w*r.y,dist2*dist);
-                                        //e0now_l.z = __fdividef(-e0*atom2_pos.w*r.z,dist2*dist);
+                                        //e0now_l = -e0*atom2_pos.w*r/dist2/dist;
+                                        e0now_l = r*__fdividef(-e0*atom2_pos.w,dist2*dist);
                                         e0now_l.w = 0.0f;
                                         mcpos_l.w = 1.0f;						
 				}				
-				enow_l -= e0*atom2_pos.w*r/dist2/dist;
-                                //enow_l.x -= __fdividef(e0*atom2_pos.w*r.x,dist2*dist);
-                                //enow_l.y -= __fdividef(e0*atom2_pos.w*r.y,dist2*dist);
-                                //enow_l.z -= __fdividef(e0*atom2_pos.w*r.z,dist2*dist);
-                                
+				enow_l -= r*__fdividef(e0*atom2_pos.w,dist2*dist);
+                                //enow_l -= e0*atom2_pos.w*r/dist2/dist;
+        
                         } else {
                                 enow_l.x = 0.0f;
                                 enow_l.y = 0.0f;
@@ -260,9 +258,7 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 	        // Load in position, atom type, and rmax of atom
 	        xyz_l = __ldg(xyz+atom);
 		jt = __ldg(isspaTypes + atom);
-		//rmax_l =__ldg(rmax+jt);	
-		//vtot_l = __ldg(vtot+jt);
-                rmax_l = rmax[jt];
+		rmax_l = rmax[jt];
                 vtot_l = vtot[jt];
 		// Load in field data for the MC point	
 		mcpos_l = __ldg(mcpos+MC);
