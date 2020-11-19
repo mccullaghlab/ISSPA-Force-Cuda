@@ -81,10 +81,7 @@ __global__  void isspa_MC_points_kernel(float4 *xyz, float4 *mcpos, curandState 
 	mcpos_l = __ldg(xyz+atom);
 	threadState = state[MC];	
 	do {
-	        //mcr.x = (2.0f * curand_uniform(&threadState) - 1.0f);
-		//mcr.y = (2.0f * curand_uniform(&threadState) - 1.0f);
-		//mcr.z = (2.0f * curand_uniform(&threadState) - 1.0f);
-		mcr.x = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
+	        mcr.x = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
 		mcr.y = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
 		mcr.z = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
 		r2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
@@ -132,14 +129,12 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
 			        // Get atom positions
 			        mcpos_l = __ldg(mcpos+MC);
 				it = __ldg(isspaTypes+atom);
-                                rmax_l = rmax[it];
-                                
+                                rmax_l = rmax[it];                                
                                 // Set e0now to zero
                                 enow_l.x = 0.0f;
                                 enow_l.y = 0.0f;
                                 enow_l.z = 0.0f;	  
-                                enow_l.w = 0.0f;	  
-                                
+                                enow_l.w = 0.0f;	                                  
 				// Get atom positions
 				atom2_pos = __ldg(xyz+atom2);
 				// Get constants for atom
@@ -150,17 +145,17 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
 				if (dist <= rmax_l) {
 				        e0now_l.w = 1.0f;
 					// determine density bin of distance
-                                        bin = int ( __fdividef(dist-gRparams_l.x,gRparams_l.y)); 	
+                                        bin = int(__fdividef(dist-gRparams_l.x,gRparams_l.y)); 	
                                         // make sure bin is in limits of density table
                                         if (bin < 0) {
 					        mcpos_l.w = 0.0f;
 					} else if (bin < nGRs) {
 					        // Push Density to MC point
 					        fracDist = (dist - (gRparams_l.x+bin*gRparams_l.y)) / gRparams_l.y;
-                                                g1 = eTable[jt*nGRs+bin];
-                                                g2 = eTable[jt*nGRs+bin+1];
+                                                g1 = gTable[jt*nGRs+bin];
+                                                g2 = gTable[jt*nGRs+bin+1];
 						mcpos_l.w = g1*(1.0f-fracDist)+g2*fracDist;
-						// Push electric field to MC point
+                                                // Push electric field to MC point
 						fracDist = (dist - (eRparams_l.x+bin*eRparams_l.y)) / eRparams_l.y;
                                                 e1 = eTable[jt*nERs+bin];
                                                 e2 = eTable[jt*nERs+bin+1];
@@ -184,11 +179,11 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
                                 mcpos_l.w = 1.0f;
 			}
 
-                     
+                        // Warp reduce the fields
 			mcpos_l.w = warpReduceMul(mcpos_l.w);	
 			enow_l =  warpReduceSumTriple(enow_l);
 			e0now_l =  warpReduceSumQuad(e0now_l);
-			
+                        // Add the fields to the global variable
 			if ((threadIdx.x & (warpSize - 1)) == 0) {
 			        atomicMul(&(mcpos[MC].w), mcpos_l.w);
 				atomicAdd(&(enow[MC].x), enow_l.x);
@@ -198,7 +193,7 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
 				atomicAdd(&(e0now[MC].y), e0now_l.y);
 				atomicAdd(&(e0now[MC].z), e0now_l.z);
 				atomicAdd(&(e0now[MC].w), e0now_l.w);
-			}				
+                        }				
 		}
 	}	
 }
@@ -224,25 +219,22 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 	float4 xyz_l;
         float4 r;
         float4 fi;
-        //float4 fj;
+        float4 fj;
 	float4 mcpos_l;
 	float4 enow_l;
 	float4 e0now_l;
 
 	// Determine the atom for which the force is being summed on
 	atom = int(__fdividef(index,(float) (nThreads)));
-	MC = int((index-atom*nThreads));
-        
+	MC = int((index-atom*nThreads));        
 	// Zero out the forces
 	fi.x = 0.0f;
 	fi.y = 0.0f;
 	fi.z = 0.0f;
-	//fj.x = 0.0f;
-	//fj.y = 0.0f;
-	//fj.z = 0.0f;
-                
-	if (MC < nAtoms*nMC) {
-        
+	fj.x = 0.0f;
+	fj.y = 0.0f;
+	fj.z = 0.0f;                
+	if (MC < nAtoms*nMC) {       
 	        // Load in position, atom type, and rmax of atom
 	        xyz_l = __ldg(xyz+atom);
 		jt = __ldg(isspaTypes + atom);
@@ -252,54 +244,44 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 		mcpos_l = __ldg(mcpos+MC);
 		enow_l = __ldg(enow+MC);
 		e0now_l = __ldg(e0now+MC);                
-
+                // Finish calculating density
 		igo = __fdividef(vtot_l,e0now_l.w);
                 mcpos_l.w *= igo;
-                
 		// Convert enow into polarzation
                 r0 = norm3df(enow_l.x, enow_l.y, enow_l.z);
-
-		//enow_l /= r0;			
 		enow_l.x = __fdividef(enow_l.x,r0);			
 		enow_l.y = __fdividef(enow_l.y,r0);			
 		enow_l.z = __fdividef(enow_l.z,r0);			
 		enow_l.w = r0;
-
-                //e0now_l /= 3.0f;
                 e0now_l.x = __fdividef(e0now_l.x,3.0f);
                 e0now_l.y = __fdividef(e0now_l.y,3.0f);
                 e0now_l.z = __fdividef(e0now_l.z,3.0f);
-                e0now_l.w = igo;
-                
+                e0now_l.w = igo;               
 		// Calculate the distance between the MC point and atom1
 		r = min_image(mcpos_l - xyz_l,box.x,box.y);
 		dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 		dist = sqrtf(dist2);                
-
 		// Coulombic Force
                 cothE=__fdividef(1.0f,tanhf(enow_l.w));
 		c1=cothE-__fdividef(1.0f,enow_l.w);
 		c2=1.0f-2.0f*__fdividef(c1,enow_l.w);
-		c3=cothE-3.0f*__fdividef(c2,enow_l.w);
-		
-                //Rz=(enow_l.x*r.x+enow_l.y*r.y+enow_l.z*r.z)/dist;
+		c3=cothE-3.0f*__fdividef(c2,enow_l.w);                
 		Rz=__fdividef(enow_l.x*r.x+enow_l.y*r.y+enow_l.z*r.z,dist);
 		dp1=3.0f*Rz;
 		dp2=7.5f*Rz*Rz-1.5f;
 		dp3=(17.50f*Rz*Rz-7.50f)*Rz;                
-                
+                // Calculate dipole term
                 fs = __fdividef(-xyz_l.w*p0*c1*mcpos_l.w,dist2*dist);
                 fi += fs*(r*__fdividef(dp1,dist)-enow_l);
-		//fj += fs*(dp1*r/dist-enow_l);
-
+		fj += fs*(r*__fdividef(dp1,dist)-enow_l);
+                // Calculate quadrapole term
                 fs = __fdividef(-xyz_l.w*q0*(1.5f*c2-0.5f)*mcpos_l.w,dist2*dist2);
                 fi += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
-		//fj += fs*(dp2*r/dist-dp1*enow_l);                
-
+                fj += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
+                // Calculate octapole term
                 fs = __fdividef(-xyz_l.w*o0*(2.5f*c3-1.5f*c1)*mcpos_l.w,dist2*dist2*dist);
                 fi += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
-		//fj += fs*(dp3*r/dist-dp2*enow_l);
-
+		fj += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
 		// Lennard-Jones Force  
 		if (dist <= rmax_l) {
 		        bin = int ( __fdividef(dist-forceRparams.x,forceRparams.y) + 0.5f);
@@ -310,26 +292,27 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 			        fs = forceTable[jt*nRs+bin]*mcpos_l.w;
                         }
                         fi += r*__fdividef(-fs,dist);
+			//fj += r*__fdividef(-fs,dist);
 			//fj += -fs*r/dist;                        
 		} else {
 		        // Constant Density Dielectric
 		        fs=__fdividef(-xyz_l.w*p0,dist2*dist);
 			pdotr=__fdividef(3.0f*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z),dist2);
 			fi += fs*(pdotr*r-e0now_l)*e0now_l.w;
-			//fj += fs*(pdotr*r-e0now_l)*e0now_l.w;			
+			//fj += fs*(pdotr*r-e0now_l)*e0now_l.w;
 		}	
 	}
-        
+        // Warp reduce the forces
 	fi =  warpReduceSumTriple(fi);
-	//fj =  warpReduceSumTriple(fj);
-	
+	fj =  warpReduceSumTriple(fj);
+        // Add the force to the global force
 	if ((threadIdx.x & (warpSize - 1)) == 0) {
                 atomicAdd(&(f[atom].x), fi.x);
                 atomicAdd(&(f[atom].y), fi.y);
                 atomicAdd(&(f[atom].z), fi.z);
-                //atomicAdd(&(isspaf[atom].x), fj.x);
-                //atomicAdd(&(isspaf[atom].y), fj.y);
-                //atomicAdd(&(isspaf[atom].z), fj.z);
+                atomicAdd(&(isspaf[atom].x), fj.x);
+                atomicAdd(&(isspaf[atom].y), fj.y);
+                atomicAdd(&(isspaf[atom].z), fj.z);
 	}
 }
 
