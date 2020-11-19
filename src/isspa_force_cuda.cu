@@ -151,40 +151,28 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
 				        e0now_l.w = 1.0f;
 					// determine density bin of distance
                                         bin = int ( __fdividef(dist-gRparams_l.x,gRparams_l.y)); 	
-                                        //bin = int ( (dist-gRparams_l.x)/gRparams_l.y );
                                         // make sure bin is in limits of density table
                                         if (bin < 0) {
 					        mcpos_l.w = 0.0f;
 					} else if (bin < nGRs) {
 					        // Push Density to MC point
-					        //fracDist = __fdividef(dist - fmaf(bin,gRparams_l.y,gRparams_l.x),gRparams_l.y);
-                                                fracDist = (dist - (gRparams_l.x+bin*gRparams_l.y)) / gRparams_l.y;
+					        fracDist = (dist - (gRparams_l.x+bin*gRparams_l.y)) / gRparams_l.y;
                                                 g1 = eTable[jt*nGRs+bin];
                                                 g2 = eTable[jt*nGRs+bin+1];
-                                                //g1 = __ldg(gTable+jt*nGRs+bin);
-						//g2 = __ldg(gTable+jt*nGRs+bin+1);
 						mcpos_l.w = g1*(1.0f-fracDist)+g2*fracDist;
 						// Push electric field to MC point
-						//fracDist = __fdividef(dist - fmaf(bin,eRparams_l.y,eRparams_l.x),eRparams_l.y);
-                                                fracDist = (dist - (eRparams_l.x+bin*eRparams_l.y)) / eRparams_l.y;
+						fracDist = (dist - (eRparams_l.x+bin*eRparams_l.y)) / eRparams_l.y;
                                                 e1 = eTable[jt*nERs+bin];
                                                 e2 = eTable[jt*nERs+bin+1];
-                                                //e1 = __ldg(eTable+jt*nERs+bin);
-						//e2 = __ldg(eTable+jt*nERs+bin+1);					
-						etab =  e1*(1.0f-fracDist)+e2*fracDist;
-						etab =  fmaf(e2,fracDist,e1*(1.0f-fracDist));
-						//enow_l += r/dist*etab;
-                                                enow_l += r*__fdividef(etab,dist);
+                                                etab =  fmaf(e2,fracDist,e1*(1.0f-fracDist));
+						enow_l += r*__fdividef(etab,dist);
 					}      
                                 } else {
-                                        //e0now_l = -e0*atom2_pos.w*r/dist2/dist;
-                                        e0now_l = r*__fdividef(-e0*atom2_pos.w,dist2*dist);
+                                        e0now_l = -r*__fdividef(e0*atom2_pos.w,dist2*dist);
                                         e0now_l.w = 0.0f;
                                         mcpos_l.w = 1.0f;						
 				}				
-				enow_l -= r*__fdividef(e0*atom2_pos.w,dist2*dist);
-                                //enow_l -= e0*atom2_pos.w*r/dist2/dist;
-        
+				enow_l -= r*__fdividef(e0*atom2_pos.w,dist2*dist);        
                         } else {
                                 enow_l.x = 0.0f;
                                 enow_l.y = 0.0f;
@@ -265,10 +253,8 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 		enow_l = __ldg(enow+MC);
 		e0now_l = __ldg(e0now+MC);                
 
-
 		igo = __fdividef(vtot_l,e0now_l.w);
                 mcpos_l.w *= igo;
-
                 
 		// Convert enow into polarzation
                 r0 = norm3df(enow_l.x, enow_l.y, enow_l.z);
@@ -284,14 +270,11 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
                 e0now_l.y = __fdividef(e0now_l.y,3.0f);
                 e0now_l.z = __fdividef(e0now_l.z,3.0f);
                 e0now_l.w = igo;
-
-
                 
 		// Calculate the distance between the MC point and atom1
 		r = min_image(mcpos_l - xyz_l,box.x,box.y);
 		dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-		dist = sqrtf(dist2);
-                
+		dist = sqrtf(dist2);                
 
 		// Coulombic Force
                 cothE=__fdividef(1.0f,tanhf(enow_l.w));
@@ -304,27 +287,17 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 		dp1=3.0f*Rz;
 		dp2=7.5f*Rz*Rz-1.5f;
 		dp3=(17.50f*Rz*Rz-7.50f)*Rz;                
-
                 
                 fs = __fdividef(-xyz_l.w*p0*c1*mcpos_l.w,dist2*dist);
-                fi.x += fs*(__fdividef(dp1*r.x,dist)-enow_l.x);
-		fi.y += fs*(__fdividef(dp1*r.y,dist)-enow_l.y);
-		fi.z += fs*(__fdividef(dp1*r.z,dist)-enow_l.z);
-		//fi += fs*(dp1*r/dist-enow_l);
+                fi += fs*(r*__fdividef(dp1,dist)-enow_l);
 		//fj += fs*(dp1*r/dist-enow_l);
 
                 fs = __fdividef(-xyz_l.w*q0*(1.5f*c2-0.5f)*mcpos_l.w,dist2*dist2);
-                fi.x += fs*(__fdividef(dp2*r.x,dist)-dp1*enow_l.x);
-		fi.y += fs*(__fdividef(dp2*r.y,dist)-dp1*enow_l.y);
-		fi.z += fs*(__fdividef(dp2*r.z,dist)-dp1*enow_l.z);
-		//fi += fs*(dp2*r/dist-dp1*enow_l);
+                fi += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
 		//fj += fs*(dp2*r/dist-dp1*enow_l);                
 
                 fs = __fdividef(-xyz_l.w*o0*(2.5f*c3-1.5f*c1)*mcpos_l.w,dist2*dist2*dist);
-                fi.x += fs*(__fdividef(dp3*r.x,dist)-dp2*enow_l.x);
-		fi.y += fs*(__fdividef(dp3*r.y,dist)-dp2*enow_l.y);
-		fi.z += fs*(__fdividef(dp3*r.z,dist)-dp2*enow_l.z);
-		//fi += fs*(dp3*r/dist-dp2*enow_l);
+                fi += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
 		//fj += fs*(dp3*r/dist-dp2*enow_l);
 
 		// Lennard-Jones Force  
@@ -336,10 +309,7 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 			        //Lennard-Jones Force 
 			        fs = forceTable[jt*nRs+bin]*mcpos_l.w;
                         }
-			fi.x += __fdividef(-fs*r.x,dist);
-			fi.y += __fdividef(-fs*r.y,dist);
-			fi.z += __fdividef(-fs*r.z,dist);
-			//fi += -fs*r/dist;
+                        fi += r*__fdividef(-fs,dist);
 			//fj += -fs*r/dist;                        
 		} else {
 		        // Constant Density Dielectric
