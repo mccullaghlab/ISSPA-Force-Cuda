@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
+#include <math.h>
 #include <curand.h>
 #include <curand_kernel.h>
 #include "cuda_vector_routines.h"
@@ -130,10 +131,10 @@ __global__ void isspa_field_kernel(float4 *xyz, float *rmax, int *isspaTypes, fl
 				rmax_l = __ldg(rmax+it);
 
                                 // Set e0now to zero
-                                enow_l.x = 0.0;
-                                enow_l.y = 0.0;
-                                enow_l.z = 0.0;	  
-                                enow_l.w = 0.0;	  
+                                enow_l.x = 0.0f;
+                                enow_l.y = 0.0f;
+                                enow_l.z = 0.0f;	  
+                                enow_l.w = 0.0f;	  
 
 				// Get atom positions
 				atom2_pos = __ldg(xyz+atom2);
@@ -143,12 +144,12 @@ __global__ void isspa_field_kernel(float4 *xyz, float *rmax, int *isspaTypes, fl
 				dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 				dist = sqrtf(dist2);			
 				if (dist <= rmax_l) {
-				        e0now_l.w = 1;
+				        e0now_l.w = 1.0f;
 					// determine density bin of distance
 					bin = int ( (dist-gRparams_l.x)/gRparams_l.y ); 	
 					// make sure bin is in limits of density table
 					if (bin < 0) {
-					        mcpos_l.w = 0.0;
+					        mcpos_l.w = 0.0f;
 					} else if (bin < nGRs) {
 					        // Push Density to MC point
 					        fracDist = (dist - (gRparams_l.x+bin*gRparams_l.y)) / gRparams_l.y; 	        
@@ -164,20 +165,20 @@ __global__ void isspa_field_kernel(float4 *xyz, float *rmax, int *isspaTypes, fl
                                         }      
 				} else {
 				        e0now_l = -e0*atom2_pos.w*r/dist2/dist;
-					e0now_l.w = 0.0;
-					mcpos_l.w = 1.0;						
+					e0now_l.w = 0.0f;
+					mcpos_l.w = 1.0f;						
 				}				
 				enow_l -= e0*atom2_pos.w*r/dist2/dist;
                                 
                         } else {
-                                enow_l.x = 0.0;
-                                enow_l.y = 0.0;
-                                enow_l.z = 0.0;
-                                e0now_l.x = 0.0;
-                                e0now_l.y = 0.0;
-                                e0now_l.z = 0.0;	  
-                                e0now_l.w = 0.0;	  
-                                mcpos_l.w = 1.0;
+                                enow_l.x = 0.0f;
+                                enow_l.y = 0.0f;
+                                enow_l.z = 0.0f;
+                                e0now_l.x = 0.0f;
+                                e0now_l.y = 0.0f;
+                                e0now_l.z = 0.0f;	  
+                                e0now_l.w = 0.0f;	  
+                                mcpos_l.w = 1.0f;
 			}
 
                      
@@ -220,7 +221,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 	float4 xyz_l;
         float4 r;
         float4 fi;
-        float4 fj;
+        //float4 fj;
 	float4 mcpos_l;
 	float4 enow_l;
 	float4 e0now_l;
@@ -230,12 +231,12 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 	MC = int((index-atom*nThreads));
         
 	// Zero out the forces
-	fi.x = 0.0;
-	fi.y = 0.0;
-	fi.z = 0.0;
-	fj.x = 0.0;
-	fj.y = 0.0;
-	fj.z = 0.0;
+	fi.x = 0.0f;
+	fi.y = 0.0f;
+	fi.z = 0.0f;
+	//fj.x = 0.0;
+	//fj.y = 0.0;
+	//fj.z = 0.0;
                 
 	if (MC < nAtoms*nMC) {
         
@@ -262,7 +263,7 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 
 		enow_l /= r0;			
 		enow_l.w = r0;
-		e0now_l /= 3.0;
+		e0now_l /= 3.0f;
 		e0now_l.w = igo;
 
 
@@ -274,24 +275,28 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
                 
 
 		// Coulombic Force
-		cothE=1.0/tanhf(enow_l.w);
-		c1=cothE-1.0/enow_l.w;
-		c2=1.0-2.0*c1/enow_l.w;
-		c3=cothE-3.0*c2/enow_l.w;
+		//cothE=fdividef(1.0f,tanhf(enow_l.w));
+		//c1=fmaf(1,cothE,fdividef(-1.0f,enow_l.w));
+		//c2=fmaf(-2.0f,fdivide(c1,enow_l.w),1.0f);
+		//c3=fmaf(-3.0f,fdividef(c2,enow_l.w),cothE);
+                cothE=1.0f/tanhf(enow_l.w);
+		c1=cothE-1.0f/enow_l.w;
+		c2=1.0f-2.0f*c1/enow_l.w;
+		c3=cothE-3.0f*c2/enow_l.w;
 		
 		Rz=(enow_l.x*r.x+enow_l.y*r.y+enow_l.z*r.z)/dist;
-		dp1=3.0*Rz;
-		dp2=7.5*Rz*Rz-1.5;
-		dp3=(17.50*Rz*Rz-7.50)*Rz;                
+		dp1=3.0f*Rz;
+		dp2=7.5f*Rz*Rz-1.5f;
+		dp3=(17.50f*Rz*Rz-7.50f)*Rz;                
 
                 
                 fs = -xyz_l.w*p0*c1/dist2/dist*mcpos_l.w;
                 fi += fs*(dp1*r/dist-enow_l);
 		//fj += fs*(dp1*r/dist-enow_l);
-                fs = -xyz_l.w*q0*(1.5*c2-0.5)/dist2/dist2*mcpos_l.w;
+                fs = -xyz_l.w*q0*(1.5f*c2-0.5f)/dist2/dist2*mcpos_l.w;
                 fi += fs*(dp2*r/dist-dp1*enow_l);
 		//fj += fs*(dp2*r/dist-dp1*enow_l);                
-		fs = -xyz_l.w*o0*(2.5*c3-1.5*c1)/dist2/dist2/dist*mcpos_l.w;
+		fs = -xyz_l.w*o0*(2.5f*c3-1.5f*c1)/dist2/dist2/dist*mcpos_l.w;
                 fi += fs*(dp3*r/dist-dp2*enow_l);
 		//fj += fs*(dp3*r/dist-dp2*enow_l);
 
@@ -313,22 +318,22 @@ __global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *i
 		} else {
 		        // Constant Density Dielectric
 		        fs=-xyz_l.w*p0/dist2/dist;
-			pdotr=3.0*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z)/dist2;
+			pdotr=3.0f*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z)/dist2;
 			fi += fs*(pdotr*r-e0now_l)*e0now_l.w;
-			fj += fs*(pdotr*r-e0now_l)*e0now_l.w;			
+			//fj += fs*(pdotr*r-e0now_l)*e0now_l.w;			
 		}	
 	}
         
 	fi =  warpReduceSumTriple(fi);
-	fj =  warpReduceSumTriple(fj);
+	//fj =  warpReduceSumTriple(fj);
 	
 	if ((threadIdx.x & (warpSize - 1)) == 0) {
                 atomicAdd(&(f[atom].x), fi.x);
                 atomicAdd(&(f[atom].y), fi.y);
                 atomicAdd(&(f[atom].z), fi.z);
-                atomicAdd(&(isspaf[atom].x), fj.x);
-                atomicAdd(&(isspaf[atom].y), fj.y);
-                atomicAdd(&(isspaf[atom].z), fj.z);
+                //atomicAdd(&(isspaf[atom].x), fj.x);
+                //atomicAdd(&(isspaf[atom].y), fj.y);
+                //atomicAdd(&(isspaf[atom].z), fj.z);
 	}
 }
 
