@@ -342,18 +342,23 @@ void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
         float2 box_h;
 	int maxThreadsPerBlock = 1024;
 	int temp;
-
+        temp = int(ceil(nAtoms_h /(float) 32.0));
+        isspas.mcCalcsPerThread.z = 32*temp;		
 	// determine gridSize and blockSize for field kernel	
-	if (nAtoms_h <= maxThreadsPerBlock) {
-	        temp = int(ceil(nAtoms_h /(float) 32.0));
-		isspas.mcCalcsPerThread.y = 32*temp;
+	//if (nAtoms_h <= maxThreadsPerBlock) {
+	//        temp = int(ceil(nAtoms_h /(float) 32.0));
+	//	isspas.mcCalcsPerThread.y = 32*temp;
+	//	isspas.mcBlockSize = isspas.mcCalcsPerThread.y;		
+	if (isspas.mcCalcsPerThread.z*isspas.nMC <= maxThreadsPerBlock) {
+		isspas.mcCalcsPerThread.y = isspas.mcCalcsPerThread.z*isspas.nMC;
 		isspas.mcBlockSize = isspas.mcCalcsPerThread.y;		
 	} else {
 	        isspas.mcBlockSize = maxThreadsPerBlock;	  
 		isspas.mcCalcsPerThread.y = maxThreadsPerBlock;	  	
 	}
-	isspas.mcCalcsPerThread.x = int(ceil(nAtoms_h/ (float) isspas.mcBlockSize));	  	
-	isspas.mcGridSize = nAtoms_h*isspas.nMC;	
+	//isspas.mcCalcsPerThread.x = int(ceil(nAtoms_h/ (float) isspas.mcBlockSize));
+        isspas.mcCalcsPerThread.x = int(ceil(isspas.mcCalcsPerThread.z*isspas.nMC/ (float) isspas.mcBlockSize));
+        isspas.mcGridSize = nAtoms_h*isspas.nMC;	
 	printf("Number of field kernel blocks: %d \n", isspas.mcGridSize);
 	printf("Number of field kernel threads per block: %d \n", isspas.mcBlockSize);
 	printf("Number of field kernel ISSPA MC-atom pair calculations per thread: %d \n", isspas.mcCalcsPerThread.x);
