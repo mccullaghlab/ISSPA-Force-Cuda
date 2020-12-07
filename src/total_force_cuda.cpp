@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
 	atoms.copy_pos_vel_to_gpu();
 
 	for (step=0;step<configs.nSteps;step++) {
-	  //printf("%d\n", step);
+                printf("STEP %d\n", step);
 		//if (step%configs.deltaNN==0) {
 			// compute the neighborlist
 		//	times.neighborListTime += neighborlist_cuda(atoms, configs.rNN2, configs.lbox);
