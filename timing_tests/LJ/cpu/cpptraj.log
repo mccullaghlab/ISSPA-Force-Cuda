@@ -1,0 +1,6 @@
+# 12/06/20 13:35:24
+parm LJ2.prmtop
+trajin LJ2.rst7
+trajout LJ2.crd
+go
+quit

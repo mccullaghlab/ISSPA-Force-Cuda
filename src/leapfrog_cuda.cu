@@ -46,13 +46,15 @@ __global__ void leapfrog_kernel(float4 *xyz, float4 *v, float4 *f, float T, floa
 		force = __ldg(f+index);
 		tempVel = __ldg(v+index);
 		tempPos = __ldg(xyz+index);
+                //printf("index: %d mass: %f\n",index,tempVel.w);
+
 		// anderson thermostat
 		if (attempt < pnu) {
 			tempVel.x = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
 			tempVel.y = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
 			tempVel.z = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
 			tempVel += force/tempVel.w*dt/2.0;
-			tempPos += tempVel*dt;
+                        tempPos += tempVel*dt;
 		} else {
 			tempVel += force/tempVel.w*dt;
 			tempPos += tempVel*dt;
