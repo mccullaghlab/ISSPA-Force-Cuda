@@ -129,8 +129,8 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
         float4 e0now_l;
         bool flag = false;
 	// Determine which atom the MC point is being generated on
-	atom = int(__fdividef(index,(float) (nThreads*nMC)));
-	MC = int(__fdividef(index,(float) (nThreads)));
+	atom = int(double(index),double(nThreads*nMC));
+        MC = int(double(index),double(nThreads));
 	MCind = int(MC - atom*nMC);
 	atom2 = int(index - atom*nMC*nThreads - MCind*nThreads);
 	// zero the local variables that will be reduced
@@ -231,8 +231,8 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 	float4 e0now_l;
 
 	// Determine the atom for which the force is being summed on
-	atom = int(__fdividef(index,(float) (nThreads)));
-	MC = int((index-atom*nThreads));
+	atom = int(double(index),double(nThreads));
+	MC = int(index-atom*nThreads);
         // Zero out the forces
 	fi.x = fi.y = fi.z = 0.0f;
 	//fj.x = fj.y = fj.z = 0.0f;
