@@ -29,6 +29,7 @@ __constant__ float2 eRparams;
 
 // CUDA Kernels
 
+// atomic multiply
 __device__ float atomicMul(float* address, float val) { 
         unsigned int* address_as_u = (unsigned int*)address; 
         unsigned int old = *address_as_u, assumed; 
@@ -38,12 +39,14 @@ __device__ float atomicMul(float* address, float val) {
 	} while (assumed != old); return __uint_as_float(old);
 }
 
+// warp reduce a float using multiplication
 __inline__ __device__ float warpReduceMul(float val) {
   for (int offset = warpSize/2; offset > 0; offset /= 2)
           val *= __shfl_down(val, offset);
   return val;
 }
 
+// warp reduce a float4
 __inline__ __device__
 float4 warpReduceSumQuad(float4 val) {
         for (int offset = warpSize / 2; offset > 0; offset /= 2) {
@@ -55,6 +58,7 @@ float4 warpReduceSumQuad(float4 val) {
         return val; 
 }
 
+// warp reduce a float4 but only the first three values
 __inline__ __device__
 float4 warpReduceSumTriple(float4 val) {
         for (int offset = warpSize / 2; offset > 0; offset /= 2) {
@@ -65,7 +69,7 @@ float4 warpReduceSumTriple(float4 val) {
         return val; 
 }
 
-
+// kernel to generate MC points around each atom
 __global__  void isspa_MC_points_kernel(float4 *xyz, float4 *mcpos, curandState *state, const float* __restrict__ rmax, int *isspaTypes) {
         unsigned int MC = threadIdx.x + blockIdx.x*blockDim.x;    
 	int atom = blockIdx.x;
@@ -76,27 +80,31 @@ __global__  void isspa_MC_points_kernel(float4 *xyz, float4 *mcpos, curandState 
 	float4 mcpos_l;
 	curandState_t threadState;
 	
-	// Determine which atom the MC point is being generated on
+	// load atom paramters
 	it = __ldg(isspaTypes+atom);
 	rmax_l = rmax[it];
 	mcpos_l = __ldg(xyz+atom);
-	threadState = state[MC];	
+	// initialize the random state
+	threadState = state[MC];
+	// generate point in constant density sphere	
         do {
 	        mcr.x = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
 		mcr.y = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
 		mcr.z = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
 		r2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
-	}
-	while (r2 >= 0.99f);
+	} while (r2 >= 0.99f);
+	// expand sphere and translate by atom position
 	mcr *= rmax_l;
         mcpos_l += mcr;
+	// initialize density at MC point to 1
 	mcpos_l.w = 1.0f;
+	// save MC point and random state back to global memory
 	mcpos[MC] = mcpos_l;
         state[MC] = threadState;
 }
 
 
-
+// kernel to compute density and mean field at each MC point
 __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, int *isspaTypes, const float* __restrict__  gTable, const float* __restrict__  eTable, float4 *enow, float4 *e0now, float4 *mcpos, int nThreads) { 
         unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	int atom;
@@ -127,6 +135,10 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
 	MC = int(__fdividef(index,(float) (nThreads)));
 	MCind = int(MC - atom*nMC);
 	atom2 = int(index - atom*nMC*nThreads - MCind*nThreads);
+	// zero the local variables that will be reduced
+	mcpos_l.w = 1.0f;
+	enow_l.x = enow_l.y = enow_l.z = enow_l.w = 0.0f;
+	e0now_l.x = e0now_l.y = e0now_l.z = e0now_l.w = 0.0f;
 	if (atom < nAtoms) {
 	        if (MCind < nMC) {
 		        if (atom2 < nAtoms) {
@@ -134,11 +146,6 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
 			        mcpos_l = __ldg(mcpos+MC);
                                 it = __ldg(isspaTypes+atom);
                                 rmax_l = rmax[it];                                
-                                // Set e0now to zero
-                                enow_l.x = 0.0f;
-                                enow_l.y = 0.0f;
-                                enow_l.z = 0.0f;	  
-                                enow_l.w = 0.0f;	                                  
 				// Get atom positions
 				atom2_pos = __ldg(xyz+atom2);
 				// Get constants for atom
@@ -195,24 +202,24 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
                                 e0now_l.w = 0.0f;	  
                                 mcpos_l.w = 1.0f;
 			}
-
-                        // Warp reduce the fields
-                        mcpos_l.w = warpReduceMul(mcpos_l.w);	
-                        enow_l =  warpReduceSumTriple(enow_l);
-			e0now_l =  warpReduceSumQuad(e0now_l);
-                        // Add the fields to the global variable
-			if ((threadIdx.x & (warpSize - 1)) == 0) {
-			        atomicMul(&(mcpos[MC].w), mcpos_l.w);
-                                atomicAdd(&(enow[MC].x), enow_l.x);
-				atomicAdd(&(enow[MC].y), enow_l.y);
-				atomicAdd(&(enow[MC].z), enow_l.z);
-                                atomicAdd(&(e0now[MC].x), e0now_l.x);
-				atomicAdd(&(e0now[MC].y), e0now_l.y);
-				atomicAdd(&(e0now[MC].z), e0now_l.z);
-				atomicAdd(&(e0now[MC].w), e0now_l.w);
-                        }				
 		}
 	}	
+	// MM - I think this needs to go outside the two if statements
+        // Warp reduce the fields
+        mcpos_l.w = warpReduceMul(mcpos_l.w);	
+        enow_l =  warpReduceSumTriple(enow_l);
+	e0now_l =  warpReduceSumQuad(e0now_l);
+        // Add the fields to the global variable
+	if ((threadIdx.x & (warpSize - 1)) == 0) {
+	        atomicMul(&(mcpos[MC].w), mcpos_l.w);
+                atomicAdd(&(enow[MC].x), enow_l.x);
+		atomicAdd(&(enow[MC].y), enow_l.y);
+		atomicAdd(&(enow[MC].z), enow_l.z);
+                atomicAdd(&(e0now[MC].x), e0now_l.x);
+		atomicAdd(&(e0now[MC].y), e0now_l.y);
+		atomicAdd(&(e0now[MC].z), e0now_l.z);
+		atomicAdd(&(e0now[MC].w), e0now_l.w);
+        }				
 }
 
 //__global__ void isspa_force_kernel(float4 *xyz, float *vtot, float *rmax, int *isspaTypes, float *forceTable, float4 *f, float4 *enow, float4 *e0now, float4 *mcpos, float4 *isspaf) {
