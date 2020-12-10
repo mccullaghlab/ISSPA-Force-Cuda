@@ -51,10 +51,10 @@ __global__ void leapfrog_kernel(float4 *xyz, float4 *v, float4 *f, float T, floa
 			tempVel.x = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
 			tempVel.y = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
 			tempVel.z = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
-			tempVel += force/tempVel.w*dt/2.0;
+			tempVel += force *__fdividef(dt,tempVel.w*2.0f);
 			tempPos += tempVel*dt;
 		} else {
-			tempVel += force/tempVel.w*dt;
+			tempVel += force * __fdividef(dt,tempVel.w);
 			tempPos += tempVel*dt;
 		}
 		// save new velocities and positions to global memory

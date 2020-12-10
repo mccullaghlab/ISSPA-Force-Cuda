@@ -66,6 +66,7 @@ void timing::print_final(float elapsedns)
 	printf("IS-SPA force calculation time = %10.2f %s (%5.1f %%)\n", isspaTime/divider, unit, isspaTime/milliseconds*100);
 	printf("Leap-frog propogation time = %10.2f %s (%5.1f %%)\n", leapFrogTime/divider, unit, leapFrogTime/milliseconds*100);
 	printf("Write trajectory file time = %10.2f %s (%5.1f %%)\n", writeTime/divider, unit, writeTime/milliseconds*100);
+	printf("Total percent accounted for = %10.2f %%\n", (bondTime+angleTime+dihTime+nonbondTime+neighborListTime+usTime+isspaTime+leapFrogTime+writeTime)/milliseconds*100);
 
 
 }

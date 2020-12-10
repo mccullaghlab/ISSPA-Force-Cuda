@@ -47,7 +47,7 @@ __global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox,
 //	__syncthreads();
 	if (index < nDihs)
 	{
-		hbox = lbox/2.0;
+		hbox = 0.5f*lbox;
 		// determine four atoms involved in dihderal
 		atoms = __ldg(dihAtoms+index);
 		p1 = __ldg(xyz+atoms.x);   // position of atom 1
@@ -59,22 +59,20 @@ __global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox,
 		// Check to see if we want to compute the scaled 1-4 interaction
 		if (atoms.z > 0 && atoms.w > 0) {
 			//Scaled non-bonded interaction for 1-4
-			r14 = min_image(p1-p4,lbox,hbox);
-			rMag = r14.x*r14.x+r14.y*r14.y+r14.z*r14.z;
-			r6 = powf(rMag,-3.0);
-			//it = __ldg(atomType+atoms.x);
-			//jt = __ldg(atomType+atoms.w);
-			//nlj = nAtomTypes * it + jt;
-			//nlj = __ldg(nbparm+nlj);
+			// load atom type data
 			nlj = __ldg(nbparm + nAtomTypes*__ldg(atomType+atoms.x) + __ldg(atomType+atoms.w));
 			sc14 = __ldg(scaled14Factors + dihType);
-			f14e = p1.w*p4.w/rMag/sqrtf(rMag)/sc14.x;
-			//f14e = p1.w*p4.w/rMag/sqrtf(rMag)/scaled14_s[dihType].x;
-			//f14e = p1.w*p4.w/rMag/sqrtf(rMag)/scee_s[dihType];
 			ljAB = __ldg(lj+nlj);
-			//f14v = r6*(12.0f*ljAB.x*r6-6.0f*ljAB.y)/scaled14_s[dihType].y/rMag;
-			f14v = r6*(12.0f*ljAB.x*r6-6.0f*ljAB.y)/sc14.y/rMag;
-			//f14v = r6*(12.0f*ljAB.x*r6-6.0f*ljAB.y)/scnb_s[dihType]/rMag;
+			// compute r between 1 and 4
+			r14 = min_image(p1-p4,lbox,hbox);
+			rMag = r14.x*r14.x+r14.y*r14.y+r14.z*r14.z;
+			// compute scaled non-bond force
+			r6 = powf(rMag,-3.0f);
+			//f14e = p1.w*p4.w/rMag/sqrtf(rMag)/sc14.x;
+			f14e = __fdividef(p1.w*p4.w,rMag*sqrtf(rMag)*sc14.x);
+			//f14v = r6*(12.0f*ljAB.x*r6-6.0f*ljAB.y)/sc14.y/rMag;
+			f14v = __fdividef(r6*(12.0f*ljAB.x*r6-6.0f*ljAB.y),sc14.y*rMag);
+			// add scaled non-bond force to atoms 1 and 4
 			atomicAdd(&(f[atoms.x].x), (f14e+f14v)*r14.x);
 			atomicAdd(&(f[atoms.w].x), -(f14e+f14v)*r14.x);
 			atomicAdd(&(f[atoms.x].y), (f14e+f14v)*r14.y);
@@ -107,30 +105,31 @@ __global__ void dih_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox,
 		a = t6/b;
 		// make sure a is in the domain of the arccos
 		if (a <= -1.0f) {
-			fdih = 0.0;
+			fdih = 0.0f;
 		} else if (a >= 1.0f) {
-			fdih = 0.0;	
+			fdih = 0.0f;	
 		} else {
 			phi = acos(a);
 			params = __ldg(dihParams+dihType);
 			//params = dihParams_s[dihType];
-			fdih = params.x * params.y * sinf(params.x*phi-params.z)/sinf(phi)*c22/b;
+			//fdih = params.x * params.y * sinf(params.x*phi-params.z)/sinf(phi)*c22/b;
+			fdih = __fdividef(params.x * params.y * sinf(params.x*phi-params.z)*c22,sinf(phi)*b);
 		}
 		// force components
-		f1=fdih*(t1*r12+t2*r23+t3*r34)/t3;
-		f4=-fdih*(t4*r12+t5*r23+t6*r34)/t4;
+		f1= __fdividef(fdih,t3)*(t1*r12+t2*r23+t3*r34);
+		f4= __fdividef(-fdih,t4)*(t4*r12+t5*r23+t6*r34);
 		// add forces to atoms
 		atomicAdd(&(f[atoms.x].x), f1.x);
-		atomicAdd(&(f[atoms.y].x), -(1.0f+c12/c22)*f1.x+c23/c22*f4.x);
-		atomicAdd(&(f[atoms.z].x), c12/c22*f1.x-(1.0f+c23/c22)*f4.x);
+		atomicAdd(&(f[atoms.y].x), -(1.0f+__fdividef(c12,c22))*f1.x+__fdividef(c23,c22)*f4.x);
+		atomicAdd(&(f[atoms.z].x), __fdividef(c12,c22)*f1.x-(1.0f+__fdividef(c23,c22))*f4.x);
 		atomicAdd(&(f[atoms.w].x), f4.x);
 		atomicAdd(&(f[atoms.x].y), f1.y);
-		atomicAdd(&(f[atoms.y].y), -(1.0f+c12/c22)*f1.y+c23/c22*f4.y);
-		atomicAdd(&(f[atoms.z].y), c12/c22*f1.y-(1.0f+c23/c22)*f4.y);
+		atomicAdd(&(f[atoms.y].y), -(1.0f+__fdividef(c12,c22))*f1.y+__fdividef(c23,c22)*f4.y);
+		atomicAdd(&(f[atoms.z].y), __fdividef(c12,c22)*f1.y-(1.0f+__fdividef(c23,c22))*f4.y);
 		atomicAdd(&(f[atoms.w].y), f4.y);
 		atomicAdd(&(f[atoms.x].z), f1.z);
-		atomicAdd(&(f[atoms.y].z), -(1.0f+c12/c22)*f1.z+c23/c22*f4.z);
-		atomicAdd(&(f[atoms.z].z), c12/c22*f1.z-(1.0f+c23/c22)*f4.z);
+		atomicAdd(&(f[atoms.y].z), -(1.0f+__fdividef(c12,c22))*f1.z+__fdividef(c23,c22)*f4.z);
+		atomicAdd(&(f[atoms.z].z), __fdividef(c12,c22)*f1.z-(1.0f+__fdividef(c23,c22))*f4.z);
 		atomicAdd(&(f[atoms.w].z), f4.z);
 
 	}

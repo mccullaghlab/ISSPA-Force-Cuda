@@ -31,17 +31,16 @@ __global__ void bond_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbox
 	// force calculation for each bond
 	if (index < nBonds)
 	{
-		hbox = lbox/2.0;
-		// determine two atoms to work 
+		hbox = 0.5f*lbox;
+		// determine two atoms to work  third element of int4 contains bond type
 		atoms = __ldg(bondAtoms+index);
+		params = __ldg(bondParams+atoms.z);
 		// get distance vector separating the two atoms
 		r = min_image(__ldg(xyz+atoms.x) - __ldg(xyz+atoms.y),lbox,hbox);
-		// compute distance
-		dist = norm3df(r.x,r.y,r.z);
+		// compute reciprocal of distance
+		dist = rnorm3df(r.x,r.y,r.z);
 		// force
-		params = __ldg(bondParams+atoms.z);
-		//fbnd = bondParams_s[atoms.z].x*(bondParams_s[atoms.z].y/dist - 1.0f);
-		fbnd = params.x*(params.y/dist - 1.0f);
+		fbnd = params.x*(params.y*dist - 1.0f);
 		// add force to force vector
 		atomicAdd(&(f[atoms.x].x), fbnd*r.x);
 		atomicAdd(&(f[atoms.y].x), -fbnd*r.x);

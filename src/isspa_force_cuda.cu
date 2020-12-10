@@ -327,6 +327,11 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& issp
         cudaEventRecord(isspas.isspaStart);
         
 	cudaProfilerStart();
+	// zero IS-SPA arrays on GPU
+	cudaMemset(isspas.enow_d,  0.0f,  nAtoms_h*isspas.nMC*sizeof(float4));
+	cudaMemset(isspas.e0now_d, 0.0f,  nAtoms_h*isspas.nMC*sizeof(float4));
+	//cudaMemset(isspas.mcpos_d, 1.0f,  nAtoms_h*isspas.nMC*sizeof(float4));
+	cudaMemset(isspaf_d,       0.0f,  nAtoms_h*sizeof(float4));
         
 	// compute position of each MC point
 	isspa_MC_points_kernel<<<nAtoms_h,isspas.nMC >>>(xyz_d, isspas.mcpos_d, isspas.randStates_d, isspas.rmax_d, isspas.isspaTypes_d);
@@ -373,7 +378,7 @@ void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
 	
 	// fill box with box and half box length
 	box_h.x = lbox_h;
-	box_h.y = lbox_h/2.0;
+	box_h.y = lbox_h/2.0f;
 	
 	// set constant memory
 	cudaMemcpyToSymbol(nMC, &isspas.nMC, sizeof(int));
