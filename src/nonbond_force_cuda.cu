@@ -57,14 +57,12 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 	}
 	__syncthreads();
 	// move on
+	atom2 = t;
 	// all threads need to set r to zero
 	r.x = r.y = r.z = r.w = 0.0f;
-	if (t < nAtoms)
+	if (atom2 < nAtoms)
 	{
 		atom1 = blockIdx.x;
-		atom2 = t;
-		it = __ldg(isspaTypes + atom2);
-		rmax_l = rmax[it];
 		// check exclusions
 		exPass = 0;
 		if (atom1 < atom2) {
@@ -106,8 +104,13 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 		// finish exclusion check
 		if (atom1 != atom2) {
 			hbox = 0.5f*lbox;
+			// load atom data
 			p1 = __ldg(xyz + atom1);
 			p2 = __ldg(xyz + atom2);
+			// get IS-SPA rmax
+			jt = __ldg(isspaTypes + atom2);
+			rmax_l = rmax[jt];
+			// compute separation vector and distance between them
 			r = min_image(p1 - p2,lbox,hbox);
 			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
 			dist = sqrtf(dist2);
