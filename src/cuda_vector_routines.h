@@ -209,27 +209,38 @@ inline __host__ __device__ void operator*=(float4 &a, float b)
 
 inline __host__ __device__ float4 operator/(float4 a, float4 b)
 {
-    return make_float4(a.x / b.x, a.y / b.y, a.z / b.z,  a.w / b.w);
+        return make_float4(a.x / b.x, a.y / b.y, a.z / b.z,  a.w / b.w);
+        //return make_float4(__fdividef(a.x, b.x), __fdividef(a.y, b.y), __fdividef(a.z, b.z),  __fdividef(a.w, b.w));
 }
 inline __host__ __device__ void operator/=(float4 &a, float4 b)
 {
-    a.x /= b.x;
-    a.y /= b.y;
-    a.z /= b.z;
-    //a.w /= b.w;
+        //a.x = __fdividef(a.x,b.x);
+        //a.y = __fdividef(a.y,b.y);
+        //a.z = __fdividef(a.z,b.z);
+        a.x /= b.x;
+        a.y /= b.y;
+        a.z /= b.z;
+        //a.w /= b.w;
 }
 inline __host__ __device__ float4 operator/(float4 a, float b)
 {
-    return make_float4(a.x / b, a.y / b, a.z / b,  a.w / b);
+        return make_float4(a.x / b, a.y / b, a.z / b,  a.w / b);
+        //return make_float4(__fdividef(a.x, b), __fdividef(a.y, b), __fdividef(a.z, b),  __fdividef(a.w, b));
 }
 inline __host__ __device__ void operator/=(float4 &a, float b)
 {
-    a.x /= b;
-    a.y /= b;
-    a.z /= b;
-    //a.w /= b;
+        //a.x = __fdividef(a.x,b);
+        //a.y = __fdividef(a.y,b);
+        //a.z = __fdividef(a.z,b);
+        
+        a.x /= b;
+        a.y /= b;
+        a.z /= b;
+        //a.w /= b;
 }
 inline __host__ __device__ float4 operator/(float b, float4 a)
 {
-    return make_float4(b / a.x, b / a.y, b / a.z, b / a.w);
+        return make_float4(b / a.x, b / a.y, b / a.z, b / a.w);
+        //return make_float4(__fdividef(b, a.x), __fdividef(b, a.y), __fdividef(b, a.z),  __fdividef(b, a.w));
+
 }

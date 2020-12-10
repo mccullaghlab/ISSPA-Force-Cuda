@@ -23,6 +23,8 @@ void atom::allocate()
 	cudaMallocHost((float4 **) &pos_h, nAtoms*sizeof(float4));
 	// allocate atom velocity arrays
 	cudaMallocHost((float4 **) &vel_h, nAtoms*sizeof(float4));
+	// allocate atom mass arrays
+	cudaMallocHost((float4 **) &mass_h, nAtoms*sizeof(float4));
 	// allocate atom force arrays
 	cudaMallocHost((float4 **) &for_h, nAtoms*sizeof(float4));
 	// allocate atom force arrays
@@ -52,10 +54,6 @@ void atom::initialize_velocities(float T)
 {
 	// initialize velocities
 	for (i=0;i<nAtoms;i++) {
-		// reweight hydrogens
-		if (vel_h[i].w < 2.0) {
-			vel_h[i].w = 12.0;
-		}
 		//vel_h[i] = make_float4(rand_gauss()*sqrt(T/mass_h[i]),rand_gauss()*sqrt(T/mass_h[i]),rand_gauss()*sqrt(T/mass_h[i]),mass_h[i]);	
 		vel_h[i].x = rand_gauss()*sqrt(T/vel_h[i].w);
 		vel_h[i].y = rand_gauss()*sqrt(T/vel_h[i].w);

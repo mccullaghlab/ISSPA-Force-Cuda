@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
 	if (configs.us == 1) {
 		printf("Umbrella sampling is turned on.  Reading US parameter file...\n");
 		bias.initialize(configs.usCfgFileName);	
-		bias.populate_mass(atoms.vel_h,atoms.nAtoms);
+		bias.populate_mass(atoms.mass_h,atoms.nAtoms);
 		bias.initialize_gpu();
 		us_grid_block(bias);
 	}
@@ -107,6 +107,14 @@ int main(int argc, char* argv[])
 		//}
 		// zero force array on gpu
 		cudaMemset(atoms.for_d, 0.0f,  atoms.nAtoms*sizeof(float4));
+<<<<<<< HEAD
+=======
+		//// zero force array on gpu
+		//cudaMemset(isspas.enow_d,  0.0f,   atoms.nAtoms*isspas.nMC*sizeof(float4));
+		//cudaMemset(isspas.e0now_d, 0.0f,  atoms.nAtoms*isspas.nMC*sizeof(float4));
+		//cudaMemset(isspas.mcpos_d, 1.0f,  atoms.nAtoms*isspas.nMC*sizeof(float4));
+		//cudaMemset(atoms.isspaf_d, 0.0f,  atoms.nAtoms*sizeof(float4));
+>>>>>>> 733dffe0ff44307108a0a7839eacb3e48bb2f81b
 		// compute bond forces on device
 		times.bondTime += bond_force_cuda(atoms.pos_d, atoms.for_d, atoms.nAtoms, configs.lbox, bonds);
 		

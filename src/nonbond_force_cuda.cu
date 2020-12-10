@@ -137,10 +137,7 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 				       //fdir = -p1.w*p2.w*(1.0f-1.0f/ep)*(8.0f*rmax_l-3.0f*dist)/24.0f/(rmax_l*rmax_l*rmax_l*rmax_l);
 				       fdir = __fdividef(-p1.w*p2.w*(1.0f-__fdividef(1.0f,ep))*(8.0f*rmax_l-3.0f*dist),24.0f*__powf(rmax_l,4.0f));
 			       }
-			       // add forces to atom1
-			       //atomicAdd(&(f[atom1].x),(flj+fc+fdir)*r.x);
-			       //atomicAdd(&(f[atom1].y),(flj+fc+fdir)*r.y);
-			       //atomicAdd(&(f[atom1].z),(flj+fc+fdir)*r.z);
+			       //add forces
 			       fdir += flj + fc;
 			       //atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
 			       //atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
@@ -154,14 +151,8 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 				       //fdir = -p1.w*p2.w*(1.0f-1.0f/ep)*(8.0f*rmax_l-3.0f*dist)/24.0f/(rmax_l*rmax_l*rmax_l*rmax_l);
 				       fdir = __fdividef(-p1.w*p2.w*(1.0f-__fdividef(1.0f,ep))*(8.0f*rmax_l-3.0f*dist),24.0f*__powf(rmax_l,4.0f));
 			       	}
-				// add forces to atom1
-				//atomicAdd(&(f[atom1].x),fdir*r.x);
-				//atomicAdd(&(f[atom1].y),fdir*r.y);
-				//atomicAdd(&(f[atom1].z),fdir*r.z);
-			 	//atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
-				//atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
-				//atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
 			}
+			// finalize force vector
 			r *= fdir;
 		}
 	}
