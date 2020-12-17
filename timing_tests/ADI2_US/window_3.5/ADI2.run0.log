@@ -51,6 +51,8 @@ Number of atoms in bias group 2: 22
 Total number of biased atoms: 44
 Mass of group 1: 144.175995
 Mass of group 2: 144.175995
+Nonbond kernel gridSize = 44
+Nonbond kernel blockSize = 64
 Reading system metadata from ISSPA prmtop file
 Number of atoms from prmtop file: 44
 Number of ISSPA types from prmtop file: 16
@@ -61,15 +63,16 @@ Number of IS-SPA field kernel blocks: 275
 Number of IS-SPA field kernel threads per block: 1024 
 Number of IS-SPA force kernel blocks: 190 
 Number of IS-SPA force kernel threads per block: 1024 
-Elapsed CPU/GPU time =    3404.76 s
+Elapsed CPU/GPU time =    4127.23 s
 Simulation time =      50.00 ns
-Average ns/day =    1268.81
-Bond force calculation time =     107.01 s (  3.1 %)
-Angle force calculation time =      67.69 s (  2.0 %)
-Dihedral force calculation time =     131.09 s (  3.9 %)
-Nonbond force calculation time =     262.67 s (  7.7 %)
+Average ns/day =    1046.71
+Bond force calculation time =     101.58 s (  2.5 %)
+Angle force calculation time =      71.49 s (  1.7 %)
+Dihedral force calculation time =     131.09 s (  3.2 %)
+Nonbond force calculation time =     136.90 s (  3.3 %)
 Neighbor list calculation time =       0.00 s (  0.0 %)
-US bias force calculation time =     131.82 s (  3.9 %)
-IS-SPA force calculation time =    1063.01 s ( 31.2 %)
-Leap-frog propogation time =      81.01 s (  2.4 %)
-Write trajectory file time =       5.59 s (  0.2 %)
+US bias force calculation time =     135.13 s (  3.3 %)
+IS-SPA force calculation time =    2114.68 s ( 51.2 %)
+Leap-frog propogation time =      81.27 s (  2.0 %)
+Write trajectory file time =       6.00 s (  0.1 %)
+Total percent accounted for =      67.31 %

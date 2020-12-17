@@ -1,8 +1,8 @@
 #/bin/bash
 export CUDA_VISIBLE_DEVICES=0
 
-run=run0
-for fp in $(seq 12.5 0.5 16.0)
+run=run1
+for fp in $(seq 3.5 0.5 8.5)
 do
      echo $fp
      sed -e "s/XXX/$fp/g" ADI2.$run.us > us_params.$run.dat

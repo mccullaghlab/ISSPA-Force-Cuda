@@ -2,7 +2,7 @@
 export CUDA_VISIBLE_DEVICES=0
 
 run=run0
-for fp in $(seq 4.0 0.5 15.0)
+for fp in $(seq 3.5 0.5 25.0)
 do
      echo $fp
      sed -e "s/XXX/$fp/g" LJ2.$run.us > us_params.$run.dat

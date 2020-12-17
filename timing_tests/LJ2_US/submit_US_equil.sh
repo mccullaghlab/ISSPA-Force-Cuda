@@ -1,8 +1,8 @@
 #/bin/bash
 export CUDA_VISIBLE_DEVICES=0
 
-prev=4.0
-for fp in $(seq 4.5 0.5 15.0)
+prev=22.0
+for fp in $(seq 22.5 0.5 25.0)
 do
      echo $fp
      mkdir window_$fp

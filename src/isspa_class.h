@@ -44,10 +44,12 @@ public:
 		int mcGridSize;
 		int mcBlockSize;
                 int mcThreads;
-                int fThreads;
-                int fGridSize;
-		int fBlockSize;
-		int4 fCalcsPerThread;
+                int fieldGridSize;
+		int fieldBlockSize;
+                int fieldThreads;
+                int forceThreads;
+                int forceGridSize;
+		int forceBlockSize;
 		// gpu timing events
 		cudaEvent_t isspaStart, isspaStop;
 		// random number generator on gpu

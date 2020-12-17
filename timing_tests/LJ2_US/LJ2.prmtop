@@ -1,4 +1,4 @@
-%VERSION  VERSION_STAMP = V0001.000  DATE = 12/09/20  12:35:32                  
+%VERSION  VERSION_STAMP = V0001.000  DATE = 12/14/20  14:32:36                  
 %FLAG TITLE                                                                     
 %FORMAT(20a4)                                                                   
 LJP                                                                             
@@ -67,10 +67,10 @@ LJP LJM
   0.00000000E+00  0.00000000E+00
 %FLAG LENNARD_JONES_ACOEF                                                       
 %FORMAT(5E16.8)                                                                 
-  3.79876399E+05
+  2.10387565E+09
 %FLAG LENNARD_JONES_BCOEF                                                       
 %FORMAT(5E16.8)                                                                 
-  5.64885984E+02
+  3.57652960E+04
 %FLAG BONDS_INC_HYDROGEN                                                        
 %FORMAT(10I8)                                                                   
 

@@ -92,6 +92,10 @@ void config::initialize(char *cfgFileName)
 				lbox = atof(trim(temp));
 				printf("Box Length (Angstroms): %f\n",lbox);
 				printf("Box Volume (Angstroms^3): %f\n",lbox*lbox*lbox);
+			} else if (strncmp(token,"pnu",3)==0) {
+				strncpy(temp,strtok(NULL,search),MAXLEN);
+				pnu = atof(trim(temp));
+				printf("pnu (Anderson Thermostat Frequency): %f\n",pnu);
 			} else if (strncmp(token,"velRst",6)==0) {
 				strncpy(temp,strtok(NULL,search),MAXLEN);
 				velRst = atoi(trim(temp));
@@ -120,7 +124,7 @@ void config::initialize(char *cfgFileName)
 	dt = dtPs*20.455; // convert to amber time units
 	T *= 0.00198717; // convert to energy units
 	rCut2 = rCut*rCut; // cutoff distance squared
-	pnu = 0.03f;  // Anderson thermostat frequency
+	//pnu = 0.03f;  // Anderson thermostat frequency
 	deltaNN = 10;  // neighborlist step frequency - currently not used
 	rNN = 15.0;    // neighborlist distance - currently not used
 	rNN2 = rNN*rNN; // neighbor list distance squared - currently not used
