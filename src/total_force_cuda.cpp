@@ -117,8 +117,7 @@ int main(int argc, char* argv[])
 		times.dihTime += dih_force_cuda(atoms, dihs, configs.lbox);
 
 		// run isspa force cuda kernel
-		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, atoms.isspaf_d, isspas, atoms.nAtoms);
-		//		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas, atoms.nAtoms);
+		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, atoms.isspaljf_d, atoms.isspacf_d, isspas, atoms.nAtoms);
 
 		// run nonbond cuda kernel
 		times.nonbondTime += nonbond_force_cuda(atoms, isspas, atoms.nAtoms);
@@ -134,7 +133,8 @@ int main(int argc, char* argv[])
 			// get positions, velocities, and forces from gpu
 			atoms.get_pos_vel_for_from_gpu();
 			// get isspa force and write to file
-			atoms.print_isspaf();
+			atoms.print_isspaljf();
+			atoms.print_isspacf();
 			// print force xyz file
 			atoms.print_for();
 			// print xyz file

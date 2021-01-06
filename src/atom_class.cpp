@@ -28,7 +28,8 @@ void atom::allocate()
 	// allocate atom force arrays
 	cudaMallocHost((float4 **) &for_h, nAtoms*sizeof(float4));
 	// allocate atom force arrays
-	cudaMallocHost((float4 **) &isspaf_h, nAtoms*sizeof(float4));
+	cudaMallocHost((float4 **) &isspaljf_h, nAtoms*sizeof(float4));
+	cudaMallocHost((float4 **) &isspacf_h, nAtoms*sizeof(float4));
 	// allocate atom type arrays
 	ityp_h = (int *)malloc(nAtoms*sizeof(int));
 	// allocate atom type arrays
@@ -69,8 +70,8 @@ void atom::open_traj_files(char *forOutFileName, char *posOutFileName, char *vel
 	forFile = fopen(forOutFileName,"w");
 	posFile = fopen(posOutFileName,"w");
 	velFile = fopen(velOutFileName,"w");
-	IFFile = fopen("ISSPA_force.xyz","w");
-
+	ILJFFile = fopen("isspa_lj_force.xyz","w");
+	ICFFile = fopen("isspa_C_force.xyz","w");
 }
 
 void atom::read_initial_positions(char *inputFileName) {
@@ -181,7 +182,8 @@ void atom::initialize_gpu(int seed)
 	// allocate atom force arrays
 	cudaMalloc((void **) &for_d, nAtoms*sizeof(float4));
 	// allocate atom force arrays
-	cudaMalloc((void **) &isspaf_d, nAtoms*sizeof(float4));
+	cudaMalloc((void **) &isspaljf_d, nAtoms*sizeof(float4));
+	cudaMalloc((void **) &isspacf_d, nAtoms*sizeof(float4));
 	// allocate mass array
 	//cudaMalloc((void **) &mass_d, nAtomBytes);
 	// allocate neighborlist stuff
@@ -235,7 +237,8 @@ void atom::get_pos_vel_for_from_gpu() {
 	// pass device variable, v_d, to host variable v_h
 	cudaMemcpy(vel_h, vel_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
 	// pass device variable, v_d, to host variable v_h
-	cudaMemcpy(isspaf_h, isspaf_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
+	cudaMemcpy(isspaljf_h, isspaljf_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
+	cudaMemcpy(isspacf_h, isspacf_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
 }
 // copy position, and velocity arrays from GPU
 void atom::get_pos_vel_from_gpu() {
@@ -256,15 +259,26 @@ void atom::print_for() {
 	fflush(forFile);
 }
 
-void atom::print_isspaf() {
+void atom::print_isspaljf() {
 	int ip;
-	fprintf(IFFile,"%d\n", nAtoms);
-	fprintf(IFFile,"%d\n", nAtoms);
+	fprintf(ILJFFile,"%d\n", nAtoms);
+	fprintf(ILJFFile,"%d\n", nAtoms);
 	for (i=0;i<nAtoms; i++) 
 	{
-	  fprintf(IFFile,"C %10.6f %10.6f %10.6f %16.8e %16.8e %16.8e\n", pos_h[i].x, pos_h[i].y, pos_h[i].z, isspaf_h[i].x, isspaf_h[i].y, isspaf_h[i].z);
+	  fprintf(ILJFFile,"C %16.8e %16.8e %16.8e\n", isspaljf_h[i].x, isspaljf_h[i].y, isspaljf_h[i].z);
 	}
-	fflush(IFFile);
+	fflush(ILJFFile);
+}
+
+void atom::print_isspacf() {
+	int ip;
+	fprintf(ICFFile,"%d\n", nAtoms);
+	fprintf(ICFFile,"%d\n", nAtoms);
+	for (i=0;i<nAtoms; i++) 
+	{
+	  fprintf(ICFFile,"C %16.8e %16.8e %16.8e\n", isspacf_h[i].x, isspacf_h[i].y, isspacf_h[i].z);
+	}
+	fflush(ICFFile);
 }
 
 void atom::print_pos() {
@@ -332,7 +346,8 @@ void atom::free_arrays() {
 	cudaFree(pos_h);
 	cudaFree(vel_h);
 	cudaFree(for_h); 
-	cudaFree(isspaf_h); 
+	cudaFree(isspaljf_h); 
+	cudaFree(isspacf_h); 
 	free(ityp_h); 
 	free(nExcludedAtoms_h);
 	free(excludedAtomsList_h);
@@ -348,7 +363,8 @@ void atom::free_arrays_gpu() {
 	cudaFree(pos_d); 
 	cudaFree(vel_d); 
 	cudaFree(for_d); 
-	cudaFree(isspaf_d); 
+	cudaFree(isspaljf_d); 
+	cudaFree(isspacf_d); 
 	cudaFree(ityp_d); 
 	cudaFree(nonBondedParmIndex_d); 
 	cudaFree(nExcludedAtoms_d);

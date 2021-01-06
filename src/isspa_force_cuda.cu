@@ -71,38 +71,40 @@ float4 warpReduceSumTriple(float4 val) {
 
 // kernel to generate MC points around each atom
 __global__  void isspa_MC_points_kernel(float4 *xyz, float4 *mcpos, curandState *state, const float* __restrict__ rmax, int *isspaTypes) {
-        unsigned int MC = threadIdx.x + blockIdx.x*blockDim.x;    
-	int atom = blockIdx.x;
+        unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;    
+        int atom;
 	int it;
 	float r2;
 	float rmax_l;
 	float4 mcr;
 	float4 mcpos_l;
 	curandState_t threadState;
-	
-	// load atom paramters
-	it = __ldg(isspaTypes+atom);
-	rmax_l = rmax[it];
-	mcpos_l = __ldg(xyz+atom);
-	// initialize the random state
-	threadState = state[MC];
-	// generate point in constant density sphere	
-        do {
-	        mcr.x = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
-		mcr.y = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
-		mcr.z = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
-		r2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
-	} while (r2 >= 0.99f);
-	// expand sphere and translate by atom position
-	mcr *= rmax_l;
-        mcpos_l += mcr;
-	// initialize density at MC point to 1
-	mcpos_l.w = 1.0f;
-	// save MC point and random state back to global memory
-	mcpos[MC] = mcpos_l;
-        state[MC] = threadState;
+        
+        atom = int(double(index)/double(nMC));
+        if (atom < nAtoms) {
+                // load atom paramters
+                it = __ldg(isspaTypes+atom);
+                rmax_l = rmax[it];
+                mcpos_l = __ldg(xyz+atom);
+                // initialize the random state
+                threadState = state[index];
+                // generate point in constant density sphere	
+                do {
+                        mcr.x = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
+                        mcr.y = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
+                        mcr.z = fmaf(2.0f,curand_uniform(&threadState),-1.0f);
+                        r2 = mcr.x*mcr.x + mcr.y*mcr.y + mcr.z*mcr.z;
+                } while (r2 >= 0.99f);
+                // expand sphere and translate by atom position
+                mcr *= rmax_l;
+                mcpos_l += mcr;
+                // initialize density at MC point to 1
+                mcpos_l.w = 1.0f;
+                // save MC point and random state back to global memory
+                mcpos[index] = mcpos_l;
+                state[index] = threadState;
+        }
 }
-
 
 // kernel to compute density and mean field at each MC point
 __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, int *isspaTypes, const float* __restrict__  gTable, const float* __restrict__  eTable, float4 *enow, float4 *e0now, float4 *mcpos, int nThreads) { 
@@ -127,7 +129,6 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
         float4 mcpos_l;
         float4 enow_l;
         float4 e0now_l;
-        bool flag = false;
 	// Determine which atom the MC point is being generated on
 	atom = int(double(index)/double(nThreads*nMC));
         MC = int(double(index)/double(nThreads));
@@ -204,7 +205,7 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
         }				
 }
 
-__global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, const float* __restrict__ rmax, int *isspaTypes, const float* __restrict__ forceTable, float4 *f, float4 *enow, float4 *e0now, float4 *mcpos, float nThreads, float4 *isspaf) {
+__global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, const float* __restrict__ rmax, int *isspaTypes, const float* __restrict__ forceTable, float4 *f, float4 *enow, float4 *e0now, float4 *mcpos, float nThreads, float4 *isspaljf, float4 *isspacf) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	int bin;
         int jt;
@@ -221,104 +222,122 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 	float c1,c2,c3;
 	float dp1,dp2,dp3;
 	float Rz;
+        float fracDist;
+        float f1, f2;
+        float2 forceRparams_l = forceRparams;
 	float4 xyz_l;
         float4 r;
         float4 fi;
-        //float4 fj;
-	float4 mcpos_l;
+        float4 fc;
+        float4 flj;
+        float4 mcpos_l;
 	float4 enow_l;
 	float4 e0now_l;
 
 	// Determine the atom for which the force is being summed on
-	atom = int(double(index)/double(nThreads));
+	atom = int(double(index)/double(nThreads));        
 	MC = int(index-atom*nThreads);
         // Zero out the forces
 	fi.x = fi.y = fi.z = 0.0f;
-	//fj.x = fj.y = fj.z = 0.0f;
-	if (MC < nAtoms*nMC) {       
-	        // Load in position, atom type, and rmax of atom
-	        xyz_l = __ldg(xyz+atom);
-		jt = __ldg(isspaTypes + atom);
-		rmax_l = rmax[jt];
-                vtot_l = vtot[jt];
-		// Load in field data for the MC point	
-		mcpos_l = __ldg(mcpos+MC);
-		enow_l = __ldg(enow+MC);
-		e0now_l = __ldg(e0now+MC);                
-                // Finish calculating density
-		igo = __fdividef(vtot_l,e0now_l.w);
-                mcpos_l.w *= igo;
-                // Convert enow into polarzation
-                r0 = norm3df(enow_l.x, enow_l.y, enow_l.z);
-		enow_l.x = __fdividef(enow_l.x,r0);			
-		enow_l.y = __fdividef(enow_l.y,r0);			
-		enow_l.z = __fdividef(enow_l.z,r0);			
-		enow_l.w = r0;
-                e0now_l.x = __fdividef(e0now_l.x,3.0f);
-                e0now_l.y = __fdividef(e0now_l.y,3.0f);
-                e0now_l.z = __fdividef(e0now_l.z,3.0f);
-                e0now_l.w = igo;               
-		// Calculate the distance between the MC point and atom1
-		r = min_image(mcpos_l - xyz_l,box.x,box.y);
-		dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-		dist = sqrtf(dist2);                
-		// Coulombic Force
-                cothE=__fdividef(1.0f,tanhf(enow_l.w));
-		c1=cothE-__fdividef(1.0f,enow_l.w);
-		c2=1.0f-2.0f*__fdividef(c1,enow_l.w);
-		c3=cothE-3.0f*__fdividef(c2,enow_l.w);                
-		Rz=__fdividef(enow_l.x*r.x+enow_l.y*r.y+enow_l.z*r.z,dist);
-		dp1=3.0f*Rz;
-		dp2=7.5f*Rz*Rz-1.5f;
-		dp3=(17.50f*Rz*Rz-7.50f)*Rz;                
-                // Calculate dipole term
-                fs = __fdividef(-xyz_l.w*p0*c1*mcpos_l.w,dist2*dist);
-                fi += fs*(r*__fdividef(dp1,dist)-enow_l);
-                //fj += fs*(r*__fdividef(dp1,dist)-enow_l);
-                // Calculate quadrapole term
-                fs = __fdividef(-xyz_l.w*q0*(1.5f*c2-0.5f)*mcpos_l.w,dist2*dist2);
-                fi += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
-                //fj += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
-                // Calculate octapole term
-                fs = __fdividef(-xyz_l.w*o0*(2.5f*c3-1.5f*c1)*mcpos_l.w,dist2*dist2*dist);
-                fi += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
-                //fj += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
-		// Lennard-Jones Force  
-		if (dist <= rmax_l) {
-		        bin = int ( __fdividef(dist-forceRparams.x,forceRparams.y) + 0.5f);
-			if (bin >= (nRs)) {
-			        fs = 0.0f;
-			} else {
-			        //Lennard-Jones Force 
-			        fs = forceTable[jt*nRs+bin]*mcpos_l.w;
-                        }
-                        fi += r*__fdividef(-fs,dist);
-			//fj += r*__fdividef(-fs,dist);
-		} else {
-		        // Constant Density Dielectric
-		        fs=__fdividef(-xyz_l.w*p0,dist2*dist);
-			pdotr=__fdividef(3.0f*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z),dist2);
-			fi += fs*(pdotr*r-e0now_l)*e0now_l.w;
-			//fj += fs*(pdotr*r-e0now_l)*e0now_l.w;
-		}	
-	}
+	flj.x = flj.y = flj.z = 0.0f;
+        fc.x = fc.y = fc.z = 0.0f;
+	if (atom < nAtoms) {
+                if (MC < nAtoms*nMC) {       
+                        // Load in position, atom type, and rmax of atom
+                        xyz_l = __ldg(xyz+atom);
+                        jt = __ldg(isspaTypes + atom);
+                        rmax_l = rmax[jt];
+                        vtot_l = vtot[jt];
+                        // Load in field data for the MC point	
+                        mcpos_l = __ldg(mcpos+MC);
+                        enow_l = __ldg(enow+MC);
+                        e0now_l = __ldg(e0now+MC);                
+                        // Finish calculating density
+                        igo = __fdividef(vtot_l,e0now_l.w);
+                        mcpos_l.w *= igo;
+                        
+                        // Convert enow into polarzation
+                        r0 = norm3df(enow_l.x, enow_l.y, enow_l.z);
+                        enow_l.x = __fdividef(enow_l.x,r0);			
+                        enow_l.y = __fdividef(enow_l.y,r0);			
+                        enow_l.z = __fdividef(enow_l.z,r0);			
+                        enow_l.w = r0;
+                        e0now_l.x = __fdividef(e0now_l.x,3.0f);
+                        e0now_l.y = __fdividef(e0now_l.y,3.0f);
+                        e0now_l.z = __fdividef(e0now_l.z,3.0f);
+                        e0now_l.w = igo;               
+                        // Calculate the distance between the MC point and atom1
+                        r = min_image(mcpos_l - xyz_l,box.x,box.y);
+                        dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
+                        dist = sqrtf(dist2);                
+                        // Coulombic Force
+                        cothE=__fdividef(1.0f,tanhf(enow_l.w));
+                        c1=cothE-__fdividef(1.0f,enow_l.w);
+                        c2=1.0f-2.0f*__fdividef(c1,enow_l.w);
+                        c3=cothE-3.0f*__fdividef(c2,enow_l.w);                
+                        Rz=__fdividef(enow_l.x*r.x+enow_l.y*r.y+enow_l.z*r.z,dist);
+                        dp1=3.0f*Rz;
+                        dp2=7.5f*Rz*Rz-1.5f;
+                        dp3=(17.50f*Rz*Rz-7.50f)*Rz;                
+                        // Calculate dipole term
+                        fs = __fdividef(-xyz_l.w*p0*c1*mcpos_l.w,dist2*dist);
+                        fi += fs*(r*__fdividef(dp1,dist)-enow_l);
+                        fc += fs*(r*__fdividef(dp1,dist)-enow_l);
+                        // Calculate quadrapole term
+                        fs = __fdividef(-xyz_l.w*q0*(1.5f*c2-0.5f)*mcpos_l.w,dist2*dist2);
+                        fi += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
+                        fc += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
+                        // Calculate octapole term
+                        fs = __fdividef(-xyz_l.w*o0*(2.5f*c3-1.5f*c1)*mcpos_l.w,dist2*dist2*dist);
+                        fi += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
+                        fc += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
+                        // Lennard-Jones Force  
+                        if (dist <= rmax_l) {
+                                bin = int ( __fdividef(dist-forceRparams.x,forceRparams.y) + 0.5f);
+                                if (bin >= (nRs)) {
+                                        fs = 0.0f;
+                                } else {
+                                        //Lennard-Jones Force 
+
+                                        fracDist = __fdividef((dist - (forceRparams_l.x+bin*forceRparams_l.y)),forceRparams_l.y);
+                                        f1 = forceTable[jt*nRs+bin];
+                                        f2 = forceTable[jt*nRs+bin+1];
+                                        fs = fmaf(f2,fracDist,f1*(1.0f-fracDist))*mcpos_l.w;
+                                        //fs = forceTable[jt*nRs+bin]*mcpos_l.w;
+                                }
+                                fi += r*__fdividef(-fs,dist);
+                                flj += r*__fdividef(-fs,dist);
+                        } else {
+                                // Constant Density Dielectric
+                                fs=__fdividef(-xyz_l.w*p0,dist2*dist);
+                                pdotr=__fdividef(3.0f*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z),dist2);
+                                fi += fs*(pdotr*r-e0now_l)*e0now_l.w;
+                                fc += fs*(pdotr*r-e0now_l)*e0now_l.w;
+                        }	
+                }
+        }
         // Warp reduce the forces
 	fi =  warpReduceSumTriple(fi);
-	//fj =  warpReduceSumTriple(fj);
+	flj =  warpReduceSumTriple(flj);
+	fc =  warpReduceSumTriple(fc);
+        
         // Add the force to the global force
 	if ((threadIdx.x & (warpSize - 1)) == 0) {
                 atomicAdd(&(f[atom].x), fi.x);
                 atomicAdd(&(f[atom].y), fi.y);
                 atomicAdd(&(f[atom].z), fi.z);
-                //atomicAdd(&(isspaf[atom].x), fj.x);
-                //atomicAdd(&(isspaf[atom].y), fj.y);
-                //atomicAdd(&(isspaf[atom].z), fj.z);
+                atomicAdd(&(isspaljf[atom].x), flj.x);
+                atomicAdd(&(isspaljf[atom].y), flj.y);
+                atomicAdd(&(isspaljf[atom].z), flj.z);
+                atomicAdd(&(isspacf[atom].x), fc.x);
+                atomicAdd(&(isspacf[atom].y), fc.y);
+                atomicAdd(&(isspacf[atom].z), fc.z);
 	}
 }
 
 
 /* C wrappers for kernels */
-float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& isspas, int nAtoms_h) {
+float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaljf_d, float4 *isspacf_d, isspa& isspas, int nAtoms_h) {
         //float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) {
         
         float milliseconds;
@@ -330,14 +349,15 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& issp
 	// zero IS-SPA arrays on GPU
 	cudaMemset(isspas.enow_d,  0.0f,  nAtoms_h*isspas.nMC*sizeof(float4));
 	cudaMemset(isspas.e0now_d, 0.0f,  nAtoms_h*isspas.nMC*sizeof(float4));
-	cudaMemset(isspaf_d,       0.0f,  nAtoms_h*sizeof(float4));
+	cudaMemset(isspaljf_d, 0.0f,  nAtoms_h*sizeof(float4));
+        cudaMemset(isspacf_d, 0.0f,  nAtoms_h*sizeof(float4));
         
 	// compute position of each MC point
-	isspa_MC_points_kernel<<<nAtoms_h,isspas.nMC >>>(xyz_d, isspas.mcpos_d, isspas.randStates_d, isspas.rmax_d, isspas.isspaTypes_d);
+	isspa_MC_points_kernel<<<isspas.mcGridSize,isspas.mcBlockSize >>>(xyz_d, isspas.mcpos_d, isspas.randStates_d, isspas.rmax_d, isspas.isspaTypes_d);
         // compute densities and mean electric field value for each MC point
-	isspa_field_kernel<<<isspas.mcGridSize, isspas.mcBlockSize>>>(xyz_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaETable_d, isspas.enow_d, isspas.e0now_d, isspas.mcpos_d, isspas.mcThreads);
+	isspa_field_kernel<<<isspas.fieldGridSize, isspas.fieldBlockSize>>>(xyz_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaETable_d, isspas.enow_d, isspas.e0now_d, isspas.mcpos_d, isspas.fieldThreads);
 	// compute forces for each atom
-	isspa_force_kernel<<<isspas.fGridSize, isspas.fBlockSize>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaForceTable_d,f_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d,isspas.fThreads,isspaf_d);
+	isspa_force_kernel<<<isspas.forceGridSize, isspas.forceBlockSize>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaForceTable_d,f_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d,isspas.forceThreads,isspaljf_d,isspacf_d);
         
 	cudaDeviceSynchronize();
 	cudaProfilerStop();
@@ -354,24 +374,30 @@ void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
         float2 box_h;
 	int maxThreadsPerBlock = 1024;
 	int temp;
+
+        // determine gridSize and blockSize for MC kernel	
+	isspas.mcGridSize = int(ceil(isspas.nMC*nAtoms_h/(float) maxThreadsPerBlock));
+	isspas.mcBlockSize = maxThreadsPerBlock;
+	printf("Number of IS-SPA mc kernel blocks: %d \n", isspas.mcGridSize);
+	printf("Number of IS-SPA mc kernel threads per block: %d \n", isspas.mcBlockSize);
+
         
 	// determine gridSize and blockSize for field kernel	
 	temp = int(ceil((nAtoms_h) / (float) 32.0));
-	isspas.mcThreads = temp*32;		
-	isspas.mcGridSize = int(ceil(isspas.mcThreads*nAtoms_h*isspas.nMC / (float) maxThreadsPerBlock));
-	isspas.mcBlockSize = maxThreadsPerBlock;
-        
-	printf("Number of IS-SPA field kernel blocks: %d \n", isspas.mcGridSize);
-	printf("Number of IS-SPA field kernel threads per block: %d \n", isspas.mcBlockSize);
+	isspas.fieldThreads = temp*32;		
+	isspas.fieldGridSize = int(ceil(isspas.fieldThreads*nAtoms_h*isspas.nMC / (float) maxThreadsPerBlock));
+	isspas.fieldBlockSize = maxThreadsPerBlock;
+	printf("Number of IS-SPA field kernel blocks: %d \n", isspas.fieldGridSize);
+	printf("Number of IS-SPA field kernel threads per block: %d \n", isspas.fieldBlockSize);
 	
         // determine gridSize and blockSize for force kernel
 	temp = int(ceil((nAtoms_h*isspas.nMC) / (float) 32.0));
-	isspas.fThreads = temp*32;		
-	isspas.fGridSize = int(ceil(isspas.fThreads*nAtoms_h / (float) maxThreadsPerBlock));
-	isspas.fBlockSize = maxThreadsPerBlock;
-        
-	printf("Number of IS-SPA force kernel blocks: %d \n", isspas.fGridSize);
-	printf("Number of IS-SPA force kernel threads per block: %d \n", isspas.fBlockSize);
+	isspas.forceThreads = temp*32;		
+	isspas.forceGridSize = int(ceil(isspas.forceThreads*nAtoms_h / (float) maxThreadsPerBlock));
+	isspas.forceBlockSize = maxThreadsPerBlock;
+	printf("Number of IS-SPA force kernel blocks: %d \n", isspas.forceGridSize);
+	printf("Number of IS-SPA force kernel threads per block: %d \n", isspas.forceBlockSize);
+	printf("Number of IS-SPA force kernel MC points: %d %d \n", isspas.forceThreads,nAtoms_h*isspas.nMC);
 	
 	// fill box with box and half box length
 	box_h.x = lbox_h;
@@ -389,4 +415,5 @@ void isspa_grid_block(int nAtoms_h, int nPairs_h, float lbox_h, isspa& isspas) {
 	cudaMemcpyToSymbol(forceRparams, &isspas.forceRparams, sizeof(float2));
 	cudaMemcpyToSymbol(gRparams, &isspas.gRparams, sizeof(float2));	
 	cudaMemcpyToSymbol(eRparams, &isspas.eRparams, sizeof(float2));	
+	cudaMemcpyToSymbol(forceRparams, &isspas.forceRparams, sizeof(float2));	
 }

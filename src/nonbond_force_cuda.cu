@@ -28,7 +28,7 @@ float4 warpReduceSumTriple(float4 val) {
         return val; 
 }
 
-__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, float2 *lj, const float* __restrict__ rmax, int *isspaTypes, int *nExcludedAtoms, int *excludedAtomsList, int *nbparm, int *ityp) {
+__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspacf, float2 *lj, const float* __restrict__ rmax, int *isspaTypes, int *nExcludedAtoms, int *excludedAtomsList, int *nbparm, int *ityp) {
 	unsigned int t = threadIdx.x;
 	extern __shared__ int excludedAtomsList_s[];
 	int atom1, atom2;
@@ -134,17 +134,17 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 			       //atomicAdd(&(isspaf[atom1].z),(fc)*r.z);
 			       // IS-SPA long ranged electrostatics
 			       if (dist > 2.0f*rmax_l) {
-				       // coulomb force
-				       fdir = __fdividef(-2.0f*p1.w*p2.w*(1.0f-__fdividef(1.0f,ep)),3.0f*dist2*dist);
+			               // coulomb force
+			               fdir = __fdividef(-2.0f*p1.w*p2.w*(1.0f-__fdividef(1.0f,ep)),3.0f*dist2*dist);
 			       } else {
-				       //fdir = -p1.w*p2.w*(1.0f-1.0f/ep)*(8.0f*rmax_l-3.0f*dist)/24.0f/(rmax_l*rmax_l*rmax_l*rmax_l);
-				       fdir = __fdividef(-p1.w*p2.w*(1.0f-__fdividef(1.0f,ep))*(8.0f*rmax_l-3.0f*dist),24.0f*__powf(rmax_l,4.0f));
+			               //fdir = -p1.w*p2.w*(1.0f-1.0f/ep)*(8.0f*rmax_l-3.0f*dist)/24.0f/(rmax_l*rmax_l*rmax_l*rmax_l);
+			               fdir = __fdividef(-p1.w*p2.w*(1.0f-__fdividef(1.0f,ep))*(8.0f*rmax_l-3.0f*dist),24.0f*__powf(rmax_l,4.0f));
 			       }
 			       //add forces
+			       atomicAdd(&(isspacf[atom1].x),(fdir)*r.x);
+			       atomicAdd(&(isspacf[atom1].y),(fdir)*r.y);
+			       atomicAdd(&(isspacf[atom1].z),(fdir)*r.z);
 			       fdir += flj + fc;
-			       //atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
-			       //atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
-			       //atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
 			} else {
 			       	// IS-SPA long ranged electrostatics
 				if (dist > 2.0f*rmax_l) {
@@ -154,6 +154,9 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 				       //fdir = -p1.w*p2.w*(1.0f-1.0f/ep)*(8.0f*rmax_l-3.0f*dist)/24.0f/(rmax_l*rmax_l*rmax_l*rmax_l);
 				       fdir = __fdividef(-p1.w*p2.w*(1.0f-__fdividef(1.0f,ep))*(8.0f*rmax_l-3.0f*dist),24.0f*__powf(rmax_l,4.0f));
 			       	}
+                                atomicAdd(&(isspacf[atom1].x),(fdir)*r.x);
+                                atomicAdd(&(isspacf[atom1].y),(fdir)*r.y);
+                                atomicAdd(&(isspacf[atom1].z),(fdir)*r.z);                                
 			}
 			// finalize force vector
 			r *= fdir;
@@ -178,7 +181,7 @@ float nonbond_force_cuda(atom& atoms, isspa& isspas, int nAtoms_h)
 	cudaEventRecord(atoms.nonbondStart);
 	
 	// run nonbond cuda kernel
-	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.isspaf_d, atoms.lj_d, isspas.rmax_d, isspas.isspaTypes_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d);
+	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.isspacf_d, atoms.lj_d, isspas.rmax_d, isspas.isspaTypes_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d);
 
 	
 	// finish timing

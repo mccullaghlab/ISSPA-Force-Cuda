@@ -1,0 +1,10 @@
+loadamberparams LJP.frcmod
+loadamberparams LJM.frcmod
+foo1 = loadmol2 LJP.mol2
+foo2 = loadmol2 LJM.mol2
+translate foo2 { 0 0 XXX }
+foo3 = loadmol2 LJP.mol2
+translate foo3 { 0 0 -YYY }
+foo = combine { foo1 foo2 foo3 }
+saveamberparm foo LJ3.prmtop LJ3.YYY_XXX.rst7
+quit
