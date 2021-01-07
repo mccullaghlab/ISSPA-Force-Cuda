@@ -28,8 +28,9 @@ float4 warpReduceSumTriple(float4 val) {
         return val; 
 }
 
-__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, float2 *lj, const float* __restrict__ rmax, int *isspaTypes, int *nExcludedAtoms, int *excludedAtomsList, int *nbparm, int *ityp) {
-	unsigned int t = threadIdx.x;
+__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, float2 *lj, const float* __restrict__ rmax, int *isspaTypes, int *nExcludedAtoms, int *excludedAtomsList, int *nbparm, int *ityp, int nThreads) {
+        unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
+        unsigned int tid = threadIdx.x;
 	extern __shared__ int excludedAtomsList_s[];
 	int atom1, atom2;
 	float dist, dist2;	
@@ -49,20 +50,24 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 	float hbox;
 	float2 ljAB;
 	float4 p1, p2;
+        
 
-	
+        
 	// copy excluded atoms list to shared memory
-	for (i=t;i<excludedAtomsListLength;i+=blockDim.x) {
+	for (i=tid;i<excludedAtomsListLength;i+=blockDim.x) {
 		excludedAtomsList_s[i] = __ldg(excludedAtomsList+i);
 	}
 	__syncthreads();
-	// move on
-	atom2 = t;
+        
+	// Determine atom indices
+        atom1 = int(double(index)/double(nThreads));
+        atom2 = int(index - atom1*nThreads);
+
 	// all threads need to set r to zero
 	r.x = r.y = r.z = r.w = 0.0f;
 	if (atom2 < nAtoms)
 	{
-		atom1 = blockIdx.x;
+
 		// check exclusions
 		exPass = 0;
 		if (atom1 < atom2) {
@@ -142,9 +147,9 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 			       }
 			       //add forces
 			       fdir += flj + fc;
-			       //atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
-			       //atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
-			       //atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
+			       atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
+			       atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
+			       atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
 			} else {
 			       	// IS-SPA long ranged electrostatics
 				if (dist > 2.0f*rmax_l) {
@@ -158,10 +163,10 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 			// finalize force vector
 			r *= fdir;
 		}
-	}
+	} 
 	// warp reduce the force
 	r = warpReduceSumTriple(r);
-	if((t & (warpSize - 1)) == 0) {
+	if((tid & (warpSize - 1)) == 0) {
 		atomicAdd(&(f[atom1].x),r.x);
 		atomicAdd(&(f[atom1].y),r.y);
 		atomicAdd(&(f[atom1].z),r.z);
@@ -178,8 +183,7 @@ float nonbond_force_cuda(atom& atoms, isspa& isspas, int nAtoms_h)
 	cudaEventRecord(atoms.nonbondStart);
 	
 	// run nonbond cuda kernel
-	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.isspaf_d, atoms.lj_d, isspas.rmax_d, isspas.isspaTypes_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d);
-
+	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.isspaf_d, atoms.lj_d, isspas.rmax_d, isspas.isspaTypes_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d, atoms.nThreads);
 	
 	// finish timing
 	cudaEventRecord(atoms.nonbondStop);
@@ -191,11 +195,13 @@ float nonbond_force_cuda(atom& atoms, isspa& isspas, int nAtoms_h)
 
 extern "C" void nonbond_force_cuda_grid_block(atom& atoms, float rCut2_h, float lbox_h)
 {
+        int maxThreadsPerBlock = 1024;
         
 	// determine gridSize and blockSize for nonbond kernel	
-	atoms.gridSize = atoms.nAtoms;
-	atoms.blockSize = int(ceil((atoms.nAtoms) / (float) 32.0))*32;
-        
+        atoms.nThreads = int(ceil( (atoms.nAtoms) / (float) 32.0))*32;
+	atoms.blockSize = maxThreadsPerBlock;
+        atoms.gridSize = int(ceil( (atoms.nThreads*atoms.nAtoms) / (float) maxThreadsPerBlock));        
+                
 	printf("Nonbond kernel gridSize = %d\n", atoms.gridSize);
 	printf("Nonbond kernel blockSize = %d\n", atoms.blockSize);
 

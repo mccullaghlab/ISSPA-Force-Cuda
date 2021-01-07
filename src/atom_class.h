@@ -10,8 +10,8 @@
 
 class atom
 {
-	private:
-		int i, j, k;
+        private:
+                int i, j, k;
 		FILE *forFile;
 		FILE *posFile;
 		FILE *velFile;
@@ -54,9 +54,10 @@ class atom
 		int totalNeighbors;    // size of neighborlist
 		// nAtoms kernel grid/block configurations
 		int gridSize;
-		int blockSize;
-		int minGridSize;
-		// random number generator on gpu
+                int blockSize;
+                int minGridSize;
+                int nThreads;
+                // random number generator on gpu
 		curandState *randStates_d;
 		// gpu timing events
 		cudaEvent_t nonbondStart, nonbondStop;

@@ -555,7 +555,8 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						lineCount = 0;
 						while (atomCount < atoms.excludedAtomsListLength && lineCount < 10) {
 							atoms.excludedAtomsList_h[atomCount] = atoi(strncpy(token,line+lineCount*8,8))-1;
-							atomCount++;
+                                                        //printf("%i \n",atoms.excludedAtomsList_h[atomCount]);
+                                                        atomCount++; 
 							lineCount++;
 						}
 					}
