@@ -2,8 +2,8 @@
 #type=Csolv_pair
 #type=Csolu
 #type=LJsolu
-#type=LJsolv
-type=Csolv
+type=LJsolv
+#type=Csolv
 #type=Csolv_CDD
 rm ISSPA_force_${type}_10000.xyz
 touch ISSPA_force_${type}_10000.xyz
