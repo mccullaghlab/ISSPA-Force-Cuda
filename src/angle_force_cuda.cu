@@ -24,7 +24,7 @@ __global__ void angle_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbo
 
 	if (index < nAngles)
 	{
-		hbox = lbox/2.0;
+		hbox = 0.5f*lbox;
 		// determine atoms to work on
 		atoms = __ldg(angleAtoms+index);
 		// get distance vectors separating the atoms
@@ -34,22 +34,22 @@ __global__ void angle_force_kernel(float4 *xyz, float4 *f, int nAtoms, float lbo
 		c11 = r1.x*r1.x + r1.y*r1.y + r1.z*r1.z;
 		c22 = r2.x*r2.x + r2.y*r2.y + r2.z*r2.z;
 		c12 = r1.x*r2.x + r1.y*r2.y + r1.z*r2.z;
-		b = -c12/sqrtf(c11*c22);
+		b = -__fdividef(c12,sqrtf(c11*c22));
 		// make sure b is in the domain of the arccos
 		if (b>=1.0f) {
 			// theta is zero
-			theta = 1.0e-16;
+			theta = 1.0e-16f;
 		} else if (b <= -1.0f) {
 			// theta is pi
 			theta = PI;
 		} else {
 			// b is in domain so take arccos
-			theta = acos(b);
+			theta = acosf(b);
 		}
 		// grab parameters for angle atoms type - stored as fourth integer in angleAtoms
 		params = __ldg(angleParams+atoms.w);
 		// compute force component
-		fang = params.x*(theta - params.y)/sqrtf(c11*c22-c12*c12);
+		fang = __fdividef(params.x*(theta - params.y),sqrtf(c11*c22-c12*c12));
 		// atomicAdd forces to each atom
 		atomicAdd(&(f[atoms.x].x), fang*(c12/c11*r1.x-r2.x));
 		atomicAdd(&(f[atoms.y].x), fang*((1.0f+c12/c22)*r2.x-(1.0f+c12/c11)*r1.x));

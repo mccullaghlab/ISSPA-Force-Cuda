@@ -23,8 +23,12 @@ void atom::allocate()
 	cudaMallocHost((float4 **) &pos_h, nAtoms*sizeof(float4));
 	// allocate atom velocity arrays
 	cudaMallocHost((float4 **) &vel_h, nAtoms*sizeof(float4));
+	// allocate atom mass arrays
+	cudaMallocHost((float4 **) &mass_h, nAtoms*sizeof(float4));
 	// allocate atom force arrays
 	cudaMallocHost((float4 **) &for_h, nAtoms*sizeof(float4));
+	// allocate atom force arrays
+	cudaMallocHost((float4 **) &isspaf_h, nAtoms*sizeof(float4));
 	// allocate atom type arrays
 	ityp_h = (int *)malloc(nAtoms*sizeof(int));
 	// allocate atom type arrays
@@ -50,10 +54,6 @@ void atom::initialize_velocities(float T)
 {
 	// initialize velocities
 	for (i=0;i<nAtoms;i++) {
-		// reweight hydrogens
-		if (vel_h[i].w < 2.0) {
-			vel_h[i].w = 12.0;
-		}
 		//vel_h[i] = make_float4(rand_gauss()*sqrt(T/mass_h[i]),rand_gauss()*sqrt(T/mass_h[i]),rand_gauss()*sqrt(T/mass_h[i]),mass_h[i]);	
 		vel_h[i].x = rand_gauss()*sqrt(T/vel_h[i].w);
 		vel_h[i].y = rand_gauss()*sqrt(T/vel_h[i].w);
@@ -69,6 +69,7 @@ void atom::open_traj_files(char *forOutFileName, char *posOutFileName, char *vel
 	forFile = fopen(forOutFileName,"w");
 	posFile = fopen(posOutFileName,"w");
 	velFile = fopen(velOutFileName,"w");
+	IFFile = fopen("ISSPA_force.xyz","w");
 
 }
 
@@ -179,6 +180,8 @@ void atom::initialize_gpu(int seed)
 	cudaMalloc((void **) &vel_d, nAtoms*sizeof(float4));
 	// allocate atom force arrays
 	cudaMalloc((void **) &for_d, nAtoms*sizeof(float4));
+	// allocate atom force arrays
+	cudaMalloc((void **) &isspaf_d, nAtoms*sizeof(float4));
 	// allocate mass array
 	//cudaMalloc((void **) &mass_d, nAtomBytes);
 	// allocate neighborlist stuff
@@ -231,6 +234,8 @@ void atom::get_pos_vel_for_from_gpu() {
 	cudaMemcpy(pos_h, pos_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
 	// pass device variable, v_d, to host variable v_h
 	cudaMemcpy(vel_h, vel_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
+	// pass device variable, v_d, to host variable v_h
+	cudaMemcpy(isspaf_h, isspaf_d, nAtoms*sizeof(float4), cudaMemcpyDeviceToHost);	
 }
 // copy position, and velocity arrays from GPU
 void atom::get_pos_vel_from_gpu() {
@@ -249,6 +254,17 @@ void atom::print_for() {
 		fprintf(forFile,"C %10.6f %10.6f %10.6f\n", for_h[i].x,for_h[i].y,for_h[i].z);
 	}
 	fflush(forFile);
+}
+
+void atom::print_isspaf() {
+	int ip;
+	fprintf(IFFile,"%d\n", nAtoms);
+	fprintf(IFFile,"%d\n", nAtoms);
+	for (i=0;i<nAtoms; i++) 
+	{
+	  fprintf(IFFile,"C %10.6f %10.6f %10.6f %16.8e %16.8e %16.8e\n", pos_h[i].x, pos_h[i].y, pos_h[i].z, isspaf_h[i].x, isspaf_h[i].y, isspaf_h[i].z);
+	}
+	fflush(IFFile);
 }
 
 void atom::print_pos() {
@@ -316,6 +332,7 @@ void atom::free_arrays() {
 	cudaFree(pos_h);
 	cudaFree(vel_h);
 	cudaFree(for_h); 
+	cudaFree(isspaf_h); 
 	free(ityp_h); 
 	free(nExcludedAtoms_h);
 	free(excludedAtomsList_h);
@@ -331,6 +348,7 @@ void atom::free_arrays_gpu() {
 	cudaFree(pos_d); 
 	cudaFree(vel_d); 
 	cudaFree(for_d); 
+	cudaFree(isspaf_d); 
 	cudaFree(ityp_d); 
 	cudaFree(nonBondedParmIndex_d); 
 	cudaFree(nExcludedAtoms_d);

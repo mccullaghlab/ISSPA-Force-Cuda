@@ -1,0 +1,5 @@
+k = 5.0000
+x0 =  XXX
+cvFile = LJ2.run0.window.XXX.dat
+atomSelect1 = 1
+atomSelect2 = 2

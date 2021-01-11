@@ -46,21 +46,23 @@ __global__ void leapfrog_kernel(float4 *xyz, float4 *v, float4 *f, float T, floa
 		force = __ldg(f+index);
 		tempVel = __ldg(v+index);
 		tempPos = __ldg(xyz+index);
+                //printf("index: %d mass: %f\n",index,tempVel.w);
+
 		// anderson thermostat
 		if (attempt < pnu) {
 			tempVel.x = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
 			tempVel.y = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
 			tempVel.z = curand_normal(&state[index]) * sqrtf( T / tempVel.w );
-			tempVel += force/tempVel.w*dt/2.0;
+			tempVel += force *__fdividef(dt,tempVel.w*2.0f);
 			tempPos += tempVel*dt;
 		} else {
-			tempVel += force/tempVel.w*dt;
+			tempVel += force * __fdividef(dt,tempVel.w);
 			tempPos += tempVel*dt;
 		}
 		// save new velocities and positions to global memory
 		v[index] = tempVel;
-		//xyz[index] = wrap(tempPos,lbox);
-		xyz[index] = tempPos;
+		xyz[index] = wrap(tempPos,lbox);
+                //xyz[index] = tempPos;
 
 	}
 }
