@@ -63,17 +63,10 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
         atom1 = int(double(index)/double(nThreads));
         atom2 = int(index - atom1*nThreads);
 
-        if (atom2 == 0) {
-                printf("%i %i\n",atom1,atom2);
-        }
-
 	// all threads need to set r to zero
 	r.x = r.y = r.z = r.w = 0.0f;
 	if (atom2 < nAtoms)
 	{
-                //if (atom1 == 0) {
-                //        printf("%i %i\n",atom1,atom2);
-                //}
 
 		// check exclusions
 		exPass = 0;
@@ -154,9 +147,9 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 			       }
 			       //add forces
 			       fdir += flj + fc;
-			       atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
-			       atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
-			       atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
+			       //atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
+			       //atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
+			       //atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
 			} else {
 			       	// IS-SPA long ranged electrostatics
 				if (dist > 2.0f*rmax_l) {

@@ -141,7 +141,7 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
                                 enow_l.x = enow_l.y = enow_l.z = enow_l.w = 0.0f;
                                 e0now_l.x = e0now_l.y = e0now_l.z = e0now_l.w = 0.0f;
                                 // Get atom positions
-			        mcpos_l = __ldg(mcpos+MC);
+                                mcpos_l = __ldg(mcpos+MC);
                                 it = __ldg(isspaTypes+atom);
                                 rmax_l = rmax[it];                                
 				// Get atom positions
@@ -222,6 +222,8 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 	float c1,c2,c3;
 	float dp1,dp2,dp3;
 	float Rz;
+        float f1, f2;
+        float fracDist;
 	float4 xyz_l;
         float4 r;
         float4 fi;
@@ -250,7 +252,6 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
                         // Finish calculating density
                         igo = __fdividef(vtot_l,e0now_l.w);
                         mcpos_l.w *= igo;
-                        
                         // Convert enow into polarzation
                         r0 = norm3df(enow_l.x, enow_l.y, enow_l.z);
                         enow_l.x = __fdividef(enow_l.x,r0);			
@@ -292,8 +293,13 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
                                 if (bin >= (nRs)) {
                                         fs = 0.0f;
                                 } else {
-                                        //Lennard-Jones Force 
-                                        fs = forceTable[jt*nRs+bin]*mcpos_l.w;
+                                        //Lennard-Jones Force
+                                        fracDist = __fdividef((dist-(forceRparams.x+bin*forceRparams.y)),forceRparams.y);
+                                        f1 = forceTable[jt*nRs+bin];
+                                        f2 = forceTable[jt*nRs+bin+1];
+                                        fs = (f1*(1.0-fracDist)+f2*fracDist)*mcpos_l.w;
+                                        fs =  fmaf(f2,fracDist,f1*(1.0f-fracDist))*mcpos_l.w;
+                                        //fs = forceTable[jt*nRs+bin]*mcpos_l.w;
                                 }
                                 fi += r*__fdividef(-fs,dist);
                                 //fj += r*__fdividef(-fs,dist);

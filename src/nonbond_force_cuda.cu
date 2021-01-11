@@ -147,9 +147,9 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 			       }
 			       //add forces
 			       fdir += flj + fc;
-			       atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
-			       atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
-			       atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
+			       //atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
+			       //atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
+			       //atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
 			} else {
 			       	// IS-SPA long ranged electrostatics
 				if (dist > 2.0f*rmax_l) {
