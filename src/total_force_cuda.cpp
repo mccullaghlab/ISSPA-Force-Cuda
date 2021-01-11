@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
 	if (configs.us == 1) {
 		printf("Umbrella sampling is turned on.  Reading US parameter file...\n");
 		bias.initialize(configs.usCfgFileName);	
-		bias.populate_mass(atoms.vel_h,atoms.nAtoms);
+		bias.populate_mass(atoms.mass_h,atoms.nAtoms);
 		bias.initialize_gpu();
 		us_grid_block(bias);
 	}
@@ -94,22 +94,19 @@ int main(int argc, char* argv[])
 	// initialize timing
 	times.initialize();
 	// copy atom data to device
+	times.startWriteTimer();
 	atoms.copy_params_to_gpu();
 	atoms.copy_pos_vel_to_gpu();
+	times.stopWriteTimer();
 
 	for (step=0;step<configs.nSteps;step++) {
-                printf("STEP %d\n", step);
+	  //printf("%d\n", step);
 		//if (step%configs.deltaNN==0) {
 			// compute the neighborlist
 		//	times.neighborListTime += neighborlist_cuda(atoms, configs.rNN2, configs.lbox);
 		//}
 		// zero force array on gpu
 		cudaMemset(atoms.for_d, 0.0f,  atoms.nAtoms*sizeof(float4));
-		// zero force array on gpu
-		cudaMemset(isspas.enow_d,  0.0f,   atoms.nAtoms*isspas.nMC*sizeof(float4));
-		cudaMemset(isspas.e0now_d, 0.0f,  atoms.nAtoms*isspas.nMC*sizeof(float4));
-		cudaMemset(isspas.mcpos_d, 1.0f,  atoms.nAtoms*isspas.nMC*sizeof(float4));
-		cudaMemset(atoms.isspaf_d, 0.0f,  atoms.nAtoms*sizeof(float4));
 		// compute bond forces on device
 		times.bondTime += bond_force_cuda(atoms.pos_d, atoms.for_d, atoms.nAtoms, configs.lbox, bonds);
 		
@@ -157,10 +154,12 @@ int main(int argc, char* argv[])
 	}
 
 	// write rst files
+	times.startWriteTimer();
 	atoms.write_rst_files(configs.posRstFileName, configs.velRstFileName, configs.lbox);
-
+	times.stopWriteTimer();
 	// print timing info
 	times.print_final(configs.nSteps*configs.dtPs*1.0e-3);
+
 	// free up arrays
 	atoms.free_arrays();
 	atoms.free_arrays_gpu();

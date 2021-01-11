@@ -10,8 +10,8 @@
 
 class atom
 {
-	private:
-		int i, j, k;
+        private:
+                int i, j, k;
 		FILE *forFile;
 		FILE *posFile;
 		FILE *velFile;
@@ -36,6 +36,7 @@ class atom
 		float4 *isspaf_d;      // force array - host data
 		float4 *vel_h;      // velocity array - host data
 		float4 *vel_d;      // velocity array - device data
+		float4 *mass_h;      // velocity array - host data
 		int *ityp_h;     // atom type array - host data
 		int *ityp_d;     // atom type array - device data
 		int *nExcludedAtoms_h;     // number of excluded atoms per atom array - host data
@@ -53,9 +54,10 @@ class atom
 		int totalNeighbors;    // size of neighborlist
 		// nAtoms kernel grid/block configurations
 		int gridSize;
-		int blockSize;
-		int minGridSize;
-		// random number generator on gpu
+                int blockSize;
+                int minGridSize;
+                int nThreads;
+                // random number generator on gpu
 		curandState *randStates_d;
 		// gpu timing events
 		cudaEvent_t nonbondStart, nonbondStop;

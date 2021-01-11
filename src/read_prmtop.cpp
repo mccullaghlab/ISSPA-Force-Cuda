@@ -139,7 +139,12 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						lineCount = 0;
 						while (atomCount < atoms.nAtoms && lineCount < 5) {
 							atoms.vel_h[atomCount].w = atof(strncpy(token,line+lineCount*16,16));
-							atomCount++;
+                                                        atoms.mass_h[atomCount].w = atof(strncpy(token,line+lineCount*16,16));
+                                                        // reweight hydrogens
+                                                        if (atoms.vel_h[atomCount].w < 2.0) {
+                                                                atoms.vel_h[atomCount].w = 12.0;
+                                                        }
+                                                        atomCount++;
 							lineCount++;
 						}
 					}
@@ -550,7 +555,8 @@ void read_prmtop(char* prmtopFileName, atom& atoms, bond& bonds, angle& angles, 
 						lineCount = 0;
 						while (atomCount < atoms.excludedAtomsListLength && lineCount < 10) {
 							atoms.excludedAtomsList_h[atomCount] = atoi(strncpy(token,line+lineCount*8,8))-1;
-							atomCount++;
+                                                        //printf("%i \n",atoms.excludedAtomsList_h[atomCount]);
+                                                        atomCount++; 
 							lineCount++;
 						}
 					}

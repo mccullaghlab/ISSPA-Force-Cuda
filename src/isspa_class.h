@@ -44,9 +44,10 @@ class isspa
                 // kernel grid/block configurations
 		int mcGridSize;
 		int mcBlockSize;
-		int4 mcCalcsPerThread;
-		int fGridSize;
-		int fBlockSize;
+		int4 fCalcsPerThread;
+                int fGridSize;
+                int fBlockSize;
+
 		// gpu timing events
 		cudaEvent_t isspaStart, isspaStop;
 		// random number generator on gpu
