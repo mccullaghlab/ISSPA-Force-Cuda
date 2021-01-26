@@ -1,0 +1,9 @@
+@<TRIPOS>MOLECULE
+LJP
+ 1 0 0 0 0
+SMALL
+GASTEIGER
+
+@<TRIPOS>ATOM
+      1 p1          0.0000    0.0000    0.0000 LJP     1  UNL1        1.0000
+@<TRIPOS>BOND

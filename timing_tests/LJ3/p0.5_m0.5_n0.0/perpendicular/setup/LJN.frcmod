@@ -1,0 +1,17 @@
+Remark line goes here
+MASS
+LJN 16.000        0.434   
+
+BOND
+
+ANGLE
+
+DIHE
+
+IMPROPER
+
+NONBON
+  LJN         3.5000  0.1520
+
+
+
