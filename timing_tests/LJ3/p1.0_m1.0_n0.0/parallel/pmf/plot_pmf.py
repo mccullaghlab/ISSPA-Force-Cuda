@@ -23,7 +23,6 @@ def uCDD3y(q2,q3,z12,z13):
         f = q2*q3*332./2.35/r23
         return f
 
-
 def uLJ(z):
         f=0.152*(7./z)**6*((7./z)**6-2.)
         return f
@@ -42,6 +41,10 @@ def uLJ3y(z12,z13):
 q1=1.0
 q2=-1.0
 q3=0.0
+cutoff = 15
+cutoff = 25
+#cutoff = 49.9
+step = 2.0
 values = (3.5,5.0,7.0,10.0,12.0,15.0)
 # Plot PMF values from isspa code
 for i,val in enumerate(values):
@@ -49,9 +52,12 @@ for i,val in enumerate(values):
 
         # Plot isspa trimer
         data = np.loadtxt("pmf.%s.dat" %(val))
-        z12 = data[-1,1]
+        for i in range(len(data)):
+                if data[i,1] == cutoff:
+                        index = i
         # shift the value at 15 to be equal to CDD+LJ
-        data[:,3] += uCDD(q1,q2,z12) + uCDD3z(q2,q3,z12,z13) + uLJ(z12) + uLJ3z(z12,z13)
+        z12 = data[index,1]
+        data[:,3] += -data[index,3] + uCDD(q1,q2,z12) + uCDD3z(q2,q3,z12,z13) + uLJ(z12) + uLJ3z(z12,z13)
         plt.plot(data[:,1], data[:,3], "k", label = "$u_{pmf}$")
 
         # Plot CDD + LJ PMF
@@ -63,14 +69,14 @@ for i,val in enumerate(values):
         plt.plot(CDD_data[:,0], CDD_data[:,1], c = 'r', label = "$u_{CDD} + u_{LJ}$", linestyle='--')
 
         # Plot Dimer PMF plus CDD from 3rd atom
-        DCDD_data = np.loadtxt("/home/ryan/Desktop/isspa/isspa2_v3_forces/timing_tests/LJ2/p1.0_m1.0/12/pmf.dat")
+        DCDD_data = np.loadtxt("/home/ryan/Desktop/isspa/isspa2_v3_forces/timing_tests/LJ2/p1.0_m1.0/25/pmf.dat")
         for i in range(len(DCDD_data)):
-                if DCDD_data[i,0] == 15.0:
+                if DCDD_data[i,0] == cutoff:
                         index = i
         # Add in CDD + LJ from atom 3 to atom 1
         for  i in range(len(DCDD_data)):
                 z12 = DCDD_data[i,0]
-                DCDD_data[i,1] =  DCDD_data[i,2] + uCDD3z(q2,q3,z12,z13) + uLJ3z(z12,z13)                
+                DCDD_data[i,2] += uCDD3z(q2,q3,z12,z13) + uLJ3z(z12,z13)                
         z12 = DCDD_data[index,0]
         DCDD_data[:,2] += -DCDD_data[index,2] + uCDD(q1,q2,z12) + uCDD3z(q2,q3,z12,z13) + uLJ(z12) + uLJ3z(z12,z13)                
         plt.plot(DCDD_data[:,0], DCDD_data[:,2], c = 'b', label = "$u_{pmf}^{12}$ + $u_{CDD}^{23}$ + $u_{LJ}^{23}$", linestyle='--')
@@ -80,11 +86,13 @@ for i,val in enumerate(values):
         # Add in CDD + LJ from atom 3 to atom 1
         for i in range(len(data)):
                 z12 = data[i,1]
-                data[i,3] = data[i,3] + uCDD3z(q1,q2,z12,z13) + uLJ3z(z12,z13)
-        # shift the value at 15 to be equal to CDD+LJ
-        data[:,3] += -data[-1,3] + uCDD(q1,q2,z12) + uCDD3z(q2,q3,z12,z13) + uLJ(z12) + uLJ3z(z12,z13)
-        #data[:,3] += -data[-1,3] + uCDD(q1,q2,z12) + uCDD3z(q2,q3,z12,z13) + uLJ(z12) + uLJ3z(z12,z13)
-
+                data[i,3] += uCDD3z(q1,q2,z12,z13) + uLJ3z(z12,z13)
+        # shift the value at cutoff distance to be equal to CDD+LJ
+        for i in range(len(data)):
+                if data[i,0] == cutoff:
+                        index = i
+        data[:,3] += -data[index,3] + uCDD(q1,q2,z12) + uCDD3z(q2,q3,z12,z13) + uLJ(z12) + uLJ3z(z12,z13)
+        
         plt.plot(data[:,1], data[:,3], "g", label = "$u_{pmf}$ - $u_{IS-SPA}^{23}$",linestyle='--')
 
 
@@ -93,8 +101,8 @@ for i,val in enumerate(values):
         plt.xlabel(r'$R_{12}$ $(\AA)$', size=12)
         plt.ylabel(r'$u_{pmf}$ $(kcal \cdot mol^{-1})$', size=12)
         plt.legend(loc='lower right',  shadow=True, ncol=1, fontsize = 'medium')
-        plt.xticks(np.arange(0, 16, 1.0))
-        plt.xlim((0,15))
+        plt.xticks(np.arange(0, cutoff+1, step))
+        plt.xlim((0,cutoff))
         plt.ylim((-45.0, 5.0))
         plt.savefig('p1.0_m1.0_n0.0.%s.zz.pmf.pdf' %(val))
         plt.savefig('p1.0_m1.0_n0.0.%s.zz.pmf.png' %(val))

@@ -1,0 +1,9 @@
+@<TRIPOS>MOLECULE
+LJ
+ 2 0 0 0 0
+SMALL
+GASTEIGER
+
+@<TRIPOS>ATOM
+      1 ljp        -3.8333    1.7249    0.0000 O       1  UNL1        1.0000
+      2 ljm        -1.8471    1.6052   -0.0000 O       1  UNL1       -1.0000

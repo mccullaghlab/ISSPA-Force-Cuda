@@ -1,0 +1,26 @@
+# 1 for rst from file 0 for intialize velocities
+velRst = 0
+inputVel = vel.rst
+# INPUT FILES:
+prmtop = ../../LJ3.prmtop
+inputCoord = LJ3.5.0_39.6.rst7
+isspaPrmtop = ../../LJ3.isspatop
+# OUTPUT FILES:
+forFile = LJ3.5.0_39.6.forces.xyz
+posFile = LJ3.5.0_39.6.positions.xyz
+velFile = LJ3.5.0_39.6.velocities.xyz
+# RESTART FILES:
+posRstFile = LJ3.5.0_39.6.positions.rst
+velRstFile = LJ3.5.0_39.6.velocities.rst
+# PARAMETERS:
+nMC = 1000
+nSteps = 1000
+deltaWrite = 1
+temperature = 298.00
+seed = 10705
+cutoff = 12.0
+dielectric = 1.0
+boxLength = 200.0
+pnu = 0.03
+# Umbrella Sampling
+US = 0

@@ -4,7 +4,7 @@ touch random_number_seed.dat
 list=( 3.5 5.0 7.0 10.0 12.0 15.0 )
 for i in "${list[@]}"
 do
-    for j in $(seq 3.5 0.1 15.0)
+    for j in $(seq 3.5 0.1 50.0)
     do
         echo $i $j   
         rand=$RANDOM

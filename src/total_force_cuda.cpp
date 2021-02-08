@@ -149,8 +149,8 @@ int main(int argc, char* argv[])
 			times.stopWriteTimer();
 		}
 
-		// Move atoms and velocities
-		times.leapFrogTime += leapfrog_cuda(atoms, configs);
+		//// Move atoms and velocities
+                //times.leapFrogTime += leapfrog_cuda(atoms, configs);
 	}
 
 	// write rst files

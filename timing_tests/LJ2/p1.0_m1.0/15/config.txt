@@ -13,8 +13,8 @@ velFile = LJ2.XXX.velocities.xyz
 posRstFile = LJ2.XXX.positions.rst
 velRstFile = LJ2.XXX.velocities.rst
 # PARAMETERS:
-nMC = 1000000
-nSteps = 1
+nMC = 1000
+nSteps = 1000
 deltaWrite = 1
 temperature = 298.00
 seed = YYY

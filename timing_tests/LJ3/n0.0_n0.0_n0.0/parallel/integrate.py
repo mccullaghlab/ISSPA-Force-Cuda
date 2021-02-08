@@ -27,14 +27,14 @@ for y in range(yBins):
     for z in range(zBins-1):
         vals.append(ft[z,1])
         hdx = dx*0.5
-        upt[y,z+1] = upt[y,z]-hdx*(ft[y*zBins+z,4]+ft[y*zBins+z+1,4])
-        umt[y,z+1] = umt[y,z]-hdx*(ft[y*zBins+z,7]+ft[y*zBins+z+1,7])
-        upi[y,z+1] = upi[y,z]-hdx*(flj[y*zBins+z,4]+flj[y*zBins+z+1,4]+fc[y*zBins+z,4]+fc[y*zBins+z+1,4])
-        umi[y,z+1] = umi[y,z]-hdx*(flj[y*zBins+z,7]+flj[y*zBins+z+1,7]+fc[y*zBins+z,7]+fc[y*zBins+z+1,7])
-    upt[y,:]-=upt[y,zBins-1]
-    umt[y,:]-=umt[y,zBins-1]
-    upi[y,:]-=upi[y,zBins-1]
-    umi[y,:]-=umi[y,zBins-1]
+        upt[y,z+1] = upt[y,z]-hdx*(ft[y*zBins+z,2]+ft[y*zBins+z+1,2])
+        umt[y,z+1] = umt[y,z]-hdx*(ft[y*zBins+z,4]+ft[y*zBins+z+1,4])
+        upi[y,z+1] = upi[y,z]-hdx*(flj[y*zBins+z,2]+flj[y*zBins+z+1,2]+fc[y*zBins+z,2]+fc[y*zBins+z+1,2])
+        umi[y,z+1] = umi[y,z]-hdx*(flj[y*zBins+z,4]+flj[y*zBins+z+1,4]+fc[y*zBins+z,4]+fc[y*zBins+z+1,4])
+    upt[y,:] -= upt[y,zBins-1]
+    umt[y,:] -= umt[y,zBins-1]
+    upi[y,:] -= upi[y,zBins-1]
+    umi[y,:] -= umi[y,zBins-1]
     vals.append(ft[zBins-1,1])
     vals = np.array(vals)
     out = open("pmf/pmf.%s.dat" %(vals1[y]),'w')

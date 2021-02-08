@@ -16,11 +16,11 @@ Position trajectory written to file: LJ3.3.5_4.0.positions.xyz
 Velocity trajectory written to file: LJ3.3.5_4.0.velocities.xyz
 Position restart written to file: LJ3.3.5_4.0.positions.rst
 Velocity restart written to file: LJ3.3.5_4.0.velocities.rst
-Number of Monte Carlo points per atom: 1000000
-Number of MD steps: 1
+Number of Monte Carlo points per atom: 1000
+Number of MD steps: 1000
 Write frequency: 1
 Temperature (K): 298.000000
-Random number seed: 8637
+Random number seed: 32195
 Cutoff distance (Angstroms): 12.000000
 Dielectric: 1.000000
 Box Length (Angstroms): 200.000000
@@ -46,23 +46,23 @@ Number of ISSPA types from prmtop file: 1
 Number of ISSPA force values per type in prmtop file: 120
 Number of g force values per type in prmtop file: 120
 Number of electric field values per type in prmtop file: 120
-Number of IS-SPA mc kernel blocks: 2930 
+Number of IS-SPA mc kernel blocks: 3 
 Number of IS-SPA mc kernel threads per block: 1024 
-Number of IS-SPA field kernel blocks: 93750 
+Number of IS-SPA field kernel blocks: 94 
 Number of IS-SPA field kernel threads per block: 1024 
-Number of IS-SPA force kernel blocks: 8790 
+Number of IS-SPA force kernel blocks: 9 
 Number of IS-SPA force kernel threads per block: 1024 
-Number of IS-SPA force kernel MC points: 3000000 3000000 
-Elapsed CPU/GPU time =      21.85 ms
+Number of IS-SPA force kernel MC points: 3008 3000 
+Elapsed CPU/GPU time =     134.47 ms
 Simulation time =       0.00 ns
-Average ns/day =       7.91
-Bond force calculation time =       0.00 ms (  0.0 %)
-Angle force calculation time =       0.00 ms (  0.0 %)
-Dihedral force calculation time =       0.00 ms (  0.0 %)
-Nonbond force calculation time =       0.01 ms (  0.0 %)
+Average ns/day =    1285.05
+Bond force calculation time =       1.36 ms (  1.0 %)
+Angle force calculation time =       1.37 ms (  1.0 %)
+Dihedral force calculation time =       1.36 ms (  1.0 %)
+Nonbond force calculation time =       4.40 ms (  3.3 %)
 Neighbor list calculation time =       0.00 ms (  0.0 %)
 US bias force calculation time =       0.00 ms (  0.0 %)
-IS-SPA force calculation time =      21.54 ms ( 98.6 %)
-Leap-frog propogation time =       0.01 ms (  0.0 %)
-Write trajectory file time =       0.23 ms (  1.0 %)
-Total percent accounted for =      99.74 %
+IS-SPA force calculation time =      49.42 ms ( 36.7 %)
+Leap-frog propogation time =       0.00 ms (  0.0 %)
+Write trajectory file time =      44.07 ms ( 32.8 %)
+Total percent accounted for =      75.84 %

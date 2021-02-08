@@ -49,6 +49,18 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspacf, fl
 	float hbox;
 	float2 ljAB;
 	float4 p1, p2;
+        int atomList[3][3];
+
+        atomList[0][0] = 1;
+        atomList[0][1] = 1;
+        atomList[0][2] = 1;
+        atomList[1][0] = 1;
+        atomList[1][1] = 1;
+        atomList[1][2] = 0;
+        atomList[2][0] = 1;
+        atomList[2][1] = 0;
+        atomList[2][2] = 1;
+
 
 	
 	// copy excluded atoms list to shared memory
@@ -60,8 +72,7 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspacf, fl
 	atom2 = t;
 	// all threads need to set r to zero
 	r.x = r.y = r.z = r.w = 0.0f;
-	if (atom2 < nAtoms)
-	{
+	if (atom2 < nAtoms) {
 		atom1 = blockIdx.x;
 		// check exclusions
 		exPass = 0;
@@ -102,65 +113,71 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspacf, fl
 			}
 		}
 		// finish exclusion check
-		if (atom1 != atom2) {
-			hbox = 0.5f*lbox;
-			// load atom data
-			p1 = __ldg(xyz + atom1);
-			p2 = __ldg(xyz + atom2);
-			// get IS-SPA rmax
-			jt = __ldg(isspaTypes + atom2);
-			rmax_l = rmax[jt];
-			// compute separation vector and distance between them
-			r = min_image(p1 - p2,lbox,hbox);
-			dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-			dist = sqrtf(dist2);
-			// if not in excluded list
-		        if (exPass == 0) {
-			       // LJ pair type
-			       it = __ldg(ityp+atom1);
-			       jt = __ldg(ityp+atom2);
-			       nlj = nTypes*(it)+jt;
-			       nlj = __ldg(nbparm+nlj);
-			       ljAB = __ldg(lj+nlj);
-			       // LJ force
-			       r6 = powf(dist2,-3.0f);
-			       flj = __fdividef(r6 * (12.0f * ljAB.x * r6 - 6.0f * ljAB.y),dist2);
-			       //atomicAdd(&(isspaf[atom1].x),(flj)*r.x);
-			       //atomicAdd(&(isspaf[atom1].y),(flj)*r.y);
-			       //atomicAdd(&(isspaf[atom1].z),(flj)*r.z);
-			       fc = __fdividef(p1.w*p2.w,dist2*dist);
-			       //atomicAdd(&(isspaf[atom1].x),(fc)*r.x);
-			       //atomicAdd(&(isspaf[atom1].y),(fc)*r.y);
-			       //atomicAdd(&(isspaf[atom1].z),(fc)*r.z);
-			       // IS-SPA long ranged electrostatics
-			       if (dist > 2.0f*rmax_l) {
-			               // coulomb force
-			               fdir = __fdividef(-2.0f*p1.w*p2.w*(1.0f-__fdividef(1.0f,ep)),3.0f*dist2*dist);
-			       } else {
-			               //fdir = -p1.w*p2.w*(1.0f-1.0f/ep)*(8.0f*rmax_l-3.0f*dist)/24.0f/(rmax_l*rmax_l*rmax_l*rmax_l);
-			               fdir = __fdividef(-p1.w*p2.w*(1.0f-__fdividef(1.0f,ep))*(8.0f*rmax_l-3.0f*dist),24.0f*__powf(rmax_l,4.0f));
-			       }
-			       //add forces
-			       atomicAdd(&(isspacf[atom1].x),(fdir)*r.x);
-			       atomicAdd(&(isspacf[atom1].y),(fdir)*r.y);
-			       atomicAdd(&(isspacf[atom1].z),(fdir)*r.z);
-			       fdir += flj + fc;
-			} else {
-			       	// IS-SPA long ranged electrostatics
-				if (dist > 2.0f*rmax_l) {
-				       //fdir = -p1.w*p2.w/dist2/dist*2.0f/3.0f*(1.0f-1.0f/ep);
-				       fdir = __fdividef(-2.0f*p1.w*p2.w*(1.0f-__fdividef(1.0f,ep)),3.0f*dist2*dist);
-			       	} else {
-				       //fdir = -p1.w*p2.w*(1.0f-1.0f/ep)*(8.0f*rmax_l-3.0f*dist)/24.0f/(rmax_l*rmax_l*rmax_l*rmax_l);
-				       fdir = __fdividef(-p1.w*p2.w*(1.0f-__fdividef(1.0f,ep))*(8.0f*rmax_l-3.0f*dist),24.0f*__powf(rmax_l,4.0f));
-			       	}
-                                atomicAdd(&(isspacf[atom1].x),(fdir)*r.x);
-                                atomicAdd(&(isspacf[atom1].y),(fdir)*r.y);
-                                atomicAdd(&(isspacf[atom1].z),(fdir)*r.z);                                
-			}
-			// finalize force vector
-			r *= fdir;
-		}
+                if (atomList[atom1][atom2] == 1) {
+                        if (atom1 != atom2) {
+                                hbox = 0.5f*lbox;
+                                // load atom data
+                                p1 = __ldg(xyz + atom1);
+                                p2 = __ldg(xyz + atom2);
+                                // get IS-SPA rmax
+                                jt = __ldg(isspaTypes + atom2);
+                                rmax_l = rmax[jt];
+                                // compute separation vector and distance between them
+                                r = min_image(p1 - p2,lbox,hbox);
+                                dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
+                                dist = sqrtf(dist2);
+                                // if not in excluded list
+                                if (exPass == 0) {
+                                        // LJ pair type
+                                        it = __ldg(ityp+atom1);
+                                        jt = __ldg(ityp+atom2);
+                                        nlj = nTypes*(it)+jt;
+                                        nlj = __ldg(nbparm+nlj);
+                                        ljAB = __ldg(lj+nlj);
+                                        // LJ force
+                                        r6 = powf(dist2,-3.0f);
+                                        flj = __fdividef(r6 * (12.0f * ljAB.x * r6 - 6.0f * ljAB.y),dist2);
+                                        //atomicAdd(&(isspaf[atom1].x),(flj)*r.x);
+                                        //atomicAdd(&(isspaf[atom1].y),(flj)*r.y);
+                                        //atomicAdd(&(isspaf[atom1].z),(flj)*r.z);
+                                        fc = __fdividef(p1.w*p2.w,dist2*dist);
+                                        //atomicAdd(&(isspaf[atom1].x),(fc)*r.x);
+                                        //atomicAdd(&(isspaf[atom1].y),(fc)*r.y);
+                                        //atomicAdd(&(isspaf[atom1].z),(fc)*r.z);
+                                        // IS-SPA long ranged electrostatics
+                                        if (dist > 2.0f*rmax_l) {
+                                                // coulomb force
+                                                fdir = __fdividef(-2.0f*p1.w*p2.w*(1.0f-__fdividef(1.0f,ep)),3.0f*dist2*dist);
+                                        } else {
+                                                //fdir = -p1.w*p2.w*(1.0f-1.0f/ep)*(8.0f*rmax_l-3.0f*dist)/24.0f/(rmax_l*rmax_l*rmax_l*rmax_l);
+                                                fdir = __fdividef(-p1.w*p2.w*(1.0f-__fdividef(1.0f,ep))*(8.0f*rmax_l-3.0f*dist),24.0f*__powf(rmax_l,4.0f));
+                                        }
+                                       
+                                        //add forces
+                                        atomicAdd(&(isspacf[atom1].x),(fdir)*r.x);
+                                        atomicAdd(&(isspacf[atom1].y),(fdir)*r.y);
+                                        atomicAdd(&(isspacf[atom1].z),(fdir)*r.z);
+                                        fdir += flj + fc;
+                                } else {
+                                        // IS-SPA long ranged electrostatics
+                                        if (dist > 2.0f*rmax_l) {
+                                                //fdir = -p1.w*p2.w/dist2/dist*2.0f/3.0f*(1.0f-1.0f/ep);
+                                                fdir = __fdividef(-2.0f*p1.w*p2.w*(1.0f-__fdividef(1.0f,ep)),3.0f*dist2*dist);
+                                        } else {
+                                                //fdir = -p1.w*p2.w*(1.0f-1.0f/ep)*(8.0f*rmax_l-3.0f*dist)/24.0f/(rmax_l*rmax_l*rmax_l*rmax_l);
+                                                fdir = __fdividef(-p1.w*p2.w*(1.0f-__fdividef(1.0f,ep))*(8.0f*rmax_l-3.0f*dist),24.0f*__powf(rmax_l,4.0f));
+                                        }
+                                        printf("atom1: %d atom2: %d fdir: %f\n",atom1,atom2,fdir);
+                                        atomicAdd(&(isspacf[atom1].x),(fdir)*r.x);
+                                        atomicAdd(&(isspacf[atom1].y),(fdir)*r.y);
+                                        atomicAdd(&(isspacf[atom1].z),(fdir)*r.z);
+                                }        
+                                // finalize force vector
+                                r *= fdir;
+                        } else {
+                                r.x = r.y = r.z = r.w = 0.0f;
+                        }
+                }               
 	}
 	// warp reduce the force
 	r = warpReduceSumTriple(r);
