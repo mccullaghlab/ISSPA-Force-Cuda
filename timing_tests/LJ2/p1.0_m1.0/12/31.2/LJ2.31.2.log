@@ -20,7 +20,7 @@ Number of Monte Carlo points per atom: 1000
 Number of MD steps: 5000
 Write frequency: 1
 Temperature (K): 298.000000
-Random number seed: 26570
+Random number seed: 347
 Cutoff distance (Angstroms): 12.000000
 Dielectric: 1.000000
 Box Length (Angstroms): 200.000000
@@ -53,16 +53,16 @@ Number of IS-SPA field kernel threads per block: 1024
 Number of IS-SPA force kernel blocks: 4 
 Number of IS-SPA force kernel threads per block: 1024 
 Number of IS-SPA force kernel MC points: 2016 2000 
-Elapsed CPU/GPU time =     635.51 ms
+Elapsed CPU/GPU time =     767.40 ms
 Simulation time =       0.01 ns
-Average ns/day =    1359.55
-Bond force calculation time =       6.79 ms (  1.1 %)
-Angle force calculation time =       6.82 ms (  1.1 %)
-Dihedral force calculation time =       6.84 ms (  1.1 %)
-Nonbond force calculation time =      21.99 ms (  3.5 %)
+Average ns/day =    1125.88
+Bond force calculation time =       6.81 ms (  0.9 %)
+Angle force calculation time =       6.83 ms (  0.9 %)
+Dihedral force calculation time =       6.82 ms (  0.9 %)
+Nonbond force calculation time =      30.16 ms (  3.9 %)
 Neighbor list calculation time =       0.00 ms (  0.0 %)
 US bias force calculation time =       0.00 ms (  0.0 %)
-IS-SPA force calculation time =     220.11 ms ( 34.6 %)
+IS-SPA force calculation time =     232.72 ms ( 30.3 %)
 Leap-frog propogation time =       0.00 ms (  0.0 %)
-Write trajectory file time =     207.59 ms ( 32.7 %)
-Total percent accounted for =      73.98 %
+Write trajectory file time =     320.50 ms ( 41.8 %)
+Total percent accounted for =      78.69 %

@@ -17,10 +17,10 @@ Velocity trajectory written to file: LJ2.3.2.velocities.xyz
 Position restart written to file: LJ2.3.2.positions.rst
 Velocity restart written to file: LJ2.3.2.velocities.rst
 Number of Monte Carlo points per atom: 1000
-Number of MD steps: 1000
+Number of MD steps: 10000
 Write frequency: 1
 Temperature (K): 298.000000
-Random number seed: 14741
+Random number seed: 9507
 Cutoff distance (Angstroms): 12.000000
 Dielectric: 1.000000
 Box Length (Angstroms): 200.000000
@@ -53,16 +53,16 @@ Number of IS-SPA field kernel threads per block: 1024
 Number of IS-SPA force kernel blocks: 4 
 Number of IS-SPA force kernel threads per block: 1024 
 Number of IS-SPA force kernel MC points: 2016 2000 
-Elapsed CPU/GPU time =     124.18 ms
-Simulation time =       0.00 ns
-Average ns/day =    1391.55
-Bond force calculation time =       1.36 ms (  1.1 %)
-Angle force calculation time =       1.39 ms (  1.1 %)
-Dihedral force calculation time =       1.37 ms (  1.1 %)
-Nonbond force calculation time =       4.33 ms (  3.5 %)
-Neighbor list calculation time =       0.00 ms (  0.0 %)
-US bias force calculation time =       0.00 ms (  0.0 %)
-IS-SPA force calculation time =      42.75 ms ( 34.4 %)
-Leap-frog propogation time =       0.00 ms (  0.0 %)
-Write trajectory file time =      40.65 ms ( 32.7 %)
-Total percent accounted for =      73.97 %
+Elapsed CPU/GPU time =       1.65 s
+Simulation time =       0.02 ns
+Average ns/day =    1045.07
+Bond force calculation time =       0.01 s (  0.8 %)
+Angle force calculation time =       0.01 s (  0.8 %)
+Dihedral force calculation time =       0.01 s (  0.8 %)
+Nonbond force calculation time =       0.09 s (  5.3 %)
+Neighbor list calculation time =       0.00 s (  0.0 %)
+US bias force calculation time =       0.00 s (  0.0 %)
+IS-SPA force calculation time =       0.53 s ( 31.8 %)
+Leap-frog propogation time =       0.00 s (  0.0 %)
+Write trajectory file time =       0.64 s ( 38.6 %)
+Total percent accounted for =      78.23 %

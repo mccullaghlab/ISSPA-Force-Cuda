@@ -17,6 +17,9 @@ class atom
 		FILE *velFile;
 		FILE *ILJFFile;
                 FILE *ICFFile;
+                FILE *EFFile;
+                FILE *E0FFile;
+                FILE *PFFile;
                 float sigma;
 		float rand_gauss();
 	public:
@@ -37,6 +40,12 @@ class atom
 		float4 *isspaljf_d;      // force array - host data
 		float4 *isspacf_h;      // force array - host data
 		float4 *isspacf_d;      // force array - host data
+		float4 *isspaef_h;      // force array - host data
+		float4 *isspaef_d;      // force array - host data
+		float4 *isspae0f_h;      // force array - host data
+		float4 *isspae0f_d;      // force array - host data
+		float4 *isspapf_h;      // force array - host data
+		float4 *isspapf_d;      // force array - host data
 		float4 *vel_h;      // velocity array - host data
 		float4 *vel_d;      // velocity array - device data
 		float4 *mass_h;      // velocity array - host data
@@ -96,6 +105,9 @@ class atom
 		// print force trajectory
 		void print_isspaljf();
 		void print_isspacf();
+		void print_isspaef();
+		void print_isspae0f();
+		void print_isspapf();
 		// write position and velocity restart files
 		void write_rst_files(char *posRstFileName, char *velRstFileName, float lbox);
 		// reorder

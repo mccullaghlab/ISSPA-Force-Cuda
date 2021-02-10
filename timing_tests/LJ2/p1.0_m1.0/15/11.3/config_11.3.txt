@@ -14,10 +14,10 @@ posRstFile = LJ2.11.3.positions.rst
 velRstFile = LJ2.11.3.velocities.rst
 # PARAMETERS:
 nMC = 1000
-nSteps = 1000
+nSteps = 5000
 deltaWrite = 1
 temperature = 298.00
-seed = 21718
+seed = 9506
 cutoff = 12.0
 dielectric = 1.0
 boxLength = 200.0

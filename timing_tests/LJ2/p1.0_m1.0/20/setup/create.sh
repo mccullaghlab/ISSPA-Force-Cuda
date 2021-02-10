@@ -1,5 +1,5 @@
 
-for i in $(seq 0.1 0.1 50.0)
+for i in $(seq 50.0 0.1 60.0)
 do
     echo $i
     mkdir $i

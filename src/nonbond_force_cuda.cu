@@ -28,7 +28,7 @@ float4 warpReduceSumTriple(float4 val) {
         return val; 
 }
 
-__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspacf, float2 *lj, const float* __restrict__ rmax, int *isspaTypes, int *nExcludedAtoms, int *excludedAtomsList, int *nbparm, int *ityp) {
+__global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspacf, float4 *isspapf, float2 *lj, const float* __restrict__ rmax, int *isspaTypes, int *nExcludedAtoms, int *excludedAtomsList, int *nbparm, int *ityp) {
 	unsigned int t = threadIdx.x;
 	extern __shared__ int excludedAtomsList_s[];
 	int atom1, atom2;
@@ -144,6 +144,9 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspacf, fl
 			       atomicAdd(&(isspacf[atom1].x),(fdir)*r.x);
 			       atomicAdd(&(isspacf[atom1].y),(fdir)*r.y);
 			       atomicAdd(&(isspacf[atom1].z),(fdir)*r.z);
+			       atomicAdd(&(isspapf[atom1].x),(fdir)*r.x);
+			       atomicAdd(&(isspapf[atom1].y),(fdir)*r.y);
+			       atomicAdd(&(isspapf[atom1].z),(fdir)*r.z);
 			       fdir += flj + fc;
 			} else {
 			       	// IS-SPA long ranged electrostatics
@@ -157,6 +160,9 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspacf, fl
                                 atomicAdd(&(isspacf[atom1].x),(fdir)*r.x);
                                 atomicAdd(&(isspacf[atom1].y),(fdir)*r.y);
                                 atomicAdd(&(isspacf[atom1].z),(fdir)*r.z);                                
+                                atomicAdd(&(isspapf[atom1].x),(fdir)*r.x);
+                                atomicAdd(&(isspapf[atom1].y),(fdir)*r.y);
+                                atomicAdd(&(isspapf[atom1].z),(fdir)*r.z);                                
 			}
 			// finalize force vector
 			r *= fdir;
@@ -179,9 +185,11 @@ float nonbond_force_cuda(atom& atoms, isspa& isspas, int nAtoms_h)
 
 	// timing
 	cudaEventRecord(atoms.nonbondStart);
-	
+
+        cudaMemset(atoms.isspapf_d, 0.0f,  nAtoms_h*sizeof(float4));
+        
 	// run nonbond cuda kernel
-	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.isspacf_d, atoms.lj_d, isspas.rmax_d, isspas.isspaTypes_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d);
+	nonbond_force_kernel<<<atoms.gridSize, atoms.blockSize, atoms.excludedAtomsListLength*sizeof(int)>>>(atoms.pos_d, atoms.for_d, atoms.isspacf_d, atoms.isspapf_d, atoms.lj_d, isspas.rmax_d, isspas.isspaTypes_d, atoms.nExcludedAtoms_d, atoms.excludedAtomsList_d, atoms.nonBondedParmIndex_d, atoms.ityp_d);
 
 	
 	// finish timing

@@ -1,7 +1,7 @@
 
 rm random_number_seed.dat
 touch random_number_seed.dat
-for i in $(seq 0.1 0.1 50.0)
+for i in $(seq 0.1 0.1 60.0)
 do
     echo $i    
     rand=$RANDOM

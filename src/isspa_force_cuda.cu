@@ -206,7 +206,7 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
         }				
 }
 
-__global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, const float* __restrict__ rmax, int *isspaTypes, const float* __restrict__ forceTable, float4 *f, float4 *enow, float4 *e0now, float4 *mcpos, float nThreads, float4 *isspaljf, float4 *isspacf) {
+__global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, const float* __restrict__ rmax, int *isspaTypes, const float* __restrict__ forceTable, float4 *f, float4 *enow, float4 *e0now, float4 *mcpos, float nThreads, float4 *isspaljf, float4 *isspacf, float4 *isspaef, float4 *isspae0f) {
 	unsigned int index = threadIdx.x + blockIdx.x*blockDim.x;
 	int bin;
         int jt;
@@ -231,6 +231,8 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
         float4 fi;
         float4 fc;
         float4 flj;
+        float4 fe;
+        float4 fe0;
         float4 mcpos_l;
 	float4 enow_l;
 	float4 e0now_l;
@@ -242,6 +244,8 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 	fi.x = fi.y = fi.z = 0.0f;
 	flj.x = flj.y = flj.z = 0.0f;
         fc.x = fc.y = fc.z = 0.0f;
+	fe.x = fe.y = fe.z = 0.0f;
+	fe0.x = fe0.y = fe0.z = 0.0f;
 	if (atom < nAtoms) {
                 if (MC < nAtoms*nMC) {       
                         // Load in position, atom type, and rmax of atom
@@ -288,14 +292,17 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
                         fs = __fdividef(-xyz_l.w*p0*c1*mcpos_l.w,dist2*dist);
                         fi += fs*(r*__fdividef(dp1,dist)-enow_l);
                         fc += fs*(r*__fdividef(dp1,dist)-enow_l);
+                        fe += fs*(r*__fdividef(dp1,dist)-enow_l);
                         // Calculate quadrapole term
                         fs = __fdividef(-xyz_l.w*q0*(1.5f*c2-0.5f)*mcpos_l.w,dist2*dist2);
                         fi += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
                         fc += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
+                        fe += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
                         // Calculate octapole term
                         fs = __fdividef(-xyz_l.w*o0*(2.5f*c3-1.5f*c1)*mcpos_l.w,dist2*dist2*dist);
                         fi += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
                         fc += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
+                        fe += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
                         // Lennard-Jones Force  
                         if (dist <= rmax_l) {
                                 bin = int ( __fdividef(dist-forceRparams.x,forceRparams.y) + 0.5f);
@@ -318,6 +325,7 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
                                 pdotr=__fdividef(3.0f*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z),dist2);
                                 fi += fs*(pdotr*r-e0now_l)*e0now_l.w;
                                 fc += fs*(pdotr*r-e0now_l)*e0now_l.w;
+                                fe0 += fs*(pdotr*r-e0now_l)*e0now_l.w;
                         }	
                 }
         }
@@ -325,6 +333,8 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 	fi =  warpReduceSumTriple(fi);
 	flj =  warpReduceSumTriple(flj);
 	fc =  warpReduceSumTriple(fc);
+        fe =  warpReduceSumTriple(fe);
+        fe0 =  warpReduceSumTriple(fe0);
         
         // Add the force to the global force
 	if ((threadIdx.x & (warpSize - 1)) == 0) {
@@ -337,12 +347,18 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
                 atomicAdd(&(isspacf[atom].x), fc.x);
                 atomicAdd(&(isspacf[atom].y), fc.y);
                 atomicAdd(&(isspacf[atom].z), fc.z);
+                atomicAdd(&(isspaef[atom].x), fe.x);
+                atomicAdd(&(isspaef[atom].y), fe.y);
+                atomicAdd(&(isspaef[atom].z), fe.z);
+                atomicAdd(&(isspae0f[atom].x), fe0.x);
+                atomicAdd(&(isspae0f[atom].y), fe0.y);
+                atomicAdd(&(isspae0f[atom].z), fe0.z);
 	}
 }
 
 
 /* C wrappers for kernels */
-float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaljf_d, float4 *isspacf_d, isspa& isspas, int nAtoms_h) {
+float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaljf_d, float4 *isspacf_d, float4 *isspaef_d, float4 *isspae0f_d, isspa& isspas, int nAtoms_h) {
         //float isspa_force_cuda(float4 *xyz_d, float4 *f_d, isspa& isspas, int nAtoms_h) {
         
         float milliseconds;
@@ -356,13 +372,15 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaljf_d, float4 *i
 	cudaMemset(isspas.e0now_d, 0.0f,  nAtoms_h*isspas.nMC*sizeof(float4));
 	cudaMemset(isspaljf_d, 0.0f,  nAtoms_h*sizeof(float4));
         cudaMemset(isspacf_d, 0.0f,  nAtoms_h*sizeof(float4));
+        cudaMemset(isspaef_d, 0.0f,  nAtoms_h*sizeof(float4));
+        cudaMemset(isspae0f_d, 0.0f,  nAtoms_h*sizeof(float4));
         
 	// compute position of each MC point
 	isspa_MC_points_kernel<<<isspas.mcGridSize,isspas.mcBlockSize >>>(xyz_d, isspas.mcpos_d, isspas.randStates_d, isspas.rmax_d, isspas.isspaTypes_d);
         // compute densities and mean electric field value for each MC point
 	isspa_field_kernel<<<isspas.fieldGridSize, isspas.fieldBlockSize>>>(xyz_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaETable_d, isspas.enow_d, isspas.e0now_d, isspas.mcpos_d, isspas.fieldThreads);
 	// compute forces for each atom
-	isspa_force_kernel<<<isspas.forceGridSize, isspas.forceBlockSize>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaForceTable_d,f_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d,isspas.forceThreads,isspaljf_d,isspacf_d);
+	isspa_force_kernel<<<isspas.forceGridSize, isspas.forceBlockSize>>>(xyz_d,isspas.vtot_d,isspas.rmax_d,isspas.isspaTypes_d,isspas.isspaForceTable_d,f_d,isspas.enow_d,isspas.e0now_d,isspas.mcpos_d,isspas.forceThreads,isspaljf_d,isspacf_d,isspaef_d,isspae0f_d);
         
 	cudaDeviceSynchronize();
 	cudaProfilerStop();

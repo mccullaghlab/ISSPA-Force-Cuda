@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
 		times.dihTime += dih_force_cuda(atoms, dihs, configs.lbox);
 
 		// run isspa force cuda kernel
-		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, atoms.isspaljf_d, atoms.isspacf_d, isspas, atoms.nAtoms);
+		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, atoms.isspaljf_d, atoms.isspacf_d, atoms.isspaef_d, atoms.isspae0f_d, isspas, atoms.nAtoms);
 
 		// run nonbond cuda kernel
 		times.nonbondTime += nonbond_force_cuda(atoms, isspas, atoms.nAtoms);
@@ -135,6 +135,9 @@ int main(int argc, char* argv[])
 			// get isspa force and write to file
 			atoms.print_isspaljf();
 			atoms.print_isspacf();
+			atoms.print_isspaef();
+			atoms.print_isspae0f();
+			atoms.print_isspapf();
 			// print force xyz file
 			atoms.print_for();
 			// print xyz file
