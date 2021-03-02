@@ -6,5 +6,5 @@ export CUDA_VISIBLE_DEVICES=0
 #../../bin/total_force_cuda.x config.txt > $1_run01.dat
 #../../bin/total_force_cuda.x config.txt > $1_run02.dat
 #../../bin/total_force_cuda.x config.txt > $1_run03.dat
-##../../bin/total_force_cuda.x config.txt > PDI.2.run02.log
+#../../bin/total_force_cuda.x config.txt > PDI.2.run02.log
   
