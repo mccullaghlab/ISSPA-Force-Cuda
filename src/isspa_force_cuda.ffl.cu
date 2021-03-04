@@ -241,10 +241,11 @@ __global__ void isspa_field_kernel(float4 *xyz, const float* __restrict__ rmax, 
         }
 }	
 
-__global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ rmax, int *isspaTypes, const float* __restrict__ forceTable, float4 *f, float4 *enow, float4 *e0now, float4 *mcpos, float nThreads, float4 *isspaf) {
+__global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ rmax, int *isspaTypes, const float* __restrict__ forceTable, float4 *f, float4 *enow, float4 *e0now, float4 *mcpos, float4 *isspaf) {
 	int bin;
         int jt;
 	int MC;
+	int MCind;
 	int atom;
         int atom2;
 	float fs;
@@ -267,9 +268,9 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ rmax, 
 
         // Determine the index of the thread within the warp
         unsigned int idx = threadIdx.x - int(threadIdx.x/32)*32;
-
+        
         // Load in position, atom type, and rmax of atom
-        atom = blockIdx.x;        
+        atom = int(blockIdx.x);        
         xyz_l = __ldg(xyz+atom);
         jt = __ldg(isspaTypes + atom);
         rmax_l = rmax[jt];
@@ -278,88 +279,87 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ rmax, 
         for (unsigned int NAoffset = 0; NAoffset < nAtoms; NAoffset += 32) {
                 // identify the atom from which the MC points are on
                 atom2 = int(threadIdx.x/32.0f + NAoffset);
-                printf("atom2: %d\n",atom2);
+        
                 bool active = true;
                 if (atom2 >= nAtoms) {
                         active = false;
-                }
-                
+                }                
                 // Zero out the forces
                 fi.x = fi.y = fi.z = 0.0f;
                 fj.x = fj.y = fj.z = 0.0f;
-                
+                        
                 if (active) {
-                        // loop over 
+                        // loop over the MC points for each atom 
                         for (unsigned int offset = 0; offset < nMC; offset += 32) {
                                 // Determine the MC points from atom2
+                                MCind = idx + offset;
                                 MC = idx + offset + atom2*nMC;
-                                // Load in field data for the MC point                                                                                     
-                                mcpos_l = __ldg(mcpos+MC);
-                                enow_l = __ldg(enow+MC);
-                                e0now_l = __ldg(e0now+MC);
-                                if (atom == 1) {
-                                        printf("MC: %d mcpos: %f %f %f %f\n",MC,mcpos_l.x,mcpos_l.y,mcpos_l.z,mcpos_l.w);
-                                }
-                                // Calculate the distance between the MC point and atom1
-                                r = min_image(mcpos_l - xyz_l,box.x,box.y);
-                                dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
-                                dist = sqrtf(dist2);                
-                                // Coulombic Force
-                                cothE=__fdividef(1.0f,tanhf(enow_l.w));
-                                c1=cothE-__fdividef(1.0f,enow_l.w);
-                                c2=1.0f-2.0f*__fdividef(c1,enow_l.w);
-                                c3=cothE-3.0f*__fdividef(c2,enow_l.w);                
-                                Rz=__fdividef(enow_l.x*r.x+enow_l.y*r.y+enow_l.z*r.z,dist);
-                                dp1=3.0f*Rz;
-                                dp2=7.5f*Rz*Rz-1.5f;
-                                dp3=(17.50f*Rz*Rz-7.50f)*Rz;                
-                                // Calculate dipole term
-                                fs = __fdividef(-xyz_l.w*p0*c1*mcpos_l.w,dist2*dist);
-                                fi += fs*(r*__fdividef(dp1,dist)-enow_l);
-                                //fj += fs*(r*__fdividef(dp1,dist)-enow_l);
-                                // Calculate quadrapole term
-                                fs = __fdividef(-xyz_l.w*q0*(1.5f*c2-0.5f)*mcpos_l.w,dist2*dist2);
-                                fi += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
-                                //fj += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
-                                // Calculate octapole term
-                                fs = __fdividef(-xyz_l.w*o0*(2.5f*c3-1.5f*c1)*mcpos_l.w,dist2*dist2*dist);
-                                fi += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
-                                //fj += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
-                                // Lennard-Jones Force  
-                                if (dist <= rmax_l) {
-                                        bin = int ( __fdividef(dist-forceRparams.x,forceRparams.y) + 0.5f);
-                                        if (bin >= (nRs)) {
-                                                fs = 0.0f;
+                                if (MCind < nMC) {
+                                        // Load in field data for the MC point
+                                        mcpos_l = __ldg(mcpos+MC);
+                                        enow_l = __ldg(enow+MC);
+                                        e0now_l = __ldg(e0now+MC);
+                                        // Calculate the distance between the MC point and atom1
+                                        r = min_image(mcpos_l - xyz_l,box.x,box.y);
+                                        dist2 = r.x*r.x + r.y*r.y + r.z*r.z;
+                                        dist = sqrtf(dist2);                
+                                        // Coulombic Force
+                                        cothE=__fdividef(1.0f,tanhf(enow_l.w));
+                                        c1=cothE-__fdividef(1.0f,enow_l.w);
+                                        c2=1.0f-2.0f*__fdividef(c1,enow_l.w);
+                                        c3=cothE-3.0f*__fdividef(c2,enow_l.w);                
+                                        Rz=__fdividef(enow_l.x*r.x+enow_l.y*r.y+enow_l.z*r.z,dist);
+                                        dp1=3.0f*Rz;
+                                        dp2=7.5f*Rz*Rz-1.5f;
+                                        dp3=(17.50f*Rz*Rz-7.50f)*Rz;                
+                                        // Calculate dipole term
+                                        fs = __fdividef(-xyz_l.w*p0*c1*mcpos_l.w,dist2*dist);
+                                        fi += fs*(r*__fdividef(dp1,dist)-enow_l);
+                                        fj += fs*(r*__fdividef(dp1,dist)-enow_l);
+                                        // Calculate quadrapole term
+                                        fs = __fdividef(-xyz_l.w*q0*(1.5f*c2-0.5f)*mcpos_l.w,dist2*dist2);
+                                        fi += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
+                                        fj += fs*(r*__fdividef(dp2,dist)-dp1*enow_l);
+                                        // Calculate octapole term
+                                        fs = __fdividef(-xyz_l.w*o0*(2.5f*c3-1.5f*c1)*mcpos_l.w,dist2*dist2*dist);
+                                        fi += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
+                                        fj += fs*(r*__fdividef(dp3,dist)-dp2*enow_l);
+                                        // Lennard-Jones Force  
+                                        if (dist <= rmax_l) {
+                                                bin = int ( __fdividef(dist-forceRparams.x,forceRparams.y) + 0.5f);
+                                                if (bin >= (nRs)) {
+                                                        fs = 0.0f;
+                                                } else {
+                                                        //Lennard-Jones Force
+                                                        fracDist = __fdividef((dist-(forceRparams.x+bin*forceRparams.y)),forceRparams.y);
+                                                        f1 = forceTable[jt*nRs+bin];
+                                                        f2 = forceTable[jt*nRs+bin+1];
+                                                        fs = (f1*(1.0-fracDist)+f2*fracDist)*mcpos_l.w;
+                                                        fs =  fmaf(f2,fracDist,f1*(1.0f-fracDist))*mcpos_l.w;
+                                                        //fs = forceTable[jt*nRs+bin]*mcpos_l.w;
+                                                }
+                                                fi += r*__fdividef(-fs,dist);
+                                                //fj += r*__fdividef(-fs,dist);
                                         } else {
-                                                //Lennard-Jones Force
-                                                fracDist = __fdividef((dist-(forceRparams.x+bin*forceRparams.y)),forceRparams.y);
-                                                f1 = forceTable[jt*nRs+bin];
-                                                f2 = forceTable[jt*nRs+bin+1];
-                                                fs = (f1*(1.0-fracDist)+f2*fracDist)*mcpos_l.w;
-                                                fs =  fmaf(f2,fracDist,f1*(1.0f-fracDist))*mcpos_l.w;
-                                                //fs = forceTable[jt*nRs+bin]*mcpos_l.w;
-                                        }
-                                        fi += r*__fdividef(-fs,dist);
-                                        fj += r*__fdividef(-fs,dist);
-                                } else {
-                                        // Constant Density Dielectric
-                                        fs=__fdividef(-xyz_l.w*p0,dist2*dist);
-                                        pdotr=__fdividef(3.0f*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z),dist2);
-                                        fi -= fs*(pdotr*r-e0now_l)*e0now_l.w;
-                                        //fj -= fs*(pdotr*r-e0now_l)*e0now_ly.w;
-                                }	
-                                // Warp reduce the forces
-                                fi =  warpReduceSumTriple(fi);
-                                fj =  warpReduceSumTriple(fj);
-                                // Add the force to the global force
-                                if ((threadIdx.x & (warpSize - 1)) == 0) {
-                                        atomicAdd(&(f[atom].x), fi.x);
-                                        atomicAdd(&(f[atom].y), fi.y);
-                                        atomicAdd(&(f[atom].z), fi.z);
-                                        atomicAdd(&(isspaf[atom].x), fj.x);
-                                        atomicAdd(&(isspaf[atom].y), fj.y);
-                                        atomicAdd(&(isspaf[atom].z), fj.z);
+                                                // Constant Density Dielectric
+                                                fs=__fdividef(-xyz_l.w*p0,dist2*dist);
+                                                pdotr=__fdividef(3.0f*(e0now_l.x*r.x+e0now_l.y*r.y+e0now_l.z*r.z),dist2);
+                                                fi -= fs*(pdotr*r-e0now_l)*e0now_l.w;
+                                                //fj -= fs*(pdotr*r-e0now_l)*e0now_l.w;
+                                        }	
                                 }
+                        }
+                        // Warp reduce the forces
+                        fi =  warpReduceSumTriple(fi);
+                        fj =  warpReduceSumTriple(fj);
+                        // Add the force to the global force
+                        if ((threadIdx.x & (warpSize - 1)) == 0) {
+                                atomicAdd(&(f[atom].x), fi.x);
+                                atomicAdd(&(f[atom].y), fi.y);
+                                atomicAdd(&(f[atom].z), fi.z);
+                                atomicAdd(&(isspaf[atom].x), fj.x);
+                                atomicAdd(&(isspaf[atom].y), fj.y);
+                                atomicAdd(&(isspaf[atom].z), fj.z);
                         }
                 }
         }
@@ -386,7 +386,7 @@ float isspa_force_cuda(float4 *xyz_d, float4 *f_d, float4 *isspaf_d, isspa& issp
         // compute densities and mean electric field value for each MC point
 	isspa_field_kernel<<<isspas.fieldGridSize, isspas.fieldBlockSize, nAtoms_h*sizeof(float4)>>>(xyz_d, isspas.rmax_d, isspas.vtot_d, isspas.isspaTypes_d, isspas.isspaGTable_d, isspas.isspaETable_d, isspas.enow_d, isspas.e0now_d, isspas.mcpos_d);
 	// compute forces for each atom
-	isspa_force_kernel<<<isspas.forceGridSize, isspas.forceBlockSize, isspas.nMC*nAtoms_h*3*sizeof(float4)>>>(xyz_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaForceTable_d, f_d, isspas.enow_d, isspas.e0now_d, isspas.mcpos_d, isspas.forceThreads, isspaf_d);
+	isspa_force_kernel<<<isspas.forceGridSize, isspas.forceBlockSize>>>(xyz_d, isspas.rmax_d, isspas.isspaTypes_d, isspas.isspaForceTable_d, f_d, isspas.enow_d, isspas.e0now_d, isspas.mcpos_d, isspaf_d);
         
 	cudaDeviceSynchronize();
 	cudaProfilerStop();

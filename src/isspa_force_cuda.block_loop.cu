@@ -241,7 +241,7 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 	float4 xyz_l;
         float4 r;
         float4 fi;
-        //float4 fj;
+        float4 fj;
 	float4 mcpos_l;
 	float4 enow_l;
 	float4 e0now_l;
@@ -251,7 +251,7 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
 	MC = int(index-atom*nThreads);
         // Zero out the forces
 	fi.x = fi.y = fi.z = 0.0f;
-	//fj.x = fj.y = fj.z = 0.0f;
+	fj.x = fj.y = fj.z = 0.0f;
         if (atom < nAtoms) {
                 if (MC < nAtoms*nMC) {       
                         // Load in position, atom type, and rmax of atom
@@ -316,7 +316,7 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
                                         //fs = forceTable[jt*nRs+bin]*mcpos_l.w;
                                 }
                                 fi += r*__fdividef(-fs,dist);
-                                //fj += r*__fdividef(-fs,dist);
+                                fj += r*__fdividef(-fs,dist);
                         } else {
                                 // Constant Density Dielectric
                                 fs=__fdividef(-xyz_l.w*p0,dist2*dist);
@@ -328,15 +328,15 @@ __global__ void isspa_force_kernel(float4 *xyz, const float* __restrict__ vtot, 
         }
         // Warp reduce the forces
 	fi =  warpReduceSumTriple(fi);
-	//fj =  warpReduceSumTriple(fj);
+	fj =  warpReduceSumTriple(fj);
         // Add the force to the global force
 	if ((threadIdx.x & (warpSize - 1)) == 0) {
                 atomicAdd(&(f[atom].x), fi.x);
                 atomicAdd(&(f[atom].y), fi.y);
                 atomicAdd(&(f[atom].z), fi.z);
-                //atomicAdd(&(isspaf[atom].x), fj.x);
-                //atomicAdd(&(isspaf[atom].y), fj.y);
-                //atomicAdd(&(isspaf[atom].z), fj.z);
+                atomicAdd(&(isspaf[atom].x), fj.x);
+                atomicAdd(&(isspaf[atom].y), fj.y);
+                atomicAdd(&(isspaf[atom].z), fj.z);
 	}
 }
 

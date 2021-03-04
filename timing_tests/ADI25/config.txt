@@ -21,5 +21,6 @@ seed = 12345
 cutoff = 12.0
 dielectric = 1.0
 boxLength = 200.0
+pnu = 0.03
 # Umbrella Sampling
 US = 0
