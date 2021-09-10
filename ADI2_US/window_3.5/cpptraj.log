@@ -1,0 +1,33 @@
+# 02/21/21 16:30:46
+parm ../ADI2.prmtop
+trajin ADI2.equil.window.3.5.positions.xyz
+trajin ADI2.equil.window.3.5.positions.rst
+trajin ADI2.equil.window.3.5.positions.rst mdvel ADI2.equil.window.3.5.velocities.
+trajin ADI2.equil.window.3.5.positions.rst mdvel ADI2.equil.window.3.5.velocities.rst
+trajout test.rst7
+go
+quit
+# 02/21/21 16:32:40
+parm ../ADI2.prmtop
+trajin ADI2.equil.window.3.5.positions.rst mdvel ADI2.equil.window.3.5.velocities.rst
+trajout test.rst7 velocity
+go
+quit
+# 02/21/21 16:34:09
+parm ../ADI2.prmtop
+trajin ADI2.equil.window.3.5.positions.rst mdvel ADI2.equil.window.3.5.velocities.rst
+trajout test.rst7 velocity
+go
+quit
+# 02/21/21 16:43:34
+parm ../ADI2.prmtop
+trajin ADI2.equil.window.3.5.positions.rst mdvel ADI2.equil.window.3.5.velocities.rst
+trajout test.rst7
+go
+quit
+# 02/21/21 16:44:07
+parm ../ADI2.prmtop
+trajin ADI2.equil.window.3.5.positions.rst
+trajout test.rst7
+go
+quit

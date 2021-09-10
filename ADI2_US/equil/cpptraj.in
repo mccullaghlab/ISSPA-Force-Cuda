@@ -1,0 +1,5 @@
+parm ../ADI2.prmtop
+trajin ../window_XXX/ADI2.equil.window.XXX.positions.rst
+setvelocity tempi 298.0
+trajout ADI2.equil.window.XXX.rst7
+go

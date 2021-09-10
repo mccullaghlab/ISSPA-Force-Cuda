@@ -146,10 +146,10 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 				       fdir = __fdividef(-p1.w*p2.w*(1.0f-__fdividef(1.0f,ep))*(8.0f*rmax_l-3.0f*dist),24.0f*__powf(rmax_l,4.0f));
 			       }
 			       //add forces
-			       fdir += flj + fc;
 			       //atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
 			       //atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
 			       //atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);
+			       fdir += flj + fc;
 			} else {
 			       	// IS-SPA long ranged electrostatics
 				if (dist > 2.0f*rmax_l) {
@@ -159,7 +159,10 @@ __global__ void nonbond_force_kernel(float4 *xyz, float4 *f, float4 *isspaf, flo
 				       //fdir = -p1.w*p2.w*(1.0f-1.0f/ep)*(8.0f*rmax_l-3.0f*dist)/24.0f/(rmax_l*rmax_l*rmax_l*rmax_l);
 				       fdir = __fdividef(-p1.w*p2.w*(1.0f-__fdividef(1.0f,ep))*(8.0f*rmax_l-3.0f*dist),24.0f*__powf(rmax_l,4.0f));
 			       	}
-			}
+                                //atomicAdd(&(isspaf[atom1].x),(fdir)*r.x);
+                                //atomicAdd(&(isspaf[atom1].y),(fdir)*r.y);
+                                //atomicAdd(&(isspaf[atom1].z),(fdir)*r.z);			       
+                        }
 			// finalize force vector
 			r *= fdir;
 		}

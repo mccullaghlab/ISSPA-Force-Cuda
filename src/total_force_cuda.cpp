@@ -100,7 +100,7 @@ int main(int argc, char* argv[])
 	times.stopWriteTimer();
 
 	for (step=0;step<configs.nSteps;step++) {
-	  //printf("%d\n", step);
+                //printf("%d\n", step);
 		//if (step%configs.deltaNN==0) {
 			// compute the neighborlist
 		//	times.neighborListTime += neighborlist_cuda(atoms, configs.rNN2, configs.lbox);
@@ -118,7 +118,6 @@ int main(int argc, char* argv[])
 
 		// run isspa force cuda kernel
 		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, atoms.isspaf_d, isspas, atoms.nAtoms);
-		//		times.isspaTime += isspa_force_cuda(atoms.pos_d, atoms.for_d, isspas, atoms.nAtoms);
 
 		// run nonbond cuda kernel
 		times.nonbondTime += nonbond_force_cuda(atoms, isspas, atoms.nAtoms);

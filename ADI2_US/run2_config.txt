@@ -1,0 +1,27 @@
+# 1 for rst from file 0 for intialize velocities
+velRst = 0
+inputVel = notread.rst
+# INPUT FILES:
+prmtop = ../ADI2.prmtop
+inputCoord = ADI2.run0.window.XXX.positions.rst
+isspaPrmtop = ../ADI2.isspatop
+# OUTPUT FILES:
+forFile = ADI2.run2.window.XXX.forces.xyz
+posFile = ADI2.run2.window.XXX.positions.xyz
+velFile = ADI2.run2.window.XXX.velocities.xyz
+# RESTART FILES:
+posRstFile = ADI2.run2.window.XXX.positions.rst
+velRstFile = ADI2.run2.window.XXX.velocities.rst
+# PARAMETERS:
+nMC = 100
+nSteps = 25000000
+deltaWrite = 1000
+temperature = 298.00
+seed = 34669
+cutoff = 12.0
+dielectric = 1.0
+boxLength = 200.0
+pnu = 0.03
+# Umbrella Sampling
+US = 1
+usCfgFile = us_params.run2.dat

@@ -1,0 +1,82 @@
+Currently using device:0
+GPU Device name: GeForce GTX 1080
+Device global memory: 8508080128
+Shared memory per block: 49152
+Warp size: 32
+Max threads per block: 1024
+Max grid size: (2147483647,65535,65535)
+Multiprocessor count: 20
+Reading config file: config.dat
+Input velocity file name: notread.rst
+prmtop file name: ../ADI2.prmtop
+input coordinate file name: ../window_11.5/ADI2.equil.window.11.5.positions.rst
+ISSPA prmtop file name: ../ADI2.isspatop
+Force trajectory written to file: ADI2.equil.window.12.0.forces.xyz
+Position trajectory written to file: ADI2.equil.window.12.0.positions.xyz
+Velocity trajectory written to file: ADI2.equil.window.12.0.velocities.xyz
+Position restart written to file: ADI2.equil.window.12.0.positions.rst
+Velocity restart written to file: ADI2.equil.window.12.0.velocities.rst
+Number of Monte Carlo points per atom: 100
+Number of MD steps: 500000
+Write frequency: 1000
+Temperature (K): 298.000000
+Random number seed: 12345
+Cutoff distance (Angstroms): 12.000000
+Dielectric: 1.000000
+Box Length (Angstroms): 200.000000
+Box Volume (Angstroms^3): 8000000.000000
+pnu (Anderson Thermostat Frequency): 0.030000
+Harmonic bias sampling is on.
+Harmonic bias file name: us_params.dat
+Reading system metadata from prmtop file
+Number of atoms from prmtop file: 44
+Number of atom types from prmtop file: 7
+Number of bonds containing hydrogens: 24
+Number of bonds NOT containing hydrogens: 18
+Number of angles containing hydrogens: 50
+Number of angles NOT containing hydrogens: 22
+Number of dihs containing hydrogens: 86
+Number of dihs NOT containing hydrogens: 48
+Length of excluded atoms list: 198
+Number of unique bond types: 11
+Number of unique angle types: 21
+Number of unique dih types: 20
+Number of molecules in prmtop file: 2
+Umbrella sampling is turned on.  Reading US parameter file...
+Reading US parameters from file: us_params.dat
+US force constant: 20.000000
+US equilibrium position: 12.000000
+Writing CV values to file: ADI2.equil.window.12.0.dat
+Number of atoms in bias group 1: 22
+Number of atoms in bias group 2: 22
+Total number of biased atoms: 44
+Mass of group 1: 144.175995
+Mass of group 2: 144.175995
+Nonbond kernel gridSize = 3
+Nonbond kernel blockSize = 1024
+Reading system metadata from ISSPA prmtop file
+Number of atoms from prmtop file: 44
+Number of ISSPA types from prmtop file: 16
+Number of ISSPA force values per type in prmtop file: 120
+Number of g force values per type in prmtop file: 120
+Number of electric field values per type in prmtop file: 120
+Number of IS-SPA mc kernel blocks: 5 
+Number of IS-SPA mc kernel threads per block: 1024 
+Number of IS-SPA field kernel blocks: 275 
+Number of IS-SPA field kernel threads per block: 1024 
+Number of IS-SPA force kernel blocks: 190 
+Number of IS-SPA force kernel threads per block: 1024 
+Number of IS-SPA force kernel MC points: 4416 4400 
+Elapsed CPU/GPU time =      83.52 s
+Simulation time =       1.00 ns
+Average ns/day =    1034.53
+Bond force calculation time =       1.94 s (  2.3 %)
+Angle force calculation time =       1.60 s (  1.9 %)
+Dihedral force calculation time =       2.31 s (  2.8 %)
+Nonbond force calculation time =       3.21 s (  3.8 %)
+Neighbor list calculation time =       0.00 s (  0.0 %)
+US bias force calculation time =       2.73 s (  3.3 %)
+IS-SPA force calculation time =      50.71 s ( 60.7 %)
+Leap-frog propogation time =       1.72 s (  2.1 %)
+Write trajectory file time =       0.11 s (  0.1 %)
+Total percent accounted for =      77.03 %
