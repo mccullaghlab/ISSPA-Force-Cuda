@@ -40,6 +40,9 @@ public:
                 float4 *mcpos_d;
 		float4 *e0now_d;
 		float4 *enow_d;
+                float *buffer_mcpos_d;
+		float4 *buffer_e0now_d;
+		float4 *buffer_enow_d;
                 // kernel grid/block configurations
 		int mcGridSize;
 		int mcBlockSize;

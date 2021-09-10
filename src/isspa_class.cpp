@@ -191,7 +191,8 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	cudaMemcpy(isspaETable_d, isspaETable_h, nTypes*nERs*sizeof(float), cudaMemcpyHostToDevice);
 	// allocate MC position array on device
 	cudaMalloc((void **) &mcpos_d, nAtoms*nMC*sizeof(float4));
-	//cudaMemcpy(mcDist_d, mcDist_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);
+	cudaMalloc((void **) &buffer_mcpos_d, ceil(nAtoms/32.0)*nAtoms*nMC*sizeof(float));
+        //cudaMemcpy(mcDist_d, mcDist_h, nTypes*sizeof(float4), cudaMemcpyHostToDevice);
 	// allocate ISSPA types on device and pass data from host
 	cudaMalloc((void **) &isspaTypes_d, nAtoms*sizeof(int));
 	cudaMemcpy(isspaTypes_d, isspaTypes_h, nAtoms*sizeof(int), cudaMemcpyHostToDevice);
@@ -203,8 +204,10 @@ void isspa::initialize_gpu(int nAtoms, int seed)
 	cudaMemcpy(vtot_d, vtot_h, nTypes*sizeof(float), cudaMemcpyHostToDevice);
 	// allocate enow on device and pass data from host
 	cudaMalloc((void **) &enow_d, nAtoms*nMC*sizeof(float4));
+	cudaMalloc((void **) &buffer_enow_d, ceil(nAtoms/32.0)*nAtoms*nMC*sizeof(float4));
 	// allocate e0now on device and pass data from host
 	cudaMalloc((void **) &e0now_d, nAtoms*nMC*sizeof(float4));
+	cudaMalloc((void **) &buffer_e0now_d, ceil(nAtoms/32.0)*nAtoms*nMC*sizeof(float4));
 	// random number states
 	cudaMalloc((void**) &randStates_d, nAtoms*nMC*sizeof(curandState));
 	init_rand_states(randStates_d, seed, nMC*nAtoms);
@@ -236,5 +239,8 @@ void isspa::free_arrays_gpu() {
 	cudaFree(mcpos_d);
 	cudaFree(enow_d);
 	cudaFree(e0now_d);
+	cudaFree(buffer_mcpos_d);
+	cudaFree(buffer_enow_d);
+	cudaFree(buffer_e0now_d);
 	//cudaFree(lj_d);
 }

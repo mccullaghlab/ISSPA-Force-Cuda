@@ -61,8 +61,8 @@ __global__ void leapfrog_kernel(float4 *xyz, float4 *v, float4 *f, float T, floa
 		}
 		// save new velocities and positions to global memory
 		v[index] = tempVel;
-		xyz[index] = wrap(tempPos,lbox);
-                //xyz[index] = tempPos;
+		//xyz[index] = wrap(tempPos,lbox);
+                xyz[index] = tempPos;
 
 	}
 }

@@ -1,0 +1,69 @@
+Currently using device:0
+GPU Device name: GeForce GTX 1080
+Device global memory: 8508080128
+Shared memory per block: 49152
+Warp size: 32
+Max threads per block: 1024
+Max grid size: (2147483647,65535,65535)
+Multiprocessor count: 20
+Reading config file: config.txt
+Input velocity file name: notread.rst
+prmtop file name: ADI2.prmtop
+input coordinate file name: ADI2.rst7
+ISSPA prmtop file name: ADI2.isspatop
+Force trajectory written to file: ADI.2.forces.xyz
+Position trajectory written to file: ADI.2.positions.xyz
+Velocity trajectory written to file: ADI.2.velocities.xyz
+Position restart written to file: ADI.2.positions.rst
+Velocity restart written to file: ADI.2.velocities.rst
+Number of Monte Carlo points per atom: 96
+Number of MD steps: 1000
+Write frequency: 1000
+Temperature (K): 298.000000
+Random number seed: 12345
+Cutoff distance (Angstroms): 12.000000
+Dielectric: 1.000000
+Box Length (Angstroms): 200.000000
+Box Volume (Angstroms^3): 8000000.000000
+pnu (Anderson Thermostat Frequency): 0.030000
+Reading system metadata from prmtop file
+Number of atoms from prmtop file: 44
+Number of atom types from prmtop file: 7
+Number of bonds containing hydrogens: 24
+Number of bonds NOT containing hydrogens: 18
+Number of angles containing hydrogens: 50
+Number of angles NOT containing hydrogens: 22
+Number of dihs containing hydrogens: 86
+Number of dihs NOT containing hydrogens: 48
+Length of excluded atoms list: 198
+Number of unique bond types: 11
+Number of unique angle types: 21
+Number of unique dih types: 20
+Number of molecules in prmtop file: 2
+Nonbond kernel gridSize = 3
+Nonbond kernel blockSize = 1024
+Reading system metadata from ISSPA prmtop file
+Number of atoms from prmtop file: 44
+Number of ISSPA types from prmtop file: 16
+Number of ISSPA force values per type in prmtop file: 120
+Number of g force values per type in prmtop file: 120
+Number of electric field values per type in prmtop file: 120
+Number of IS-SPA mc kernel blocks: 5 
+Number of IS-SPA mc kernel threads per block: 1024 
+Number of IS-SPA field kernel blocks: 264 
+Number of IS-SPA field kernel threads per block: 32 
+Number of IS-SPA force kernel blocks: 264 
+Number of IS-SPA force kernel threads per block: 32 
+Elapsed CPU/GPU time =     111.47 ms
+Simulation time =       0.00 ns
+Average ns/day =    1550.17
+Bond force calculation time =       3.46 ms (  3.1 %)
+Angle force calculation time =       3.43 ms (  3.1 %)
+Dihedral force calculation time =       4.81 ms (  4.3 %)
+Nonbond force calculation time =       6.52 ms (  5.8 %)
+Neighbor list calculation time =       0.00 ms (  0.0 %)
+US bias force calculation time =       0.00 ms (  0.0 %)
+IS-SPA force calculation time =      57.36 ms ( 51.5 %)
+Leap-frog propogation time =       3.52 ms (  3.2 %)
+Write trajectory file time =       0.45 ms (  0.4 %)
+Total percent accounted for =      71.36 %
